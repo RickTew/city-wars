@@ -333,6 +333,68 @@ export class GameScene extends Phaser.Scene {
     cam.setDeadzone(this.scale.width * 0.2, this.scale.height * 0.18);
     cam.setRoundPixels(true);
     cam.setZoom(1);
+    this.camFollowPlayer = true;
+    // Edge-of-screen mouse pan (look ahead without moving)
+    this.edgePan = { margin: 32, speed: 480, idleRelock: 1.6 };
+    this._edgePanIdle = 0;
+  }
+
+  /** Re-attach camera to player after free look / edge pan. */
+  relockCameraToPlayer() {
+    if (this.camFollowPlayer) return;
+    const cam = this.cameras.main;
+    cam.startFollow(this.player.asFollowTarget(), true, 0.22, 0.22);
+    cam.setDeadzone(this.scale.width * 0.2, this.scale.height * 0.18);
+    this.camFollowPlayer = true;
+    this._edgePanIdle = 0;
+  }
+
+  /**
+   * When the mouse sits near the screen edge, pan the camera so you can
+   * peek at objectives / terrain. Relocks to the player after idle or move.
+   */
+  updateCameraEdgePan(dt) {
+    if (this.ended || this.isPaused() || this.mode === 'combat') return;
+    const cam = this.cameras.main;
+    const p = this.input.activePointer;
+    if (!p?.active && !p?.isDown) {
+      // still allow edge pan with hover (activePointer exists without click)
+    }
+    if (!p) return;
+
+    const m = this.edgePan.margin;
+    const topHud = 56;
+    const botHud = 90;
+    let dx = 0;
+    let dy = 0;
+    // Only pan when pointer is over the game canvas
+    if (p.x >= 0 && p.x <= this.scale.width && p.y >= 0 && p.y <= this.scale.height) {
+      if (p.x < m) dx = -1;
+      else if (p.x > this.scale.width - m) dx = 1;
+      if (p.y > topHud && p.y < topHud + m) dy = -1;
+      else if (p.y < this.scale.height - botHud && p.y > this.scale.height - botHud - m) dy = 1;
+      // pure edges of window (including over HUD strip edges for L/R)
+      if (p.y < m && p.y >= 0) dy = -1;
+      if (p.y > this.scale.height - m) dy = 1;
+    }
+
+    if (dx || dy) {
+      if (this.camFollowPlayer) {
+        cam.stopFollow();
+        this.camFollowPlayer = false;
+      }
+      const sp = this.edgePan.speed * dt;
+      const maxX = Math.max(0, WORLD_W - cam.width / cam.zoom);
+      const maxY = Math.max(0, WORLD_H - cam.height / cam.zoom);
+      cam.scrollX = Phaser.Math.Clamp(cam.scrollX + dx * sp, 0, maxX);
+      cam.scrollY = Phaser.Math.Clamp(cam.scrollY + dy * sp, 0, maxY);
+      this._edgePanIdle = 0;
+    } else if (!this.camFollowPlayer) {
+      this._edgePanIdle = (this._edgePanIdle || 0) + dt;
+      if (this._edgePanIdle >= this.edgePan.idleRelock) {
+        this.relockCameraToPlayer();
+      }
+    }
   }
 
   setupHud() {
@@ -1590,6 +1652,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     // Explore real-time
+    this.updateCameraEdgePan(dt);
     this.dayNight.update(dt);
     this.nightVeil.setAlpha(this.dayNight.isNight ? 0.45 : 0.05);
     this.alert.update(dt, this.hiding);
@@ -1694,6 +1757,7 @@ export class GameScene extends Phaser.Scene {
     if (!this.walkable(nx, ny)) return false;
 
     this.player.setTile(nx, ny, true);
+    this.relockCameraToPlayer();
     this.audio.move();
     this.hiding = false;
     const isRun = (this.running || shiftRun) && !this.sneaking;
