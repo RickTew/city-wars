@@ -25,6 +25,7 @@ export class BootScene extends Phaser.Scene {
       [T.SLEEP]: 0x0f766e,
       [T.LANDMARK]: 0xdb2777,
       [T.GATE]: 0xb91c1c,
+      [T.GEAR_DROP]: 0xc026d3,
     };
     for (let i = 1; i <= max; i++) {
       const x = (i - 1) * TILE;
@@ -53,6 +54,12 @@ export class BootScene extends Phaser.Scene {
       if (i === T.LANDMARK) {
         g.fillStyle(0xfce7f3, 1);
         g.fillCircle(x + 16, 16, 6);
+      }
+      if (i === T.GEAR_DROP) {
+        g.fillStyle(0xf5d0fe, 1);
+        g.fillRect(x + 8, 8, 16, 16);
+        g.lineStyle(2, 0xffffff, 0.9);
+        g.strokeRect(x + 8, 8, 16, 16);
       }
       if (i === T.ESCAPE) {
         g.lineStyle(3, 0xfff, 1);

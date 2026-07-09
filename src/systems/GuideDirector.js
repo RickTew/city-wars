@@ -1,148 +1,232 @@
 /**
- * Hard hand-holding for first three crafts: bandage, bedroll, pipe.
- * Steps set objective text + target tile + story punchlines.
+ * Three quests, full hand-holding with directional guidance.
+ * Q1 Gear up (loot stick+hat, equip in BAG, craft bandage)
+ * Q2 Fight one dog (with stick equipped)
+ * Q3 Sleep at HQ
  */
 import { CENTER_X, CENTER_Y } from '../config/constants.js';
 
-export const GUIDE_ORDER = [
+export const QUESTS = [
   {
-    id: 'loot1',
-    title: 'STEP 1: LOOT',
-    body: 'See that gold crate near you?\nClick it. Scavenge. Do not argue with free junk.\n\nI will wait. I am very patient. For now.',
-    objective: 'GUIDE: Click the gold LOOT crate near HQ',
-    target: 'loot_near',
+    id: 'q1',
+    title: 'QUEST 1: GEAR UP',
+    body:
+      'Look EAST of you (right on the map).\n\n' +
+      'You will see:\n' +
+      '- Gold crate (loot)\n' +
+      '- Purple-pink boxes (Street Stick + Neon Fedora)\n' +
+      '- Purple Street Rig (craft table)\n\n' +
+      'Do this in order:\n' +
+      '1) Click the gold crate for cloth.\n' +
+      '2) Walk onto the stick, then the hat.\n' +
+      '3) Open BAG. Click stick (WEAPON) and hat (HEAD).\n' +
+      '4) Craft Field Bandage at the purple rig.\n\n' +
+      'Top bar shows the next micro-step. I will keep talking until you finish.',
+    objective: 'QUEST 1: Loot east, pick up stick + hat, equip in BAG, craft bandage',
   },
   {
-    id: 'bp_bandage',
-    title: 'STEP 2: READ THE CITY',
-    body: 'Good. You can follow orders. You might survive the night.\n\nPink tile with a white dot is a BLUEPRINT.\nWalk onto it. Learn Field Bandage.',
-    objective: 'GUIDE: Walk onto the pink Bandage blueprint',
-    target: 'bp_bandage',
+    id: 'q2',
+    title: 'QUEST 2: FIRST BLOOD',
+    body:
+      'Nice kit. Stick is equipped. Hat is on. Bandage is in the bag.\n\n' +
+      'A Grid Dog just padded in near you (west/south).\n' +
+      'Walk next to it. LEFT-CLICK the dog to fight.\n' +
+      'Keep clicking until it drops. Stick hits harder than fists.\n\n' +
+      'Win this and you earn a nap.',
+    objective: 'QUEST 2: Kill the Grid Dog (left-click to fight)',
   },
   {
-    id: 'cloth',
-    title: 'STEP 3: HUNT CLOTH',
-    body: 'Bandage needs Cloth x2.\nOpen more gold crates until the hunt list is happy.\n\nOr track it if you checked the box. Either way: cloth.',
-    objective: 'GUIDE: Scavenge until you have Cloth x2',
-    target: 'need_cloth',
-    need: { cloth: 2 },
-  },
-  {
-    id: 'craft_bandage',
-    title: 'STEP 4: CRAFT BANDAGE',
-    body: 'Purple Street Rig. Click it (or stand on it and hit CRAFT).\nMake Field Bandage.\n\nGreen row means ready. Click it.',
-    objective: 'GUIDE: Craft Field Bandage at the purple rig',
-    target: 'craft_bandage',
-    craft: 'bandage',
-  },
-  {
-    id: 'bp_bedroll',
-    title: 'STEP 5: BEDROLL PRINT',
-    body: 'Away from HQ you will freeze without a kit.\nFind the Sleeping Kit blueprint (pink near HQ).\nWalk on it.',
-    objective: 'GUIDE: Get Sleeping Kit blueprint (pink near HQ)',
-    target: 'bp_bedroll',
-  },
-  {
-    id: 'craft_bedroll',
-    title: 'STEP 6: MAKE A BEDROLL',
-    body: 'Sleeping Kit: Cloth x3 + Scrap x1.\nLoot if you need parts, then CRAFT at the purple rig.\nCarry at least one before you wander.',
-    objective: 'GUIDE: Craft Sleeping Kit (cloth x3, scrap x1)',
-    target: 'craft_bedroll',
-    craft: 'bedroll',
-    need: { cloth: 3, scrap: 1 },
-  },
-  {
-    id: 'bp_pipe',
-    title: 'STEP 7: GET ANGRY',
-    body: 'Fists are cute. Pipe Club is policy.\nFind the Pipe Club blueprint. Walk on pink.',
-    objective: 'GUIDE: Get Pipe Club blueprint',
-    target: 'bp_pipe',
-  },
-  {
-    id: 'craft_pipe',
-    title: 'STEP 8: CRAFT PIPE',
-    body: 'Pipe needs Scrap x3.\nCraft it. Feel slightly more employed as a survivor.',
-    objective: 'GUIDE: Craft Pipe Club (scrap x3)',
-    target: 'craft_pipe',
-    craft: 'pipe',
-    need: { scrap: 3 },
+    id: 'q3',
+    title: 'QUEST 3: LIGHTS OUT',
+    body:
+      'You lived. Barely counts, but I will take it.\n\n' +
+      'Go HOME (yellow HQ arrow bottom-left if you wandered).\n' +
+      'Stand in the blue HQ courtyard. Press SLEEP.\n' +
+      'Free rest here. No Sleeping Kit needed at base.\n\n' +
+      'After that, you graduate. Breach Kit still waits north later.',
+    objective: 'QUEST 3: Return to HQ and SLEEP',
   },
   {
     id: 'done',
     title: 'YOU ARE ON YOUR OWN',
-    body: 'Bandage. Bedroll. Pipe.\nYou can loot, rest, and hit things without me holding your hand.\n\nBreach Kit still waits near the Wall when you are ready.\nNarrator noise continues if you left that box checked.\n\nTry not to die funny.',
-    objective: 'OBJECTIVE: Find the BREACH KIT blueprint (pink, near north Wall)',
-    target: null,
+    body:
+      'Three quests down: gear, fight, sleep.\n' +
+      'You know BAG, CRAFT, combat clicks, and HQ rest.\n\n' +
+      'Narrator cards can keep whispering if you left that on.\n' +
+      'Breach Kit blueprint is still pink near the north Wall.\n\n' +
+      'Try not to die funny.',
+    objective: 'OBJECTIVE: Find BREACH KIT blueprint (pink, north Wall) when ready',
   },
 ];
+
+/** Micro coach lines when a sub-step completes (so narration never goes quiet). */
+const COACH = {
+  looted:
+    'Crate stripped. Good.\n\n' +
+    'Now walk EAST onto the purple-pink STREET STICK box.\n' +
+    'Stand on it to pick it up.',
+  stick:
+    'Street Stick is in your bag.\n\n' +
+    'Next: walk onto the NEON FEDORA (one tile further east/south).\n' +
+    'Same deal. Stand on it.',
+  hat:
+    'Hat secured. Style points: illegal.\n\n' +
+    'Open BAG (bottom bar).\n' +
+    'Click the Street Stick (auto-equips WEAPON).\n' +
+    'Click the Neon Fedora (auto-equips HEAD).\n' +
+    'Or drag them onto the paper-doll slots.',
+  equipped:
+    'Loadout locked. ATK should be up from the stick.\n\n' +
+    'Stand on the purple STREET RIG (craft table).\n' +
+    'Click CRAFT. Make Field Bandage (you already know the recipe).\n' +
+    'Need cloth from the crate. You should have enough.',
+  bandage: null, // advances to Q2 card instead
+  dogDead: null,
+  slept: null,
+};
 
 export class GuideDirector {
   constructor(scene) {
     this.scene = scene;
-    this.step = 0;
+    this.quest = 0; // 0,1,2 active; 3 = done card
     this.done = false;
+    this.flags = {
+      looted: false,
+      stick: false,
+      hat: false,
+      equippedStick: false,
+      equippedHat: false,
+      bandage: false,
+      dogDead: false,
+      slept: false,
+    };
+    /** Last coach key we already showed (avoid spam). */
+    this._coached = new Set();
+    this._lastObj = '';
   }
 
   current() {
-    return GUIDE_ORDER[this.step] || null;
-  }
-
-  /** Call after key actions to advance */
-  tick() {
-    if (this.done) return null;
-    const s = this.current();
-    if (!s || s.id === 'done') return null;
-
-    const g = this.scene;
-    let advance = false;
-
-    if (s.target === 'loot_near') {
-      // any loot scavenged
-      if (g._guideLooted) advance = true;
-    } else if (s.target === 'bp_bandage') {
-      if (g.inv.hasBlueprint('bandage')) advance = true;
-    } else if (s.target === 'need_cloth') {
-      if (g.inv.count('cloth') >= 2) advance = true;
-    } else if (s.target === 'craft_bandage') {
-      if (g.inv.countItem('bandage') > 0) advance = true;
-    } else if (s.target === 'bp_bedroll') {
-      if (g.inv.hasBlueprint('bedroll')) advance = true;
-    } else if (s.target === 'craft_bedroll') {
-      if (g.inv.countItem('bedroll') > 0) advance = true;
-    } else if (s.target === 'bp_pipe') {
-      if (g.inv.hasBlueprint('pipe')) advance = true;
-    } else if (s.target === 'craft_pipe') {
-      if (g.inv.weapon?.id === 'pipe' || g.inv.items.some((i) => i.id === 'pipe')) advance = true;
-    }
-
-    if (!advance) return null;
-
-    this.step += 1;
-    const next = this.current();
-    if (next?.id === 'done') {
-      this.done = true;
-      g.story.guideDone = true;
-      g.story.persist();
-    }
-    return next;
-  }
-
-  resolveTarget() {
-    const s = this.current();
-    if (!s || !s.target) return null;
-    const g = this.scene;
-    if (s.target === 'loot_near') {
-      return g.lootSpots.find((l) => !l.taken && Math.abs(l.x - CENTER_X) + Math.abs(l.y - CENTER_Y) < 10) || g.nearestLoot();
-    }
-    if (s.target === 'bp_bandage') return g.bpSpots.find((b) => b.id === 'bandage' && !b.taken) || g.bpSpots.find((b) => b.id === 'bandage');
-    if (s.target === 'bp_bedroll') return g.bpSpots.find((b) => b.id === 'bedroll' && !b.taken) || g.bpSpots.find((b) => b.id === 'bedroll');
-    if (s.target === 'bp_pipe') return g.bpSpots.find((b) => b.id === 'pipe' && !b.taken) || g.bpSpots.find((b) => b.id === 'pipe');
-    if (s.target?.startsWith('craft')) return g.nearestBench();
-    if (s.need) return g.nearestLoot();
-    return null;
+    return QUESTS[this.quest] || null;
   }
 
   objectiveText() {
-    return this.current()?.objective || null;
+    if (this.done) return QUESTS[3].objective;
+    const q = this.current();
+    if (!q || q.id === 'done') return QUESTS[3].objective;
+    // Sub-progress hints
+    if (this.quest === 0) {
+      const f = this.flags;
+      if (!f.looted) return 'QUEST 1a: Click gold crate EAST of you';
+      if (!f.stick) return 'QUEST 1b: Walk EAST onto the Street Stick';
+      if (!f.hat) return 'QUEST 1c: Walk onto the Neon Fedora (east)';
+      if (!f.equippedStick || !f.equippedHat) {
+        return 'QUEST 1d: Open BAG. Equip stick (WEAPON) + hat (HEAD)';
+      }
+      if (!f.bandage) return 'QUEST 1e: Stand on purple rig. CRAFT Field Bandage';
+    }
+    if (this.quest === 1) return 'QUEST 2: Left-click the Grid Dog. Fight until it dies';
+    if (this.quest === 2) return 'QUEST 3: Stand at HQ (blue). Press SLEEP';
+    return q.objective;
+  }
+
+  resolveTarget() {
+    if (this.done) {
+      return this.scene.bpSpots?.find((b) => b.id === 'breach') || null;
+    }
+    const g = this.scene;
+    const f = this.flags;
+    if (this.quest === 0) {
+      if (!f.looted) {
+        return (
+          g.lootSpots.find((l) => !l.taken && Math.abs(l.x - CENTER_X) + Math.abs(l.y - CENTER_Y) < 8) ||
+          g.lootSpots.find((l) => !l.taken)
+        );
+      }
+      if (!f.stick) return g.gearDrops?.find((d) => d.id === 'stick' && !d.taken);
+      if (!f.hat) return g.gearDrops?.find((d) => d.id === 'sexy_hat' && !d.taken);
+      if (!f.equippedStick || !f.equippedHat) return { x: g.player.tx, y: g.player.ty };
+      if (!f.bandage) return g.nearestBench();
+    }
+    if (this.quest === 1) {
+      return g.guideDog || g.enemies.find((e) => e.kind === 'dog' && e.alive) || null;
+    }
+    if (this.quest === 2) {
+      return { x: CENTER_X, y: CENTER_Y };
+    }
+    return null;
+  }
+
+  /**
+   * Recompute flags from world, advance quests, return next popup card or null.
+   * Returns either a full QUEST card or a micro COACH card { title, body }.
+   */
+  tick() {
+    if (this.done) return null;
+    const g = this.scene;
+    const inv = g.inv;
+    const f = this.flags;
+
+    f.looted = !!g._guideLooted;
+    f.stick = inv.countItem('stick') > 0 || inv.equip?.weapon?.id === 'stick';
+    f.hat = inv.countItem('sexy_hat') > 0 || inv.equip?.head?.id === 'sexy_hat';
+    f.equippedStick = inv.equip?.weapon?.id === 'stick' || inv.equip?.weapon?.id === 'pipe';
+    f.equippedHat = inv.equip?.head?.id === 'sexy_hat';
+    f.bandage = inv.countItem('bandage') > 0;
+    f.dogDead = !!g._guideDogDead;
+    f.slept = !!g._guideSlept;
+
+    // Quest 1 complete?
+    if (this.quest === 0) {
+      if (f.looted && f.stick && f.hat && f.equippedStick && f.equippedHat && f.bandage) {
+        this.quest = 1;
+        g.spawnGuideDog?.();
+        return QUESTS[1];
+      }
+      // Micro-coach for each completed sub-step
+      const coach = this._maybeCoach();
+      if (coach) return coach;
+      return null;
+    }
+
+    if (this.quest === 1) {
+      if (f.dogDead) {
+        this.quest = 2;
+        return QUESTS[2];
+      }
+      return null;
+    }
+
+    if (this.quest === 2) {
+      if (f.slept) {
+        this.quest = 3;
+        this.done = true;
+        g.story.guideDone = true;
+        g.story.persist();
+        return QUESTS[3];
+      }
+      return null;
+    }
+
+    return null;
+  }
+
+  _maybeCoach() {
+    const f = this.flags;
+    // Order matters: coach the latest completed step once
+    const steps = [
+      ['looted', f.looted && !f.stick],
+      ['stick', f.stick && !f.hat],
+      ['hat', f.hat && (!f.equippedStick || !f.equippedHat)],
+      ['equipped', f.equippedStick && f.equippedHat && !f.bandage],
+    ];
+    for (const [key, active] of steps) {
+      if (!active) continue;
+      if (this._coached.has(key)) return null;
+      this._coached.add(key);
+      const body = COACH[key];
+      if (!body) return null;
+      return { title: 'GUIDE', body };
+    }
+    return null;
   }
 }

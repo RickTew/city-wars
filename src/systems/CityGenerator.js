@@ -7,6 +7,7 @@ export class CityGenerator {
     this.benches = [];
     this.sleeps = [];
     this.blueprints = []; // world pickups {x,y,id}
+    this.gearDrops = []; // {x,y,id,taken}
     this.escapePads = [];
   }
 
@@ -49,6 +50,21 @@ export class CityGenerator {
     place(g, w, CENTER_X + 2, CENTER_Y, T.BENCH, this.benches);
     place(g, w, CENTER_X - 2, CENTER_Y + 1, T.SLEEP, this.sleeps);
     place(g, w, CENTER_X + 1, CENTER_Y - 2, T.LOOT, this.loot);
+
+    // Quest 1 gear EAST of player: stick + neon fedora (walk-on pickups)
+    // Stick on the main road east; hat one step SE so both are obvious
+    const stickX = CENTER_X + 3;
+    const stickY = CENTER_Y;
+    const hatX = CENTER_X + 4;
+    const hatY = CENTER_Y + 1;
+    w[stickY][stickX] = 0;
+    w[hatY][hatX] = 0;
+    g[stickY][stickX] = T.GEAR_DROP;
+    g[hatY][hatX] = T.GEAR_DROP;
+    this.gearDrops.push({ x: stickX, y: stickY, id: 'stick', taken: false });
+    this.gearDrops.push({ x: hatX, y: hatY, id: 'sexy_hat', taken: false });
+    // Extra gold crate east (cloth for bandage)  -  first loot of the tutorial
+    place(g, w, CENTER_X + 2, CENTER_Y - 1, T.LOOT, this.loot);
 
     // More world furniture — keep extra benches away from HQ so spawn isn’t confusing
     for (let y = 4; y < MAP_H - 4; y += 5) {
@@ -93,7 +109,16 @@ export class CityGenerator {
       this.escapePads.push({ x, y });
     }
 
-    return { ground: g, walls: w, loot: this.loot, benches: this.benches, sleeps: this.sleeps, blueprints: this.blueprints, escapePads: this.escapePads };
+    return {
+      ground: g,
+      walls: w,
+      loot: this.loot,
+      benches: this.benches,
+      sleeps: this.sleeps,
+      blueprints: this.blueprints,
+      gearDrops: this.gearDrops,
+      escapePads: this.escapePads,
+    };
   }
 }
 

@@ -32,6 +32,7 @@ import { ZoneManager } from '../systems/ZoneManager.js';
 import { getCharacter } from '../config/characters.js';
 import { StoryDirector } from '../systems/StoryDirector.js';
 import { GuideDirector } from '../systems/GuideDirector.js';
+import { EquipUI } from '../systems/EquipUI.js';
 
 export class GameScene extends Phaser.Scene {
   constructor() {
@@ -78,6 +79,11 @@ export class GameScene extends Phaser.Scene {
     this.story = new StoryDirector(this.registry);
     this.guide = new GuideDirector(this);
     this._guideLooted = false;
+    this._guideDogDead = false;
+    this._guideSlept = false;
+    this.guideDog = null;
+    this.bagOpen = false;
+    this.equipUI = null;
 
     this.buildMap();
     this.player = makePlayer(this, CENTER_X, CENTER_Y, this.char);
@@ -88,7 +94,11 @@ export class GameScene extends Phaser.Scene {
     this.setupMouseBar();
     this.setupInput();
     this.setupSneakRing();
+    this.equipUI = new EquipUI(this);
     this.scale.on('resize', (gameSize) => this.onResize(gameSize));
+
+    // Quest 1 always knows how to craft a bandage (no blueprint hunt for tutorial)
+    this.inv.learnBlueprint('bandage');
 
     this.cameras.main.setZoom(1);
     this.input.on('wheel', (_p, _o, _dx, dy) => {
@@ -113,13 +123,14 @@ export class GameScene extends Phaser.Scene {
     this.updateFow();
     this.refreshHud();
     this.cameras.main.fadeIn(400);
-    // Full hand-hold: first guide card (not generic WHO dump)
+    // Full hand-hold: character intro, then Quest 1 card
     this.time.delayedCall(400, () => {
       const intro = this.story.introCard(this.char);
       this.showPopup(intro.title, intro.body, () => {
         const step = this.guide.current();
         if (step) this.showPopup(step.title, step.body);
         this.updateObjective();
+        this.refreshHud();
       });
     });
   }
@@ -155,13 +166,12 @@ export class GameScene extends Phaser.Scene {
   checkGuide() {
     if (!this.guide || this.guide.done) return;
     const next = this.guide.tick();
+    this.updateObjective();
+    this.refreshHud();
     if (next) {
-      this.updateObjective();
-      this.time.delayedCall(100, () => {
+      this.time.delayedCall(120, () => {
         this.showPopup(next.title, next.body);
       });
-    } else {
-      this.updateObjective();
     }
   }
 
@@ -209,6 +219,7 @@ export class GameScene extends Phaser.Scene {
     this.benches = data.benches;
     this.sleeps = data.sleeps;
     this.bpSpots = data.blueprints;
+    this.gearDrops = data.gearDrops || [];
     this.escapePads = data.escapePads;
 
     const map = this.make.tilemap({
@@ -579,21 +590,11 @@ export class GameScene extends Phaser.Scene {
   }
 
   openBagPanel() {
-    const kits = this.countBedrolls();
-    const mats = this.inv
-      .matList()
-      .map((m) => `${m.name} x${m.n}`)
-      .join(', ') || 'empty';
-    const items = this.inv.items.map((i) => i.name).join(', ') || 'none';
-    const narr = this.story?.narratorOn !== false;
-    this.showPopup(
-      'BACKPACK',
-      `${this.char?.name || 'Runner'} (${this.char?.title || ''})\n\n` +
-        `Gear: ${this.inv.weapon?.name || 'Fists'} / ${this.inv.armor?.name || 'no armor'}\n\n` +
-        `Materials:\n${mats}\n\nItems:\n${items}\n\n` +
-        `Sleeping kits: ${kits}\nBlueprints: ${[...this.inv.blueprints].length}\n\n` +
-        `Narrator: ${narr ? 'ON' : 'OFF'} (set on character select)`
-    );
+    // Full equip screen (drag/click)
+    this.equipUI?.toggle();
+    if (this.bagOpen) {
+      this.log('BAG open. Drag items onto HEAD / BODY / LEGS / WEAPON / QUICK slots.');
+    }
   }
 
   toggleLegend() {
@@ -772,8 +773,8 @@ export class GameScene extends Phaser.Scene {
 
   refreshHud() {
     const p = this.player;
-    const atk = p.baseAtk + (this.inv.weapon?.atk || 0);
-    const def = p.baseDef + (this.inv.armor?.def || 0);
+    const atk = this.inv.totalAtk(p.baseAtk) + (this.player.batBonus && this.inv.weapon?.id === 'pipe' ? this.player.batBonus : 0);
+    const def = this.inv.totalDef(p.baseDef);
     const zone = this.zones.label(this.zones.getZone(p.tx, p.ty));
 
     // One status only (left). Never put HOSTILE under inventory.
@@ -803,8 +804,17 @@ export class GameScene extends Phaser.Scene {
     this.updateSneakRing();
     if (this.objText) this.objText.setText(this.objective || '');
     if (this.objMarker && this.objTarget) {
-      this.objMarker.setPosition(this.objTarget.x * TILE + 16, this.objTarget.y * TILE - 4);
-      this.objMarker.setVisible(this.mode !== 'combat');
+      // Spots use {x,y} tiles; actors use {tx,ty}
+      const ox = this.objTarget.tx ?? this.objTarget.x;
+      const oy = this.objTarget.ty ?? this.objTarget.y;
+      if (ox != null && oy != null) {
+        this.objMarker.setPosition(ox * TILE + 16, oy * TILE - 4);
+        this.objMarker.setVisible(this.mode !== 'combat');
+      } else {
+        this.objMarker.setVisible(false);
+      }
+    } else if (this.objMarker) {
+      this.objMarker.setVisible(false);
     }
   }
 
@@ -860,7 +870,29 @@ export class GameScene extends Phaser.Scene {
 
   /** True while any modal is open  -  freezes world time & AI */
   isPaused() {
-    return !!(this.popupOpen || this.craftOpen || this.legendOpen);
+    return !!(this.popupOpen || this.craftOpen || this.legendOpen || this.bagOpen);
+  }
+
+  spawnGuideDog() {
+    if (this.guideDog?.alive) return;
+    // Spawn just west of player so they can see it
+    const spots = [
+      [this.player.tx - 2, this.player.ty],
+      [this.player.tx - 1, this.player.ty + 1],
+      [this.player.tx - 1, this.player.ty - 1],
+      [this.player.tx, this.player.ty - 2],
+    ];
+    for (const [x, y] of spots) {
+      if (this.walkable(x, y) && !this.actorAt(x, y)) {
+        const dog = makeEnemy(this, x, y, ENEMY.dog, 'dog');
+        dog.nightOnly = false;
+        dog._dormant = false;
+        this.enemies.push(dog);
+        this.guideDog = dog;
+        this.log('A Grid Dog pads into the street. Left-click it.');
+        return;
+      }
+    }
   }
 
   updateDayBar() {
@@ -1343,7 +1375,15 @@ export class GameScene extends Phaser.Scene {
 
   isInteractiveTile(tx, ty) {
     const g = this.ground[ty]?.[tx];
-    if (g === T.LOOT || g === T.SLEEP || g === T.BENCH || g === T.ESCAPE || g === T.LANDMARK) return true;
+    if (
+      g === T.LOOT ||
+      g === T.SLEEP ||
+      g === T.BENCH ||
+      g === T.ESCAPE ||
+      g === T.LANDMARK ||
+      g === T.GEAR_DROP
+    )
+      return true;
     if (this.lootSpots.some((l) => l.x === tx && l.y === ty && !l.taken)) return true;
     if (this.sleeps.some((s) => s.x === tx && s.y === ty)) return true;
     if (this.benches.some((b) => b.x === tx && b.y === ty)) return true;
@@ -1625,6 +1665,27 @@ export class GameScene extends Phaser.Scene {
 
   onStepTile() {
     const g = this.ground[this.player.ty][this.player.tx];
+
+    // Gear drops (stick, hat, etc.)
+    const drop = this.gearDrops?.find(
+      (d) => !d.taken && d.x === this.player.tx && d.y === this.player.ty
+    );
+    if (drop) {
+      drop.taken = true;
+      const item = this.inv.addItem(drop.id);
+      this.ground[this.player.ty][this.player.tx] = T.ALLEY;
+      this.gLayer.putTileAt(T.ALLEY, this.player.tx, this.player.ty);
+      this.log(`Picked up ${item?.name || drop.id}.`);
+      // Guide coach cards handle the hand-hold; avoid stacking a second popup
+      if (!this.guide || this.guide.done || this.guide.quest > 0) {
+        this.showPopup(
+          'GEAR PICKUP',
+          `You grabbed: ${item?.name || drop.id}.\n\n${item?.desc || ''}\n\nOpen BAG. Click or drag onto the matching slot.`
+        );
+      }
+      this.checkGuide();
+    }
+
     // auto-pickup blueprint when walking on landmark
     const bp = this.bpSpots.find((b) => !b.taken && b.x === this.player.tx && b.y === this.player.ty);
     if (bp) {
@@ -1680,16 +1741,23 @@ export class GameScene extends Phaser.Scene {
       this.gLayer.putTileAt(T.ALLEY, tx, ty);
     }
 
-    // roll mats
+    // roll mats  -  during Quest 1, first crate always yields enough cloth for bandage
     const table = ['scrap', 'scrap', 'wire', 'cloth', 'battery', 'chem', 'circuit', 'food', 'scrap'];
     const z = this.zones.getZone(tx, ty);
     const rolls = 2 + (z === ZONE.OUTER || z === ZONE.WALL ? 1 : 0) + (this.player.scavengeBonus || 0);
     const got = [];
-    for (let i = 0; i < rolls; i++) {
-      let id = table[(Math.random() * table.length) | 0];
-      if (this.dayNight.isNight && Math.random() < 0.15) id = 'circuit';
-      this.inv.addMat(id, 1);
-      got.push(MAT[id].name);
+    const guideQ1 = this.guide && !this.guide.done && this.guide.quest === 0 && !this._guideLooted;
+    if (guideQ1) {
+      this.inv.addMat('cloth', 2);
+      this.inv.addMat('scrap', 1);
+      got.push(MAT.cloth.name, MAT.cloth.name, MAT.scrap.name);
+    } else {
+      for (let i = 0; i < rolls; i++) {
+        let id = table[(Math.random() * table.length) | 0];
+        if (this.dayNight.isNight && Math.random() < 0.15) id = 'circuit';
+        this.inv.addMat(id, 1);
+        got.push(MAT[id].name);
+      }
     }
     // food auto nibble option
     if (got.includes('MRE Paste') && Math.random() < 0.5) {
@@ -1700,26 +1768,8 @@ export class GameScene extends Phaser.Scene {
     this._guideLooted = true;
     this.updateObjective();
     this.refreshHuntHud();
+    this.log(`Scavenged: ${got.join(', ')}.`);
     this.checkGuide();
-    if (this.guide?.done || this.guide?.step > 0) {
-      // During guide, checkGuide shows the next card; still show loot once if not guiding
-    }
-    if (!this.guide || this.guide.step > 1) {
-      const firstLoot = !this.story.seen.has('loot_msg');
-      if (firstLoot) this.story.seen.add('loot_msg');
-      if (firstLoot && this.guide?.done) {
-        this.explainPickup(
-          'loot',
-          `You rifled a crate.\n\nGot: ${got.join(', ')}.\n\nScrap, wire, batteries, circuits feed crafting.`
-        );
-      } else if (this.guide?.done) {
-        this.log(`Scavenged: ${got.join(', ')}.`);
-      } else {
-        this.log(`Scavenged: ${got.join(', ')}.`);
-      }
-    } else {
-      this.log(`Scavenged: ${got.join(', ')}.`);
-    }
   }
 
   /** HQ courtyard = free rest. Away from base needs Sleeping Kit. */
@@ -1800,8 +1850,12 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.audio.scavenge();
+    if (this.isAtHomeBase()) this._guideSlept = true;
     this.refreshHud();
-    this.showPopup(night ? 'NIGHT SLEEP' : 'DAY REST', msg);
+    // Sleep result first; guide Q3 complete card queues behind it
+    this.showPopup(night ? 'NIGHT SLEEP' : 'DAY REST', msg, () => {
+      this.checkGuide();
+    });
   }
 
   spawnAmbushNearPlayer() {
@@ -2309,7 +2363,14 @@ export class GameScene extends Phaser.Scene {
 
   resolveHit(att, def, ranged = false) {
     if (!def?.alive) return;
-    const bonus = att.isPlayer ? this.inv.weapon?.atk || 0 : 0;
+    let bonus = 0;
+    if (att.isPlayer) {
+      bonus = (this.inv.weapon?.atk || 0);
+      if (this.player.batBonus && (this.inv.weapon?.id === 'pipe' || this.inv.weapon?.id === 'stick')) {
+        bonus += this.player.batBonus;
+      }
+      if (this.player.rangedBonus && this.inv.weapon?.ranged) bonus += this.player.rangedBonus;
+    }
     const raw = att.baseAtk + ((Math.random() * 3) | 0);
     const { dmg, killed } = def.takeDamage(raw, bonus);
     this.audio.hit();
@@ -2332,6 +2393,7 @@ export class GameScene extends Phaser.Scene {
     }
     if (killed && !def.isPlayer) {
       if (this.combatFocus === def) this.combatFocus = null;
+      if (def === this.guideDog || def.kind === 'dog') this._guideDogDead = true;
       this.combatLog(`${def.name} is out.`);
       try {
         def.destroy();
@@ -2343,6 +2405,7 @@ export class GameScene extends Phaser.Scene {
         this.inv.addMat('scrap', 1 + ((Math.random() * 2) | 0));
         this.combatLog('Looted scrap.');
       }
+      this.checkGuide();
     }
   }
 

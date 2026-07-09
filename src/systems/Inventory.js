@@ -1,13 +1,33 @@
-import { MAT, GEAR, BLUEPRINTS } from '../config/constants.js';
+import { MAT, GEAR, BLUEPRINTS, SLOT } from '../config/constants.js';
+
+let _uid = 1;
+function uid() {
+  return `it_${_uid++}`;
+}
 
 export class Inventory {
   constructor() {
-    this.mats = {}; // id -> count
-    this.items = []; // gear instances {id, ...}
-    this.weapon = null;
-    this.armor = null;
-    this.blueprints = new Set(); // known blueprint ids
-    // Always know bandage as "street common sense"? No — find them.
+    this.mats = {};
+    /** Bag items: { uid, id, ...gear fields } */
+    this.items = [];
+    /** Equipped by slot */
+    this.equip = {
+      [SLOT.HEAD]: null,
+      [SLOT.BODY]: null,
+      [SLOT.LEGS]: null,
+      [SLOT.WEAPON]: null,
+      [SLOT.QUICK1]: null,
+      [SLOT.QUICK2]: null,
+    };
+    this.blueprints = new Set();
+  }
+
+  /** Back-compat */
+  get weapon() {
+    return this.equip[SLOT.WEAPON];
+  }
+  get armor() {
+    return this.equip[SLOT.BODY];
   }
 
   addMat(id, n = 1) {
@@ -29,9 +49,16 @@ export class Inventory {
     return this.blueprints.has(id);
   }
 
-  /** alias */
-  knowsBlueprint(id) {
-    return this.hasBlueprint(id);
+  addItem(gearIdOrObj) {
+    const base = typeof gearIdOrObj === 'string' ? GEAR[gearIdOrObj] : gearIdOrObj;
+    if (!base) return null;
+    const item = { ...base, uid: uid() };
+    this.items.push(item);
+    return item;
+  }
+
+  findByUid(u) {
+    return this.items.find((i) => i.uid === u) || Object.values(this.equip).find((i) => i?.uid === u);
   }
 
   canCraft(bpId) {
@@ -49,10 +76,7 @@ export class Inventory {
     const miss = [];
     for (const [mat, need] of Object.entries(bp.needs)) {
       const have = this.count(mat);
-      if (have < need) {
-        const name = MAT[mat]?.name || mat;
-        miss.push(`${name} ${have}/${need}`);
-      }
+      if (have < need) miss.push(`${MAT[mat]?.name || mat} ${have}/${need}`);
     }
     return miss;
   }
@@ -64,15 +88,12 @@ export class Inventory {
       this.mats[mat] -= need;
       if (this.mats[mat] <= 0) delete this.mats[mat];
     }
-    const gear = { ...GEAR[bp.result] };
-    if (gear.type === 'weapon') this.weapon = gear;
-    else if (gear.type === 'armor') this.armor = gear;
-    else this.items.push(gear);
+    const gear = this.addItem(bp.result);
     return gear;
   }
 
   hasBreach() {
-    return this.items.some((i) => i.id === 'breach');
+    return this.items.some((i) => i.id === 'breach') || false;
   }
 
   takeBreach() {
@@ -82,26 +103,118 @@ export class Inventory {
     return true;
   }
 
-  useConsumable(id, player) {
+  countItem(id) {
+    let n = this.items.filter((x) => x.id === id).length;
+    for (const s of Object.values(this.equip)) {
+      if (s?.id === id) n += 1;
+    }
+    return n;
+  }
+
+  spendItem(id) {
+    // Prefer bag, then quick slots
     const idx = this.items.findIndex((x) => x.id === id);
-    if (idx < 0) return null;
-    const item = this.items[idx];
-    if (item.type !== 'consumable') return null;
-    this.items.splice(idx, 1);
+    if (idx >= 0) {
+      this.items.splice(idx, 1);
+      return true;
+    }
+    for (const slot of [SLOT.QUICK1, SLOT.QUICK2]) {
+      if (this.equip[slot]?.id === id) {
+        this.equip[slot] = null;
+        return true;
+      }
+    }
+    return false;
+  }
+
+  useConsumable(id, player) {
+    // From bag or quick slots
+    let item = null;
+    let from = null;
+    const idx = this.items.findIndex((x) => x.id === id);
+    if (idx >= 0) {
+      item = this.items[idx];
+      from = 'bag';
+    } else {
+      for (const slot of [SLOT.QUICK1, SLOT.QUICK2]) {
+        if (this.equip[slot]?.id === id) {
+          item = this.equip[slot];
+          from = slot;
+          break;
+        }
+      }
+    }
+    if (!item || item.type !== 'consumable' || !item.heal) return null;
+    if (from === 'bag') this.items.splice(this.items.findIndex((x) => x.uid === item.uid), 1);
+    else this.equip[from] = null;
     const healed = player ? player.heal(item.heal || 0) : 0;
     return { item, healed };
   }
 
-  countItem(id) {
-    return this.items.filter((x) => x.id === id).length;
+  /**
+   * Equip item by uid into its natural slot, or explicit slot.
+   * Unequips previous into bag.
+   */
+  equipItem(uid, slotOverride = null) {
+    const bagIdx = this.items.findIndex((i) => i.uid === uid);
+    let item = bagIdx >= 0 ? this.items[bagIdx] : null;
+    let fromSlot = null;
+    if (!item) {
+      for (const [slot, it] of Object.entries(this.equip)) {
+        if (it?.uid === uid) {
+          item = it;
+          fromSlot = slot;
+          break;
+        }
+      }
+    }
+    if (!item) return { ok: false, reason: 'missing' };
+
+    const slot = slotOverride || item.slot;
+    if (!slot || !Object.prototype.hasOwnProperty.call(this.equip, slot)) {
+      return { ok: false, reason: 'no_slot' };
+    }
+    // Quick slots accept consumables
+    if ((slot === SLOT.QUICK1 || slot === SLOT.QUICK2) && item.type !== 'consumable' && item.id !== 'bedroll') {
+      if (item.type !== 'consumable') return { ok: false, reason: 'quick_only_kits' };
+    }
+    // Slot type checks
+    if (slot === SLOT.WEAPON && item.slot !== SLOT.WEAPON) return { ok: false, reason: 'not_weapon' };
+    if (slot === SLOT.HEAD && item.slot !== SLOT.HEAD) return { ok: false, reason: 'not_head' };
+    if (slot === SLOT.BODY && item.slot !== SLOT.BODY) return { ok: false, reason: 'not_body' };
+    if (slot === SLOT.LEGS && item.slot !== SLOT.LEGS) return { ok: false, reason: 'not_legs' };
+
+    // Remove from current place
+    if (bagIdx >= 0) this.items.splice(bagIdx, 1);
+    if (fromSlot) this.equip[fromSlot] = null;
+
+    // Swap previous out to bag
+    const prev = this.equip[slot];
+    if (prev) this.items.push(prev);
+    this.equip[slot] = item;
+    return { ok: true, item, prev };
   }
 
-  /** Spend one stackable kit item (bedroll etc.) */
-  spendItem(id) {
-    const idx = this.items.findIndex((x) => x.id === id);
-    if (idx < 0) return false;
-    this.items.splice(idx, 1);
-    return true;
+  unequip(slot) {
+    const item = this.equip[slot];
+    if (!item) return null;
+    this.equip[slot] = null;
+    this.items.push(item);
+    return item;
+  }
+
+  totalAtk(base) {
+    let a = base;
+    if (this.equip[SLOT.WEAPON]) a += this.equip[SLOT.WEAPON].atk || 0;
+    return a;
+  }
+
+  totalDef(base) {
+    let d = base;
+    for (const s of [SLOT.HEAD, SLOT.BODY, SLOT.LEGS]) {
+      if (this.equip[s]) d += this.equip[s].def || 0;
+    }
+    return d;
   }
 
   matList() {
@@ -114,11 +227,12 @@ export class Inventory {
 
   summary() {
     const mats = this.matList()
-      .map((m) => `${m.name}×${m.n}`)
+      .map((m) => `${m.name}x${m.n}`)
       .join(' · ');
     const gear = [
-      this.weapon?.name,
-      this.armor?.name,
+      this.equip[SLOT.WEAPON]?.name,
+      this.equip[SLOT.HEAD]?.name,
+      this.equip[SLOT.BODY]?.name,
       ...this.items.map((i) => i.name),
     ]
       .filter(Boolean)
