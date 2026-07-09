@@ -46,31 +46,41 @@ export class CityGenerator {
     carve(g, CENTER_X - 3, CENTER_Y - 3, 7, 7, T.HQ);
     g[CENTER_Y][CENTER_X] = T.HQ;
 
-    // One starter Street Rig + sleep + loot near HQ (not two rigs)
+    // HQ amenities only (no tutorial pile at your feet)
     place(g, w, CENTER_X + 2, CENTER_Y, T.BENCH, this.benches);
     place(g, w, CENTER_X - 2, CENTER_Y + 1, T.SLEEP, this.sleeps);
-    place(g, w, CENTER_X + 1, CENTER_Y - 2, T.LOOT, this.loot);
 
-    // Quest 1 gear EAST of player: stick + neon fedora (walk-on pickups)
-    // Stick on the main road east; hat one step SE so both are obvious
-    const stickX = CENTER_X + 3;
-    const stickY = CENTER_Y;
-    const hatX = CENTER_X + 4;
-    const hatY = CENTER_Y + 1;
+    // Quest 1 hikes: targets on main roads so pathing is clean
+    // 1) Gold crate EAST ~12 tiles
+    const glX = CENTER_X + 12;
+    const glY = CENTER_Y;
+    w[glY][glX] = 0;
+    g[glY][glX] = T.LOOT;
+    this.loot.push({ x: glX, y: glY, taken: false, guide: true });
+
+    // 2) Street Stick SOUTH ~12 tiles
+    const stickX = CENTER_X;
+    const stickY = CENTER_Y + 12;
     w[stickY][stickX] = 0;
-    w[hatY][hatX] = 0;
     g[stickY][stickX] = T.GEAR_DROP;
-    g[hatY][hatX] = T.GEAR_DROP;
-    this.gearDrops.push({ x: stickX, y: stickY, id: 'stick', taken: false });
-    this.gearDrops.push({ x: hatX, y: hatY, id: 'sexy_hat', taken: false });
-    // Extra gold crate east (cloth for bandage)  -  first loot of the tutorial
-    place(g, w, CENTER_X + 2, CENTER_Y - 1, T.LOOT, this.loot);
+    this.gearDrops.push({ x: stickX, y: stickY, id: 'stick', taken: false, guide: true });
 
-    // More world furniture — keep extra benches away from HQ so spawn isn’t confusing
+    // 3) Neon Fedora WEST ~12 tiles
+    const hatX = CENTER_X - 12;
+    const hatY = CENTER_Y;
+    w[hatY][hatX] = 0;
+    g[hatY][hatX] = T.GEAR_DROP;
+    this.gearDrops.push({ x: hatX, y: hatY, id: 'sexy_hat', taken: false, guide: true });
+
+    // More world furniture  -  keep clear of HQ and guide hike spots
     for (let y = 4; y < MAP_H - 4; y += 5) {
       for (let x = 4; x < MAP_W - 4; x += 5) {
         if (w[y][x] || road(x, y)) continue;
-        if (Math.abs(x - CENTER_X) + Math.abs(y - CENTER_Y) < 12) continue;
+        if (Math.abs(x - CENTER_X) + Math.abs(y - CENTER_Y) < 14) continue;
+        // Don't bury guide targets
+        if (Math.abs(x - glX) + Math.abs(y - glY) < 3) continue;
+        if (Math.abs(x - stickX) + Math.abs(y - stickY) < 3) continue;
+        if (Math.abs(x - hatX) + Math.abs(y - hatY) < 3) continue;
         const h = hash(x, y);
         if (h % 17 === 0) place(g, w, x, y, T.LOOT, this.loot);
         else if (h % 31 === 0) place(g, w, x, y, T.BENCH, this.benches);
@@ -78,15 +88,15 @@ export class CityGenerator {
       }
     }
 
-    // Blueprint drops (world knowledge)
+    // Blueprint drops (spread out  -  not under spawn)
     const bps = [
-      { x: CENTER_X + 3, y: CENTER_Y - 1, id: 'bandage' },
-      { x: CENTER_X + 5, y: CENTER_Y + 2, id: 'bedroll' },
-      { x: CENTER_X + 8, y: CENTER_Y + 4, id: 'pipe' },
-      { x: CENTER_X - 10, y: CENTER_Y - 6, id: 'stim' },
+      { x: CENTER_X + 14, y: CENTER_Y - 8, id: 'bandage' },
+      { x: CENTER_X + 8, y: CENTER_Y + 14, id: 'bedroll' },
+      { x: CENTER_X - 8, y: CENTER_Y + 10, id: 'pipe' },
+      { x: CENTER_X - 14, y: CENTER_Y - 6, id: 'stim' },
       { x: CENTER_X + 16, y: CENTER_Y - 12, id: 'zipgun' },
       { x: CENTER_X - 18, y: CENTER_Y + 14, id: 'vest' },
-      { x: CENTER_X + 6, y: 5, id: 'breach' }, // near north wall — the big prize
+      { x: CENTER_X + 6, y: 5, id: 'breach' }, // north wall  -  the big prize
     ];
     for (const b of bps) {
       const x = clamp(b.x, 2, MAP_W - 3);

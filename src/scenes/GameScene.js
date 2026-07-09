@@ -95,6 +95,9 @@ export class GameScene extends Phaser.Scene {
     this.setupInput();
     this.setupSneakRing();
     this.equipUI = new EquipUI(this);
+    this.questPulseWorld = this.add.graphics().setDepth(27);
+    this.questPulseUi = this.add.graphics().setScrollFactor(0).setDepth(140);
+    this._pulseT = 0;
     this.scale.on('resize', (gameSize) => this.onResize(gameSize));
 
     // Quest 1 always knows how to craft a bandage (no blueprint hunt for tutorial)
@@ -590,10 +593,10 @@ export class GameScene extends Phaser.Scene {
   }
 
   openBagPanel() {
-    // Full equip screen (drag/click)
+    this.clearMousePath();
     this.equipUI?.toggle();
     if (this.bagOpen) {
-      this.log('BAG open. Drag items onto HEAD / BODY / LEGS / WEAPON / QUICK slots.');
+      this.log('BAG open. Click an item to equip, or drag onto a slot.');
     }
   }
 
@@ -803,13 +806,13 @@ export class GameScene extends Phaser.Scene {
     this.updateHomeArrow();
     this.updateSneakRing();
     if (this.objText) this.objText.setText(this.objective || '');
-    if (this.objMarker && this.objTarget) {
+    if (this.objMarker && this.objTarget && !this.objTarget.ui) {
       // Spots use {x,y} tiles; actors use {tx,ty}
       const ox = this.objTarget.tx ?? this.objTarget.x;
       const oy = this.objTarget.ty ?? this.objTarget.y;
       if (ox != null && oy != null) {
         this.objMarker.setPosition(ox * TILE + 16, oy * TILE - 4);
-        this.objMarker.setVisible(this.mode !== 'combat');
+        this.objMarker.setVisible(this.mode !== 'combat' && !this.bagOpen);
       } else {
         this.objMarker.setVisible(false);
       }
@@ -875,24 +878,83 @@ export class GameScene extends Phaser.Scene {
 
   spawnGuideDog() {
     if (this.guideDog?.alive) return;
-    // Spawn just west of player so they can see it
-    const spots = [
-      [this.player.tx - 2, this.player.ty],
-      [this.player.tx - 1, this.player.ty + 1],
-      [this.player.tx - 1, this.player.ty - 1],
-      [this.player.tx, this.player.ty - 2],
-    ];
-    for (const [x, y] of spots) {
+    // A short hike away (not at their feet)
+    const candidates = [];
+    for (const [dx, dy] of [
+      [0, -6],
+      [5, 0],
+      [-5, 0],
+      [0, 5],
+      [4, -4],
+      [-4, -4],
+      [3, 3],
+    ]) {
+      candidates.push([this.player.tx + dx, this.player.ty + dy]);
+    }
+    // Also try absolute near HQ ring
+    candidates.push([CENTER_X + 5, CENTER_Y - 5], [CENTER_X - 4, CENTER_Y + 4]);
+    for (const [x, y] of candidates) {
       if (this.walkable(x, y) && !this.actorAt(x, y)) {
         const dog = makeEnemy(this, x, y, ENEMY.dog, 'dog');
         dog.nightOnly = false;
         dog._dormant = false;
         this.enemies.push(dog);
         this.guideDog = dog;
-        this.log('A Grid Dog pads into the street. Left-click it.');
+        this.log('A Grid Dog pads in. Follow the pulse. Left-click it.');
         return;
       }
     }
+  }
+
+  /** Pulse ring on the current guide target (tile or UI button). */
+  updateQuestPulse(dt = 0) {
+    this._pulseT = (this._pulseT || 0) + dt;
+    const world = this.questPulseWorld;
+    const ui = this.questPulseUi;
+    world?.clear();
+    ui?.clear();
+    if (!this.guide || this.guide.done || this.mode === 'combat') return;
+    if (this.bagOpen || this.craftOpen) return;
+
+    const target = this.guide.resolveTarget();
+    if (!target) return;
+
+    const phase = (Math.sin(this._pulseT * 5.5) + 1) / 2;
+    const a = 0.4 + phase * 0.55;
+    const r = 12 + phase * 14;
+
+    if (target.ui) {
+      const btn =
+        target.ui === 'bag'
+          ? this.btnBag
+          : target.ui === 'craft'
+            ? this.btnCraft
+            : target.ui === 'sleep'
+              ? this.btnSleep
+              : null;
+      if (!btn?.bg) return;
+      const bx = btn.bg.x;
+      const by = btn.bg.y;
+      const pad = phase * 5;
+      ui.lineStyle(3, 0xfbbf24, a);
+      ui.strokeRect(bx - 44 - pad, by - 24 - pad, 88 + pad * 2, 48 + pad * 2);
+      ui.lineStyle(2, 0xfde68a, a * 0.7);
+      ui.strokeRect(bx - 50 - pad * 1.4, by - 30 - pad * 1.4, 100 + pad * 2.8, 60 + pad * 2.8);
+      return;
+    }
+
+    const ox = target.tx ?? target.x;
+    const oy = target.ty ?? target.y;
+    if (ox == null || oy == null) return;
+    const cx = ox * TILE + TILE / 2;
+    const cy = oy * TILE + TILE / 2;
+    world.lineStyle(4, 0xfbbf24, a);
+    world.strokeCircle(cx, cy, r);
+    world.lineStyle(2, 0xfef08a, a * 0.75);
+    world.strokeCircle(cx, cy, r + 8 + phase * 6);
+    // soft fill flash
+    world.fillStyle(0xfbbf24, 0.08 + phase * 0.1);
+    world.fillCircle(cx, cy, r * 0.85);
   }
 
   updateDayBar() {
@@ -1282,13 +1344,12 @@ export class GameScene extends Phaser.Scene {
 
     this.input.on('pointerup', (p) => {
       if (this.ended || this.uiBlockClick) return;
-
-      // Craft modal handles its own UI; dimmer closes on outside click
-      if (this.craftOpen) return;
+      // Never path while any modal is open (bag close was causing auto-walk)
+      if (this.popupOpen || this.craftOpen || this.legendOpen || this.bagOpen) return;
+      if (this.isPaused()) return;
 
       // Ignore top HUD / bottom action bar
       if (p.y < 56 || p.y > this.scale.height - 90) return;
-      if (this.legendOpen) return;
 
       // Close MORE menu if open and click elsewhere
       if (this.moreOpen) {
@@ -1515,12 +1576,16 @@ export class GameScene extends Phaser.Scene {
           Math.round(this.cameras.main.scrollY)
         );
       }
+      this.questPulseWorld?.clear();
+      this.questPulseUi?.clear();
       return;
     }
 
     if (this.mode === 'combat') {
       this.updateCombat(dt);
       this.refreshHud();
+      this.questPulseWorld?.clear();
+      this.questPulseUi?.clear();
       return;
     }
 
@@ -1576,6 +1641,7 @@ export class GameScene extends Phaser.Scene {
 
     this.updateFow();
     this.updateObjective();
+    this.updateQuestPulse(dt);
     this.refreshHud();
   }
 
@@ -1741,16 +1807,17 @@ export class GameScene extends Phaser.Scene {
       this.gLayer.putTileAt(T.ALLEY, tx, ty);
     }
 
-    // roll mats  -  during Quest 1, first crate always yields enough cloth for bandage
+    // roll mats  -  guide crate always yields enough cloth for bandage
     const table = ['scrap', 'scrap', 'wire', 'cloth', 'battery', 'chem', 'circuit', 'food', 'scrap'];
     const z = this.zones.getZone(tx, ty);
     const rolls = 2 + (z === ZONE.OUTER || z === ZONE.WALL ? 1 : 0) + (this.player.scavengeBonus || 0);
     const got = [];
-    const guideQ1 = this.guide && !this.guide.done && this.guide.quest === 0 && !this._guideLooted;
-    if (guideQ1) {
+    const isGuideCrate = !!spot?.guide;
+    if (isGuideCrate) {
       this.inv.addMat('cloth', 2);
       this.inv.addMat('scrap', 1);
       got.push(MAT.cloth.name, MAT.cloth.name, MAT.scrap.name);
+      this._guideLooted = true;
     } else {
       for (let i = 0; i < rolls; i++) {
         let id = table[(Math.random() * table.length) | 0];
@@ -1765,7 +1832,6 @@ export class GameScene extends Phaser.Scene {
     }
     this.audio.scavenge();
     this.alert.makeNoise(0.35, tx, ty, this.enemies.filter((e) => e.alive && !e._dormant));
-    this._guideLooted = true;
     this.updateObjective();
     this.refreshHuntHud();
     this.log(`Scavenged: ${got.join(', ')}.`);
