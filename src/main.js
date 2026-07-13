@@ -20,7 +20,7 @@ const config = {
   },
   scene: [BootScene, MenuScene, CharacterSelectScene, GameScene],
   title: 'City Wars',
-  version: '3.5.0',
+  version: '3.6.0',
 };
 
 // eslint-disable-next-line no-new

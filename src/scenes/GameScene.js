@@ -34,6 +34,12 @@ import { StoryDirector } from '../systems/StoryDirector.js';
 import { GuideDirector } from '../systems/GuideDirector.js';
 import { EquipUI } from '../systems/EquipUI.js';
 import { VFX } from '../systems/VFX.js';
+import { combatMixin } from './mixins/combatMixin.js';
+import { cameraMixin } from './mixins/cameraMixin.js';
+import { sleepMixin } from './mixins/sleepMixin.js';
+import { Progression } from '../systems/Progression.js';
+import { SaveSystem } from '../systems/SaveSystem.js';
+import { Minimap } from '../systems/Minimap.js';
 
 export class GameScene extends Phaser.Scene {
   constructor() {
@@ -73,20 +79,40 @@ export class GameScene extends Phaser.Scene {
     this.huntList = [];
     this.huntHud = null;
     this.char = getCharacter(this.registry.get('characterId'));
-    // New run: reset guide progress
-    this.registry.set('storySeen', []);
-    this.registry.set('storyCrafts', []);
-    this.registry.set('guideDone', false);
+    this.bagOpen = false;
+    this.equipUI = null;
+    this.menuOpen = false;
+    this.vfx = new VFX(this);
+    this.progression = new Progression();
+    this.specialOpen = false;
+    this._powerNext = false;
+
+    const loading = !!this.registry.get('loadSave');
+    if (loading) {
+      const peek = SaveSystem.peek();
+      if (peek?.characterId) {
+        this.registry.set('characterId', peek.characterId);
+        this.char = getCharacter(peek.characterId);
+      }
+      // Restore story flags into registry before StoryDirector reads them
+      if (peek?.story) {
+        this.registry.set('guideDone', !!peek.story.guideDone);
+        this.registry.set('storySeen', peek.story.seen || []);
+        this.registry.set('storyCrafts', peek.story.crafts || []);
+        this.registry.set('narratorOn', peek.narratorOn !== false);
+      }
+    } else {
+      this.registry.set('storySeen', []);
+      this.registry.set('storyCrafts', []);
+      this.registry.set('guideDone', false);
+    }
+
     this.story = new StoryDirector(this.registry);
     this.guide = new GuideDirector(this);
     this._guideLooted = false;
     this._guideDogDead = false;
     this._guideSlept = false;
     this.guideDog = null;
-    this.bagOpen = false;
-    this.equipUI = null;
-    this.menuOpen = false;
-    this.vfx = new VFX(this);
 
     this.buildMap();
     this.player = makePlayer(this, CENTER_X, CENTER_Y, this.char);
@@ -98,6 +124,8 @@ export class GameScene extends Phaser.Scene {
     this.setupInput();
     this.setupSneakRing();
     this.equipUI = new EquipUI(this);
+    this.minimap = new Minimap(this);
+    this.minimap.create();
     this.questPulseWorld = this.add.graphics().setDepth(27);
     this.questPulseUi = this.add.graphics().setScrollFactor(0).setDepth(140);
     this._pulseT = 0;
@@ -125,20 +153,37 @@ export class GameScene extends Phaser.Scene {
       }
     });
 
-    this.updateObjective();
-    this.updateFow();
-    this.refreshHud();
-    this.cameras.main.fadeIn(400);
-    // Full hand-hold: character intro, then Quest 1 card
-    this.time.delayedCall(400, () => {
-      const intro = this.story.introCard(this.char);
-      this.showPopup(intro.title, intro.body, () => {
-        const step = this.guide.current();
-        if (step) this.showPopup(step.title, step.body);
-        this.updateObjective();
-        this.refreshHud();
+    if (loading) {
+      const data = SaveSystem.peek();
+      const ok = data && SaveSystem.apply(this, data);
+      this.registry.set('loadSave', false);
+      this.updateObjective();
+      this.updateFow();
+      this.refreshHud();
+      this.cameras.main.fadeIn(400);
+      this.log(ok ? 'Save loaded. Welcome back.' : 'Save corrupt. Fresh run.');
+      if (!ok) {
+        this.time.delayedCall(400, () => {
+          const intro = this.story.introCard(this.char);
+          this.showPopup(intro.title, intro.body);
+        });
+      }
+    } else {
+      this.updateObjective();
+      this.updateFow();
+      this.refreshHud();
+      this.cameras.main.fadeIn(400);
+      // Full hand-hold: character intro, then Quest 1 card
+      this.time.delayedCall(400, () => {
+        const intro = this.story.introCard(this.char);
+        this.showPopup(intro.title, intro.body, () => {
+          const step = this.guide.current();
+          if (step) this.showPopup(step.title, step.body);
+          this.updateObjective();
+          this.refreshHud();
+        });
       });
-    });
+    }
 
     // Dev / playtest harness (console + automated smoke)
     if (typeof window !== 'undefined') {
@@ -200,6 +245,8 @@ export class GameScene extends Phaser.Scene {
       def: this.inv?.totalDef(this.player?.baseDef || 0) ?? null,
       vision: this.playerVision?.() ?? null,
       sneak: this.playerSneakBonus?.() ?? null,
+      level: this.progression?.level ?? 1,
+      xp: this.progression?.xp ?? 0,
       mats: { ...(this.inv?.mats || {}) },
       items: (this.inv?.items || []).map((i) => i.id),
       equip: Object.fromEntries(
@@ -311,6 +358,7 @@ export class GameScene extends Phaser.Scene {
     }
     if (this.homeArrow) this.homeArrow.setPosition(40, h - 96);
     if (this.homeArrowLabel) this.homeArrowLabel.setPosition(40, h - 74);
+    this.minimap?.onResize?.();
   }
 
   // ─── MAP ─────────────────────────────────────────────
@@ -425,94 +473,7 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  // ─── CAMERA / HUD ────────────────────────────────────
-  setupCamera() {
-    const cam = this.cameras.main;
-    cam.setBounds(0, 0, WORLD_W, WORLD_H);
-    cam.startFollow(this.player.asFollowTarget(), true, 0.15, 0.15);
-    cam.setDeadzone(this.scale.width * 0.2, this.scale.height * 0.18);
-    cam.setRoundPixels(true);
-    cam.setZoom(1);
-    this.camFollowPlayer = true;
-    // Edge-of-screen mouse pan (look ahead without moving)
-    this.edgePan = { margin: 32, speed: 480, idleRelock: 1.6 };
-    this._edgePanIdle = 0;
-  }
-
-  /** Re-attach camera to player after free look / edge pan. */
-  relockCameraToPlayer() {
-    if (this.camFollowPlayer) return;
-    const cam = this.cameras.main;
-    cam.startFollow(this.player.asFollowTarget(), true, 0.22, 0.22);
-    cam.setDeadzone(this.scale.width * 0.2, this.scale.height * 0.18);
-    this.camFollowPlayer = true;
-    this._edgePanIdle = 0;
-    this._midDrag = null;
-  }
-
-  /** Stop follow and clamp scroll when free-looking. */
-  beginFreeCam() {
-    const cam = this.cameras.main;
-    if (this.camFollowPlayer) {
-      cam.stopFollow();
-      this.camFollowPlayer = false;
-    }
-  }
-
-  clampCamScroll() {
-    const cam = this.cameras.main;
-    const maxX = Math.max(0, WORLD_W - cam.width / cam.zoom);
-    const maxY = Math.max(0, WORLD_H - cam.height / cam.zoom);
-    cam.scrollX = Phaser.Math.Clamp(cam.scrollX, 0, maxX);
-    cam.scrollY = Phaser.Math.Clamp(cam.scrollY, 0, maxY);
-  }
-
-  /**
-   * When the mouse sits near the screen edge, pan the camera so you can
-   * peek at objectives / terrain. Relocks to the player after idle or move.
-   * Middle-mouse drag also free-pans (see setupInput).
-   */
-  updateCameraEdgePan(dt) {
-    if (this.ended || this.isPaused() || this.mode === 'combat') return;
-    // Middle-drag owns camera this frame
-    if (this._midDrag) {
-      this._edgePanIdle = 0;
-      return;
-    }
-    const cam = this.cameras.main;
-    const p = this.input.activePointer;
-    if (!p) return;
-
-    const m = this.edgePan.margin;
-    const topHud = 56;
-    const botHud = 90;
-    let dx = 0;
-    let dy = 0;
-    // Only pan when pointer is over the game canvas
-    if (p.x >= 0 && p.x <= this.scale.width && p.y >= 0 && p.y <= this.scale.height) {
-      if (p.x < m) dx = -1;
-      else if (p.x > this.scale.width - m) dx = 1;
-      if (p.y > topHud && p.y < topHud + m) dy = -1;
-      else if (p.y < this.scale.height - botHud && p.y > this.scale.height - botHud - m) dy = 1;
-      // pure edges of window (including over HUD strip edges for L/R)
-      if (p.y < m && p.y >= 0) dy = -1;
-      if (p.y > this.scale.height - m) dy = 1;
-    }
-
-    if (dx || dy) {
-      this.beginFreeCam();
-      const sp = this.edgePan.speed * dt;
-      cam.scrollX += dx * sp;
-      cam.scrollY += dy * sp;
-      this.clampCamScroll();
-      this._edgePanIdle = 0;
-    } else if (!this.camFollowPlayer) {
-      this._edgePanIdle = (this._edgePanIdle || 0) + dt;
-      if (this._edgePanIdle >= this.edgePan.idleRelock) {
-        this.relockCameraToPlayer();
-      }
-    }
-  }
+  // ─── CAMERA methods in cameraMixin ───
 
   setupHud() {
     const d = 100;
@@ -855,11 +816,16 @@ export class GameScene extends Phaser.Scene {
       this.openRunMenu();
       this.log(this.story.narratorOn ? 'Narrator ON.' : 'Narrator OFF.');
     });
-    mk(cy + 120, 'NEW RUN (menu)', 0xe11d48, () => {
+    mk(cy + 110, 'SAVE RUN', 0x0ea5e9, () => {
+      const ok = SaveSystem.save(this);
+      this.log(ok ? 'Run saved. CONTINUE from main menu later.' : 'Save failed.');
+      this.closeRunMenu();
+    });
+    mk(cy + 155, 'NEW RUN (menu)', 0xe11d48, () => {
       this.closeRunMenu();
       this.scene.start('Menu');
     });
-    mk(cy + 180, 'CLOSE', 0x94a3b8, () => this.closeRunMenu());
+    mk(cy + 200, 'CLOSE', 0x94a3b8, () => this.closeRunMenu());
 
     this.menuUi.push(dim, panel, title, body);
     this.time.delayedCall(100, () => {
@@ -1047,8 +1013,9 @@ export class GameScene extends Phaser.Scene {
       this.alertText.setColor(this.alert.color);
     }
 
+    const prog = this.progression?.summary?.() || '';
     this.statText.setText(
-      `HP ${p.hp}/${p.maxHp}  ATK ${atk}  DEF ${def}  ·  ${zone}${this.hiding ? '  · HIDING' : ''}`
+      `HP ${p.hp}/${p.maxHp}  ATK ${atk}  DEF ${def}  ·  ${prog}  ·  ${zone}${this.hiding ? '  · HIDING' : ''}`
     );
 
     const s = this.inv.summary();
@@ -1133,7 +1100,14 @@ export class GameScene extends Phaser.Scene {
 
   /** True while any modal is open  -  freezes world time & AI */
   isPaused() {
-    return !!(this.popupOpen || this.craftOpen || this.legendOpen || this.bagOpen || this.menuOpen);
+    return !!(
+      this.popupOpen ||
+      this.craftOpen ||
+      this.legendOpen ||
+      this.bagOpen ||
+      this.menuOpen ||
+      this.specialOpen
+    );
   }
 
   spawnGuideDog() {
@@ -1659,10 +1633,14 @@ export class GameScene extends Phaser.Scene {
   handleWorldClick(tx, ty, rightClick = false) {
     if (tx < 0 || ty < 0 || tx >= MAP_W || ty >= MAP_H) return;
 
-    // Combat mode: click enemy to attack (or step adjacent), click empty tile to step once
+    // Combat mode: left-click attack, right-click specials
     if (this.mode === 'combat') {
       if (this.combatTurn !== 'player' || this.popupOpen) {
         this.log('Wait  -  enemy turn / popup.');
+        return;
+      }
+      if (rightClick) {
+        this.openCombatSpecials();
         return;
       }
       const foe = this.actorAt(tx, ty, this.player);
@@ -1680,12 +1658,14 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    // Left-click enemy = open combat / first shot (you initiate)
-    // Later: right-click could open special actions menu
+    // Left-click enemy = fight. Right-click enemy = fight then specials menu.
     const enemy = this.actorAt(tx, ty, this.player);
     if (enemy && !enemy.isPlayer && !enemy._dormant) {
       this.clearMousePath();
       this.startCombat(enemy, true);
+      if (rightClick) {
+        this.time.delayedCall(50, () => this.openCombatSpecials());
+      }
       return;
     }
 
@@ -1900,6 +1880,11 @@ export class GameScene extends Phaser.Scene {
       if (e.hp <= 0) {
         e.alive = false;
         if (e === this.guideDog || e._isGuideDog) this._guideDogDead = true;
+        const xpGain = e.xp || 4;
+        if (this.progression) {
+          const res = this.progression.gain(xpGain, this.player);
+          this.log(`+${xpGain} XP${res.leveled ? `  ·  Level ${this.progression.level}!` : ''}`);
+        }
         try {
           e.destroy();
         } catch (_) {
@@ -2016,6 +2001,7 @@ export class GameScene extends Phaser.Scene {
     this.updateFow();
     this.updateObjective();
     this.updateQuestPulse(dt);
+    this.minimap?.update?.();
     this.refreshHud();
   }
 
@@ -2216,113 +2202,6 @@ export class GameScene extends Phaser.Scene {
     this.refreshHuntHud();
     this.log(`Scavenged: ${got.join(', ')}.`);
     this.checkGuide();
-  }
-
-  /** HQ courtyard = free rest. Away from base needs Sleeping Kit. */
-  isAtHomeBase() {
-    return this.zones.manhattan(this.player.tx, this.player.ty) <= 6;
-  }
-
-  countBedrolls() {
-    return this.inv.countItem('bedroll');
-  }
-
-  /**
-   * SLEEP button / sleep tile.
-   * - Day at HQ: short rest (heal, no full day skip)
-   * - Night at HQ: sleep to morning free
-   * - Away: need Sleeping Kit; night has ambush risk by zone
-   */
-  doSleep() {
-    if (this.mode === 'combat' || this.alert.state === ALERT.RED) {
-      this.log("Can't sleep mid-gunfight. Bold strategy. Terrible.");
-      return;
-    }
-
-    const atHome = this.isAtHomeBase();
-    const night = this.dayNight.isNight;
-    const kits = this.countBedrolls();
-
-    if (!atHome) {
-      if (kits <= 0) {
-        this.showPopup(
-          'NO SLEEPING KIT',
-          'You’re away from home base.\n\nCraft a Sleeping Kit (cloth×3 + scrap×1) at a Street Rig, or walk back to HQ (follow the home arrow, bottom-left).'
-        );
-        return;
-      }
-    }
-
-    // Night outdoors: ambush chance
-    if (night && !atHome) {
-      const zone = this.zones.getZone(this.player.tx, this.player.ty);
-      let risk = 0.1;
-      if (zone === ZONE.MID) risk = 0.18;
-      if (zone === ZONE.OUTER) risk = 0.28;
-      if (zone === ZONE.WALL) risk = 0.4;
-      if (Math.random() < risk) {
-        if (!atHome) this.inv.spendItem('bedroll');
-        this.log('Something sniffs your bedroll… ambush!');
-        this.spawnAmbushNearPlayer();
-        return;
-      }
-    }
-
-    if (!atHome) {
-      this.inv.spendItem('bedroll');
-    }
-
-    let healed = 0;
-    let msg = '';
-    if (night || atHome) {
-      // Full sleep → morning
-      this.dayNight.sleepToMorning();
-      healed = this.player.heal(
-        (atHome ? 14 : 10) + ((Math.random() * 6) | 0) + (this.player.healBonus || 0)
-      );
-      this.alert.state = ALERT.GREEN;
-      const left = this.countBedrolls();
-      msg = atHome
-        ? `Home base rest.\n\n+${healed} HP. Morning again.\nSafe walls. No kit used.`
-        : `Bedroll night under the open grid.\n\n+${healed} HP. Morning.\nSleeping kits left: ${left}`;
-    } else {
-      // Day rest  -  heal only, small time skip forward but not full night
-      healed = this.player.heal(6 + ((Math.random() * 5) | 0));
-      this.dayNight.t = Math.min(NIGHT_START - 0.02, this.dayNight.t + 0.08);
-      const left = this.countBedrolls();
-      msg = atHome
-        ? `Day rest at HQ.\n\n+${healed} HP. No kit used.\n(Full sleep to morning works best at night.)`
-        : `Day rest on a kit.\n\n+${healed} HP.\nSleeping kits left: ${left}`;
-    }
-
-    this.audio.scavenge();
-    if (this.isAtHomeBase()) this._guideSlept = true;
-    this.refreshHud();
-    // Sleep result first; guide Q3 complete card queues behind it
-    this.showPopup(night ? 'NIGHT SLEEP' : 'DAY REST', msg, () => {
-      this.checkGuide();
-    });
-  }
-
-  spawnAmbushNearPlayer() {
-    const spots = [];
-    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, 1]]) {
-      const x = this.player.tx + dx;
-      const y = this.player.ty + dy;
-      if (this.walkable(x, y) && !this.actorAt(x, y)) spots.push({ x, y });
-    }
-    if (!spots.length) {
-      this.startCombat(
-        this.enemies.find((e) => e.alive && !e._dormant) || makeEnemy(this, this.player.tx + 1, this.player.ty, ENEMY.dog, 'dog'),
-        false
-      );
-      return;
-    }
-    const s = spots[(Math.random() * spots.length) | 0];
-    const kind = this.dayNight.isNight && Math.random() < 0.6 ? 'dog' : 'thug';
-    const foe = makeEnemy(this, s.x, s.y, ENEMY[kind], kind);
-    this.enemies.push(foe);
-    this.startCombat(foe, false);
   }
 
   updateHomeArrow() {
@@ -2685,327 +2564,6 @@ export class GameScene extends Phaser.Scene {
     if (best) e.setTile(best.nx, best.ny, true);
   }
 
-  // ─── COMBAT ──────────────────────────────────────────
-  startCombat(enemy, playerInitiated) {
-    if (this.ended) return;
-    if (!enemy || !enemy.alive) return;
-    if (this.mode === 'combat') {
-      // Already fighting  -  attack this target instead of no-op
-      this.combatAttackTarget(enemy);
-      return;
-    }
-    if (playerInitiated) this.alert.engage();
-    else this.alert.spot();
-
-    this.mode = 'combat';
-    this.clearMousePath();
-    this.destroyCraftModal();
-    this.closeRunMenu();
-    this.closeLegend();
-    this.combatFocus = enemy;
-    this.combatTurn = 'player';
-    this.combatLogLines = [];
-    this.audio.red();
-    this.cameras.main.flash(120, 180, 40, 40);
-
-    const rangeHint = enemy.ranged
-      ? `${enemy.name} can shoot from a distance.`
-      : `${enemy.name} is melee  -  they must step next to you to bite/hit. You need to be next to them too (unless you craft a Zip Gun).`;
-
-    const begin = () => {
-      this.combatLog(' -  fight start  - ');
-      this.combatLog(
-        playerInitiated
-          ? `You jump ${enemy.name}.`
-          : `${enemy.name} engages!`
-      );
-      this.combatLog(rangeHint);
-      this.combatLog('Your turn  -  click the enemy to attack.');
-      this.logText.setText('Combat log on the left. Click the enemy to hit.');
-      this.refreshHud();
-    };
-
-    if (!this.seenCombatHelp) {
-      this.seenCombatHelp = true;
-      this.showPopup(
-        'FIRST FIGHT',
-        'Left panel: your HP, enemy HP, and a live combat log.\n\n• Left-click the enemy to attack\n• Click an adjacent empty tile to step\n• Melee foes must be next to you\n• HEAL uses bandages, stims, or MRE Paste\n• Street Charge (Boom craft) blasts foes within 2 tiles\n• Craft a Zip Gun for ranged attacks',
-        begin
-      );
-    } else {
-      begin();
-    }
-  }
-
-  updateCombat() {
-    if (this.popupOpen) return;
-    if (this.combatTurn !== 'player') return;
-
-    // Auto-end if everyone nearby is dead
-    if (!this.livingThreats().length) {
-      this.endCombat(true);
-      return;
-    }
-
-    // No FIGHT hotkey  -  click the enemy (left click)
-    let dx = 0;
-    let dy = 0;
-    if (Phaser.Input.Keyboard.JustDown(this.cursors.left) || Phaser.Input.Keyboard.JustDown(this.keys.a))
-      dx = -1;
-    else if (Phaser.Input.Keyboard.JustDown(this.cursors.right) || Phaser.Input.Keyboard.JustDown(this.keys.d))
-      dx = 1;
-    else if (Phaser.Input.Keyboard.JustDown(this.cursors.up) || Phaser.Input.Keyboard.JustDown(this.keys.w))
-      dy = -1;
-    else if (Phaser.Input.Keyboard.JustDown(this.cursors.down) || Phaser.Input.Keyboard.JustDown(this.keys.s))
-      dy = 1;
-    if (dx || dy) this.playerCombatStep(dx, dy);
-  }
-
-  livingThreats() {
-    return this.enemies.filter((e) => {
-      if (!e.alive || e._dormant) return false;
-      return Math.abs(e.tx - this.player.tx) + Math.abs(e.ty - this.player.ty) <= 12;
-    });
-  }
-
-  combatStepToward(tx, ty) {
-    let best = null;
-    let bd = Math.abs(this.player.tx - tx) + Math.abs(this.player.ty - ty);
-    for (const [dx, dy] of [[0, 1], [0, -1], [1, 0], [-1, 0]]) {
-      const nx = this.player.tx + dx;
-      const ny = this.player.ty + dy;
-      if (!this.walkable(nx, ny)) continue;
-      const occ = this.actorAt(nx, ny, this.player);
-      if (occ && !occ.isPlayer) {
-        this.combatAttackTarget(occ);
-        return;
-      }
-      if (occ) continue;
-      const nd = Math.abs(nx - tx) + Math.abs(ny - ty);
-      if (nd < bd) {
-        bd = nd;
-        best = { dx, dy };
-      }
-    }
-    if (best) this.playerCombatStep(best.dx, best.dy);
-    else this.log('Blocked.');
-  }
-
-  combatAttackTarget(foe) {
-    if (!foe?.alive) {
-      this.checkCombatEnd();
-      return;
-    }
-    const d = Math.abs(foe.tx - this.player.tx) + Math.abs(foe.ty - this.player.ty);
-    const range = this.inv.weapon?.ranged ? this.inv.weapon.range || 5 : 1;
-    if (d <= range && this.hasLos(this.player.tx, this.player.ty, foe.tx, foe.ty)) {
-      this.resolveHit(this.player, foe, d > 1);
-      this.afterPlayerCombat();
-    } else if (d > 1) {
-      this.combatStepToward(foe.tx, foe.ty);
-    } else {
-      this.log('No line of sight.');
-    }
-  }
-
-  playerCombatStep(dx, dy) {
-    const nx = this.player.tx + dx;
-    const ny = this.player.ty + dy;
-    const foe = this.actorAt(nx, ny, this.player);
-    if (foe && !foe.isPlayer) {
-      this.resolveHit(this.player, foe);
-      this.afterPlayerCombat();
-      return;
-    }
-    if (!this.walkable(nx, ny)) return;
-    this.player.setTile(nx, ny, true);
-    this.afterPlayerCombat();
-  }
-
-  playerCombatAttack() {
-    let best = this.combatFocus?.alive ? this.combatFocus : null;
-    let bd = best
-      ? Math.abs(best.tx - this.player.tx) + Math.abs(best.ty - this.player.ty)
-      : 99;
-    const range = this.inv.weapon?.ranged ? this.inv.weapon.range || 5 : 1;
-    for (const e of this.enemies) {
-      if (!e.alive || e._dormant) continue;
-      const d = Math.abs(e.tx - this.player.tx) + Math.abs(e.ty - this.player.ty);
-      if (d <= range && d < bd && this.hasLos(this.player.tx, this.player.ty, e.tx, e.ty)) {
-        bd = d;
-        best = e;
-      }
-    }
-    if (!best) {
-      // step toward any nearby threat
-      const threats = this.livingThreats();
-      if (!threats.length) {
-        this.endCombat(true);
-        return;
-      }
-      threats.sort(
-        (a, b) =>
-          Math.abs(a.tx - this.player.tx) +
-          Math.abs(a.ty - this.player.ty) -
-          (Math.abs(b.tx - this.player.tx) + Math.abs(b.ty - this.player.ty))
-      );
-      this.log(`Too far  -  stepping toward ${threats[0].name}.`);
-      this.combatStepToward(threats[0].tx, threats[0].ty);
-      return;
-    }
-    this.combatAttackTarget(best);
-  }
-
-  resolveHit(att, def, ranged = false) {
-    if (!def?.alive) return;
-    let atkBonus = 0;
-    if (att.isPlayer) {
-      atkBonus = this.inv.weapon?.atk || 0;
-      // Live bonuses only (not baked into weapon.atk on craft)
-      if (this.player.batBonus && (this.inv.weapon?.id === 'pipe' || this.inv.weapon?.id === 'stick')) {
-        atkBonus += this.player.batBonus;
-      }
-      if (this.player.rangedBonus && this.inv.weapon?.ranged) atkBonus += this.player.rangedBonus;
-    }
-    // Player DEF from armor / hat / legs must count (Actor.def is base only)
-    let armorDef = def.def || 0;
-    if (def.isPlayer) {
-      armorDef = this.inv.totalDef(def.baseDef || 0);
-    }
-    const raw = att.baseAtk + ((Math.random() * 3) | 0);
-    const dmg = Math.max(1, raw + atkBonus - armorDef);
-    def.hp = Math.max(0, def.hp - dmg);
-    def.refreshHp();
-    // Flash
-    this.tweens.killTweensOf(def.flash);
-    def.flash.setAlpha(1);
-    this.tweens.add({
-      targets: def.flash,
-      alpha: 0.25,
-      yoyo: true,
-      duration: 50,
-      repeat: 1,
-      onComplete: () => def.flash.setAlpha(1),
-    });
-    // Floating damage + slash
-    this.vfx?.floatText(def.x, def.y - 10, `-${dmg}`, att.isPlayer ? '#7dd3fc' : '#fca5a5', 17);
-    this.vfx?.slash(att.x, att.y, def.x, def.y, att.isPlayer ? 0x38bdf8 : 0xef4444);
-    if (dmg >= 6) this.vfx?.burst(def.x, def.y, 0xfbbf24, 5);
-
-    const killed = def.hp <= 0;
-    if (killed) {
-      def.alive = false;
-      def.root.setAlpha(0.4);
-    }
-    this.audio.hit();
-    const verb = ranged
-      ? att.kind === 'drone'
-        ? 'zaps'
-        : 'shoots'
-      : att.kind === 'dog'
-        ? 'bites'
-        : 'hits';
-    const line = `${att.name} ${verb} ${def.name} for ${dmg}${killed ? '  -  DOWN!' : `  (${def.hp} HP left)`}`;
-    this.combatLog(line);
-    this.logText.setText(line);
-    this.updateCombatHud();
-
-    if (killed && def.isPlayer) {
-      this.combatLog('You drop. Run over.');
-      this.lose();
-      return;
-    }
-    if (killed && !def.isPlayer) {
-      if (this.combatFocus === def) this.combatFocus = null;
-      // Only count the guide dog for quest 2 (not random night dogs)
-      if (def === this.guideDog || def._isGuideDog) this._guideDogDead = true;
-      this.combatLog(`${def.name} is out.`);
-      try {
-        def.destroy();
-      } catch (_) {
-        /* already gone */
-      }
-      this.enemies = this.enemies.filter((e) => e !== def && e.alive);
-      if (Math.random() < 0.6) {
-        this.inv.addMat('scrap', 1 + ((Math.random() * 2) | 0));
-        this.combatLog('Looted scrap.');
-      }
-      this.checkGuide();
-    }
-  }
-
-  checkCombatEnd() {
-    if (this.mode !== 'combat') return;
-    if (!this.livingThreats().length) this.endCombat(true);
-  }
-
-  afterPlayerCombat() {
-    if (this.ended) return;
-    this.enemies = this.enemies.filter((e) => e.alive);
-    if (!this.livingThreats().length) {
-      this.endCombat(true);
-      return;
-    }
-    this.combatTurn = 'enemy';
-    this.combatLog(' -  enemy turn  - ');
-    this.logText.setText('Enemy turn…');
-    this.refreshHud();
-    const near = this.livingThreats();
-    // Stagger enemy actions so the log is readable
-    let i = 0;
-    const step = () => {
-      if (this.ended || this.mode !== 'combat') return;
-      if (i >= near.length || !this.player.alive) {
-        this.enemies = this.enemies.filter((e) => e.alive);
-        if (!this.livingThreats().length || !this.player.alive) {
-          if (this.player.alive) this.endCombat(true);
-          return;
-        }
-        this.combatTurn = 'player';
-        this.combatLog(' -  your turn  - ');
-        this.logText.setText('Your move  -  click the enemy to attack.');
-        this.refreshHud();
-        return;
-      }
-      const e = near[i++];
-      if (e.alive) this.enemyCombatAct(e);
-      this.refreshHud();
-      this.time.delayedCall(280, step);
-    };
-    this.time.delayedCall(200, step);
-  }
-
-  enemyCombatAct(e) {
-    if (!e.alive) return;
-    const p = this.player;
-    const d = Math.abs(e.tx - p.tx) + Math.abs(e.ty - p.ty);
-    const range = e.ranged ? e.range || 4 : 1;
-    if (d <= range && this.hasLos(e.tx, e.ty, p.tx, p.ty)) {
-      this.resolveHit(e, p, d > 1 || e.ranged);
-      return;
-    }
-    const ox = e.tx;
-    const oy = e.ty;
-    this.stepEnemyToward(e, p.tx, p.ty);
-    if (e.tx !== ox || e.ty !== oy) {
-      this.combatLog(`${e.name} moves closer…`);
-    } else {
-      this.combatLog(`${e.name} is blocked.`);
-    }
-  }
-
-  endCombat(won) {
-    this.mode = 'explore';
-    this.combatTurn = 'player';
-    this.combatFocus = null;
-    this.clearMousePath();
-    this.alert.clearCombat();
-    this.combatLog(won ? ' -  fight over  - ' : ' - ');
-    this.logText.setText(won ? 'Fight over. CLEAR  -  for now.' : '…');
-    if (this.combatHud) this.combatHud.setVisible(false);
-    this.refreshHud();
-  }
-
   // ─── FOW ─────────────────────────────────────────────
   isVisibleTile(tx, ty) {
     const vis = this.playerVision();
@@ -3113,6 +2671,8 @@ export class GameScene extends Phaser.Scene {
     btn.on('pointerup', () => this.scene.restart());
   }
 }
+
+Object.assign(GameScene.prototype, combatMixin, cameraMixin, sleepMixin);
 
 function hash(x, y) {
   let n = x * 374761393 + y * 668265263;

@@ -30,23 +30,14 @@ export class Actor {
     if (this.isPlayer) {
       this.buildPlayerLook(scene, opts);
     } else if (this.kind === 'dog') {
-      // Clear dog silhouette (not a potato)
-      const torso = scene.add.ellipse(-2, 2, 20, 11, 0x57534e);
-      const rump = scene.add.circle(-10, 2, 5, 0x44403c);
-      const head = scene.add.ellipse(10, 0, 11, 9, 0x78716c);
-      const snout = scene.add.ellipse(16, 1, 7, 5, 0xa8a29e);
-      const earL = scene.add.triangle(6, -8, 0, 0, 6, 2, 2, -10, 0x44403c);
-      const earR = scene.add.triangle(11, -7, 0, 0, 5, 2, 2, -9, 0x57534e);
-      const leg1 = scene.add.rectangle(-6, 8, 3, 6, 0x292524);
-      const leg2 = scene.add.rectangle(2, 8, 3, 6, 0x292524);
-      const tail = scene.add.rectangle(-14, -2, 8, 2, 0x57534e).setAngle(-30);
-      const eye = scene.add.circle(12, -1, 1.5, 0xfbbf24);
-      this.root.add([torso, rump, leg1, leg2, tail, head, snout, earL, earR, eye]);
-      this.flash = torso;
+      this.buildDogLook(scene);
+    } else if (this.kind === 'drone') {
+      this.buildDroneLook(scene, col);
+    } else if (this.kind === 'enforcer') {
+      this.buildEnforcerLook(scene, col);
     } else {
-      const body = scene.add.rectangle(0, 0, 18, 18, col);
-      this.root.add(body);
-      this.flash = body;
+      // thug / default gang runner
+      this.buildThugLook(scene, col);
     }
 
     this.hpText = scene.add
@@ -61,6 +52,56 @@ export class Actor {
       .setOrigin(0.5);
     this.root.add(this.hpText);
     this.refreshHp();
+  }
+
+  buildDogLook(scene) {
+    const torso = scene.add.ellipse(-2, 2, 20, 11, 0x57534e);
+    const rump = scene.add.circle(-10, 2, 5, 0x44403c);
+    const head = scene.add.ellipse(10, 0, 11, 9, 0x78716c);
+    const snout = scene.add.ellipse(16, 1, 7, 5, 0xa8a29e);
+    const earL = scene.add.triangle(6, -8, 0, 0, 6, 2, 2, -10, 0x44403c);
+    const earR = scene.add.triangle(11, -7, 0, 0, 5, 2, 2, -9, 0x57534e);
+    const leg1 = scene.add.rectangle(-6, 8, 3, 6, 0x292524);
+    const leg2 = scene.add.rectangle(2, 8, 3, 6, 0x292524);
+    const tail = scene.add.rectangle(-14, -2, 8, 2, 0x57534e).setAngle(-30);
+    const eye = scene.add.circle(12, -1, 1.5, 0xfbbf24);
+    this.root.add([torso, rump, leg1, leg2, tail, head, snout, earL, earR, eye]);
+    this.flash = torso;
+  }
+
+  buildThugLook(scene, col) {
+    const pants = scene.add.rectangle(0, 8, 11, 10, 0x292524);
+    const torso = scene.add.rectangle(0, 0, 14, 14, col);
+    const head = scene.add.circle(0, -11, 5, 0xfde68a);
+    const hair = scene.add.ellipse(0, -15, 10, 5, 0x1c1917);
+    const bat = scene.add.rectangle(10, 2, 4, 16, 0xa8a29e).setAngle(25);
+    const eye = scene.add.rectangle(2, -11, 3, 1.5, 0xf87171);
+    this.root.add([pants, torso, head, hair, bat, eye]);
+    this.flash = torso;
+  }
+
+  buildEnforcerLook(scene, col) {
+    const boots = scene.add.rectangle(0, 10, 14, 8, 0x1c1917);
+    const legs = scene.add.rectangle(0, 5, 13, 10, 0x44403c);
+    const torso = scene.add.rectangle(0, -2, 18, 16, col);
+    const pad = scene.add.rectangle(0, -4, 20, 8, 0x7f1d1d, 0.7);
+    const head = scene.add.circle(0, -14, 6, 0xe7e5e4);
+    const helm = scene.add.rectangle(0, -16, 14, 6, 0x450a0a);
+    const visor = scene.add.rectangle(0, -13, 10, 3, 0xfbbf24);
+    this.root.add([boots, legs, torso, pad, head, helm, visor]);
+    this.flash = torso;
+  }
+
+  buildDroneLook(scene, col) {
+    const body = scene.add.ellipse(0, 0, 18, 12, col);
+    const core = scene.add.circle(0, 0, 4, 0xf0f9ff);
+    const eye = scene.add.circle(0, 0, 2, 0xef4444);
+    const wingL = scene.add.rectangle(-12, -2, 8, 3, 0x0ea5e9, 0.85).setAngle(-20);
+    const wingR = scene.add.rectangle(12, -2, 8, 3, 0x0ea5e9, 0.85).setAngle(20);
+    const ant = scene.add.rectangle(0, -10, 2, 8, 0x94a3b8);
+    const tip = scene.add.circle(0, -14, 2, 0xfbbf24);
+    this.root.add([wingL, wingR, body, core, eye, ant, tip]);
+    this.flash = body;
   }
 
   /** Distinct look per character id/style */

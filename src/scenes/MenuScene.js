@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { DAY_LENGTH } from '../config/constants.js';
+import { SaveSystem } from '../systems/SaveSystem.js';
 
 export class MenuScene extends Phaser.Scene {
   constructor() {
@@ -20,6 +21,8 @@ export class MenuScene extends Phaser.Scene {
     const w = this.scale.width;
     const h = this.scale.height;
     const dayKey = this.registry.get('dayLength') || 'medium';
+    const hasSave = SaveSystem.hasSave();
+    const peek = hasSave ? SaveSystem.peek() : null;
 
     this.add.rectangle(w / 2, h / 2, w, h, 0x070b12);
 
@@ -98,25 +101,51 @@ export class MenuScene extends Phaser.Scene {
       });
     });
 
+    const startY = hasSave ? h * 0.55 : h * 0.58;
     const start = this.add
-      .rectangle(w / 2, h * 0.58, 300, 64, 0x0ea5e9)
+      .rectangle(w / 2, startY, 300, 64, 0x0ea5e9)
       .setStrokeStyle(3, 0x7dd3fc)
       .setInteractive({ useHandCursor: true });
     this.add
-      .text(w / 2, h * 0.58, 'START RUN', {
+      .text(w / 2, startY, 'START RUN', {
         fontFamily: 'system-ui',
         fontSize: '26px',
         fontStyle: 'bold',
         color: '#0b1220',
       })
       .setOrigin(0.5);
-    start.on('pointerup', () => this.scene.start('CharacterSelect'));
+    start.on('pointerup', () => {
+      this.registry.set('loadSave', false);
+      this.scene.start('CharacterSelect');
+    });
+
+    if (hasSave) {
+      const cont = this.add
+        .rectangle(w / 2, h * 0.66, 300, 52, 0x14532d)
+        .setStrokeStyle(2, 0x4ade80)
+        .setInteractive({ useHandCursor: true });
+      const when = peek?.savedAt ? new Date(peek.savedAt).toLocaleString() : '';
+      this.add
+        .text(w / 2, h * 0.66, `CONTINUE${when ? `  ·  ${when}` : ''}`, {
+          fontFamily: 'system-ui',
+          fontSize: '18px',
+          fontStyle: 'bold',
+          color: '#ecfdf5',
+        })
+        .setOrigin(0.5);
+      cont.on('pointerup', () => {
+        this.registry.set('loadSave', true);
+        if (peek?.dayLength) this.registry.set('dayLength', peek.dayLength);
+        if (peek?.characterId) this.registry.set('characterId', peek.characterId);
+        this.scene.start('Game');
+      });
+    }
 
     this.add
       .text(
         w / 2,
-        h * 0.72,
-        'Mouse: click map to walk · loot / bench / enemy · buttons below\nLEGEND explains every tile color',
+        h * 0.78,
+        'Mouse: click map to walk · loot / bench / enemy · buttons below\nMENU mid-run: save · MAP legend · right-click combat specials',
         {
           fontFamily: 'system-ui',
           fontSize: '14px',
