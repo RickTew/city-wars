@@ -136,6 +136,97 @@ export class GameScene extends Phaser.Scene {
         this.refreshHud();
       });
     });
+
+    // Dev / playtest harness (console + automated smoke)
+    if (typeof window !== 'undefined') {
+      window.__CITY_WARS__ = this;
+    }
+  }
+
+  /** Dismiss current modal if open (playtest helper). */
+  dismissPopup() {
+    if (!this.popupOpen) return false;
+    // Find GOT IT via queued finish: re-fire through any top-depth button is hard;
+    // close by simulating the queue drain used in showPopup finish path.
+    // Prefer: call any registered closer via forcing popupOpen false after destroy.
+    // Practical: hide by draining through click on dim is not scriptable easily.
+    // Instead expose close of top popup by rebuilding finish logic:
+    const kids = this.children.list.filter((c) => c.depth >= 500);
+    // Soft close: clear queue flags and destroy high-depth UI
+    kids.forEach((c) => {
+      try {
+        c.destroy?.();
+      } catch (_) {
+        /* ignore */
+      }
+    });
+    this.popupOpen = false;
+    this.clearMousePath();
+    if (this.popupQueue.length) {
+      const n = this.popupQueue.shift();
+      this.time.delayedCall(30, () => {
+        this.showPopup(n.title, n.body, n.onClose, n.opts || {});
+      });
+    }
+    return true;
+  }
+
+  /** Snapshot for automated playtests (JSON-safe only). */
+  debugState() {
+    const raw = this.guide?.resolveTarget?.() || null;
+    let target = null;
+    if (raw) {
+      if (raw.ui) target = { ui: raw.ui };
+      else if (raw.tx != null || raw.ty != null)
+        target = { x: raw.tx ?? raw.x, y: raw.ty ?? raw.y, kind: raw.kind || null };
+      else if (raw.x != null) target = { x: raw.x, y: raw.y, id: raw.id || null };
+    }
+    return {
+      scene: 'Game',
+      ended: !!this.ended,
+      mode: this.mode,
+      paused: !!this.isPaused(),
+      popupOpen: !!this.popupOpen,
+      craftOpen: !!this.craftOpen,
+      bagOpen: !!this.bagOpen,
+      tx: this.player?.tx ?? null,
+      ty: this.player?.ty ?? null,
+      hp: this.player?.hp ?? null,
+      maxHp: this.player?.maxHp ?? null,
+      atk: this.inv?.totalAtk(this.player?.baseAtk || 0) ?? null,
+      def: this.inv?.totalDef(this.player?.baseDef || 0) ?? null,
+      vision: this.playerVision?.() ?? null,
+      sneak: this.playerSneakBonus?.() ?? null,
+      mats: { ...(this.inv?.mats || {}) },
+      items: (this.inv?.items || []).map((i) => i.id),
+      equip: Object.fromEntries(
+        Object.entries(this.inv?.equip || {}).map(([k, v]) => [k, v?.id || null])
+      ),
+      blueprints: [...(this.inv?.blueprints || [])],
+      guide: {
+        quest: this.guide?.quest ?? null,
+        done: !!this.guide?.done,
+        flags: { ...(this.guide?.flags || {}) },
+        objective: this.guide?.objectiveText?.() || this.objective || '',
+        target,
+      },
+      guideDogAlive: !!(this.guideDog?.alive),
+      night: !!this.dayNight?.isNight,
+      alert: this.alert?.label || null,
+    };
+  }
+
+  /** Teleport for playtests (keeps path clear). */
+  debugWarp(tx, ty) {
+    if (!this.walkable(tx, ty) && !this.isInteractiveTile(tx, ty)) return false;
+    this.clearMousePath();
+    this.player.setTile(tx, ty, false);
+    this.relockCameraToPlayer();
+    this.onStepTile();
+    this.updateFow();
+    this.refreshHud();
+    this.checkGuide();
+    return true;
   }
 
   setupSneakRing() {
@@ -152,7 +243,8 @@ export class GameScene extends Phaser.Scene {
       return;
     }
     this.sneakRingVisible = true;
-    const r = (PLAYER.visionNight + (this.player.sneakBonus || 0) + 1) * TILE;
+    // Quiet zone radius: night vision baseline + sneak gear
+    const r = (PLAYER.visionNight + this.playerSneakBonus() + 1) * TILE;
     const x = this.player.x;
     const y = this.player.y;
     this.sneakRing.clear();
@@ -201,11 +293,16 @@ export class GameScene extends Phaser.Scene {
       this.bottomBar.setSize(w, 52);
     }
     if (this.actionButtons?.length) {
-      const gap = 88;
-      const startX = w / 2 - ((this.actionButtons.length - 1) * gap) / 2;
+      const n = this.actionButtons.length;
+      const pad = 96;
+      const usable = Math.max(400, w - pad * 2);
+      const gap = Math.min(88, usable / n);
+      const btnW = Math.min(80, Math.max(56, gap - 6));
+      const startX = w / 2 - ((n - 1) * gap) / 2;
       const y = h - 58;
       this.actionButtons.forEach((b, i) => {
         b.bg.setPosition(startX + i * gap, y);
+        b.bg.setSize(btnW, 40);
         b.label.setPosition(startX + i * gap, y);
       });
     }
@@ -301,7 +398,7 @@ export class GameScene extends Phaser.Scene {
       }
     }
     if (night) {
-      // spawn a few dogs near player ring
+      // spawn a few dogs near player ring (never over the guide dog)
       let dogs = 0;
       for (let i = 0; i < 40 && dogs < 6; i++) {
         const a = Math.random() * Math.PI * 2;
@@ -315,12 +412,12 @@ export class GameScene extends Phaser.Scene {
         dogs++;
       }
     } else {
+      // Dawn: clear night pack dogs only. Keep the guide dog (quest 2) alive.
       this.enemies = this.enemies.filter((e) => {
-        if (e.kind === 'dog') {
-          e.destroy();
-          return false;
-        }
-        return true;
+        if (e.kind !== 'dog') return true;
+        if (e === this.guideDog || e._isGuideDog) return true;
+        e.destroy();
+        return false;
       });
     }
   }
@@ -347,19 +444,40 @@ export class GameScene extends Phaser.Scene {
     cam.setDeadzone(this.scale.width * 0.2, this.scale.height * 0.18);
     this.camFollowPlayer = true;
     this._edgePanIdle = 0;
+    this._midDrag = null;
+  }
+
+  /** Stop follow and clamp scroll when free-looking. */
+  beginFreeCam() {
+    const cam = this.cameras.main;
+    if (this.camFollowPlayer) {
+      cam.stopFollow();
+      this.camFollowPlayer = false;
+    }
+  }
+
+  clampCamScroll() {
+    const cam = this.cameras.main;
+    const maxX = Math.max(0, WORLD_W - cam.width / cam.zoom);
+    const maxY = Math.max(0, WORLD_H - cam.height / cam.zoom);
+    cam.scrollX = Phaser.Math.Clamp(cam.scrollX, 0, maxX);
+    cam.scrollY = Phaser.Math.Clamp(cam.scrollY, 0, maxY);
   }
 
   /**
    * When the mouse sits near the screen edge, pan the camera so you can
    * peek at objectives / terrain. Relocks to the player after idle or move.
+   * Middle-mouse drag also free-pans (see setupInput).
    */
   updateCameraEdgePan(dt) {
     if (this.ended || this.isPaused() || this.mode === 'combat') return;
+    // Middle-drag owns camera this frame
+    if (this._midDrag) {
+      this._edgePanIdle = 0;
+      return;
+    }
     const cam = this.cameras.main;
     const p = this.input.activePointer;
-    if (!p?.active && !p?.isDown) {
-      // still allow edge pan with hover (activePointer exists without click)
-    }
     if (!p) return;
 
     const m = this.edgePan.margin;
@@ -379,15 +497,11 @@ export class GameScene extends Phaser.Scene {
     }
 
     if (dx || dy) {
-      if (this.camFollowPlayer) {
-        cam.stopFollow();
-        this.camFollowPlayer = false;
-      }
+      this.beginFreeCam();
       const sp = this.edgePan.speed * dt;
-      const maxX = Math.max(0, WORLD_W - cam.width / cam.zoom);
-      const maxY = Math.max(0, WORLD_H - cam.height / cam.zoom);
-      cam.scrollX = Phaser.Math.Clamp(cam.scrollX + dx * sp, 0, maxX);
-      cam.scrollY = Phaser.Math.Clamp(cam.scrollY + dy * sp, 0, maxY);
+      cam.scrollX += dx * sp;
+      cam.scrollY += dy * sp;
+      this.clampCamScroll();
       this._edgePanIdle = 0;
     } else if (!this.camFollowPlayer) {
       this._edgePanIdle = (this._edgePanIdle || 0) + dt;
@@ -542,7 +656,7 @@ export class GameScene extends Phaser.Scene {
     this.pathGfx = this.add.graphics().setDepth(12);
   }
 
-  /** Bottom action bar  -  primary mouse UI */
+  /** Bottom action bar  -  primary mouse UI (scales button gap to window width) */
   setupMouseBar() {
     const d = 120;
     const w = this.scale.width;
@@ -554,7 +668,6 @@ export class GameScene extends Phaser.Scene {
       .setDepth(d)
       .setStrokeStyle(1, 0x334155);
 
-    const gap = 88;
     const labels = [
       ['USE', 0x0ea5e9, () => this.useTile()],
       ['SLEEP', 0x0f766e, () => this.doSleep()],
@@ -576,10 +689,16 @@ export class GameScene extends Phaser.Scene {
       ['BAG', 0x57534e, () => this.openBagPanel()],
       ['MAP', 0x0f766e, () => this.toggleLegend()],
     ];
-    const startX = w / 2 - ((labels.length - 1) * gap) / 2;
+    // Fit all 10 buttons into the window with side padding for HQ arrow
+    const n = labels.length;
+    const pad = 96;
+    const usable = Math.max(400, w - pad * 2);
+    const gap = Math.min(88, usable / n);
+    const btnW = Math.min(80, Math.max(56, gap - 6));
+    const startX = w / 2 - ((n - 1) * gap) / 2;
     this.actionButtons = [];
     labels.forEach(([label, color, fn], i) => {
-      const b = this.makeUiButton(startX + i * gap, barY, 80, 40, label, color, fn, d + 1);
+      const b = this.makeUiButton(startX + i * gap, barY, btnW, 40, label, color, fn, d + 1);
       this.actionButtons.push(b);
       if (label === 'USE') this.btnUse = b;
       if (label === 'SLEEP') this.btnSleep = b;
@@ -650,7 +769,7 @@ export class GameScene extends Phaser.Scene {
   openHelpPanel() {
     this.showPopup(
       'HELP',
-      'WHO: You are the Runner.\nWHAT: Scavenge, craft Breach Kit, escape.\nWHEN: Day safer. Night dogs.\nWHERE: HQ center. Wall at edges.\nHOW: Click map. USE / SLEEP / CRAFT.\n\nSleep free at HQ. Away needs Sleeping Kit.\nTime pauses on popups.\nLeft-click enemies to attack.'
+      'WHO: You are the Runner.\nWHAT: Scavenge, craft Breach Kit, escape.\nWHEN: Day safer. Night dogs.\nWHERE: HQ center. Wall at edges.\nHOW: Click map. USE / SLEEP / CRAFT / BAG.\n\nSleep free at HQ. Away needs Sleeping Kit.\nTime pauses on popups.\nLeft-click enemies to attack.\nCamera: edge-pan or middle-mouse drag.'
     );
   }
 
@@ -743,6 +862,11 @@ export class GameScene extends Phaser.Scene {
     this.legendOpen = false;
     for (const o of this.legendUi || []) o?.destroy?.();
     this.legendUi = [];
+    this.clearMousePath();
+    this.uiBlockClick = true;
+    this.time.delayedCall(120, () => {
+      this.uiBlockClick = false;
+    });
   }
 
   toggleMoreMenu() {
@@ -960,6 +1084,7 @@ export class GameScene extends Phaser.Scene {
         const dog = makeEnemy(this, x, y, ENEMY.dog, 'dog');
         dog.nightOnly = false;
         dog._dormant = false;
+        dog._isGuideDog = true; // survives dawn dog cull
         this.enemies.push(dog);
         this.guideDog = dog;
         this.log('A Grid Dog pads in. Follow the pulse. Left-click it.');
@@ -1405,6 +1530,13 @@ export class GameScene extends Phaser.Scene {
     });
 
     this.input.on('pointerup', (p) => {
+      // End middle-mouse free pan
+      if (p.button === 1 || this._midDrag) {
+        this._midDrag = null;
+        this._edgePanIdle = 0;
+        // leave free cam until idle relock / move
+        return;
+      }
       if (this.ended || this.uiBlockClick) return;
       // Never path while any modal is open (bag close was causing auto-walk)
       if (this.popupOpen || this.craftOpen || this.legendOpen || this.bagOpen) return;
@@ -1422,6 +1554,34 @@ export class GameScene extends Phaser.Scene {
       const tx = (wpt.x / TILE) | 0;
       const ty = (wpt.y / TILE) | 0;
       this.handleWorldClick(tx, ty, p.rightButtonReleased() || p.button === 2);
+    });
+
+    // Middle-mouse drag pan (look around without walking)
+    this.input.on('pointerdown', (p) => {
+      if (p.button !== 1) return;
+      if (this.ended || this.isPaused() || this.mode === 'combat') return;
+      this.beginFreeCam();
+      this._midDrag = {
+        x: p.x,
+        y: p.y,
+        scrollX: this.cameras.main.scrollX,
+        scrollY: this.cameras.main.scrollY,
+      };
+      this._edgePanIdle = 0;
+    });
+    this.input.on('pointermove', (p) => {
+      if (!this._midDrag || !p.isDown) return;
+      // button 1 held or middle drag active
+      if (p.buttons != null && (p.buttons & 4) === 0 && p.button !== 1) {
+        // not middle; still allow if we started mid-drag
+      }
+      const cam = this.cameras.main;
+      const dx = p.x - this._midDrag.x;
+      const dy = p.y - this._midDrag.y;
+      cam.scrollX = this._midDrag.scrollX - dx / cam.zoom;
+      cam.scrollY = this._midDrag.scrollY - dy / cam.zoom;
+      this.clampCamScroll();
+      this._edgePanIdle = 0;
     });
 
     this.input.mouse?.disableContextMenu();
@@ -1592,23 +1752,24 @@ export class GameScene extends Phaser.Scene {
   }
 
   useBandage() {
-    if (this.inv.items.some((i) => i.id === 'bandage')) {
-      const r = this.inv.useConsumable('bandage', this.player);
-      if (r) {
-        this.log(`Bandage: +${r.healed} HP.`);
-        this.refreshHud();
-        return;
+    // Prefer bandage, then stim. Bag or QUICK slots (countItem covers both).
+    const tryHeal = (id, label) => {
+      if (this.inv.countItem(id) <= 0) return false;
+      const r = this.inv.useConsumable(id, this.player);
+      if (!r) return false;
+      // Character healBonus (e.g. Doc Rue) stacks after base heal
+      let bonus = 0;
+      if (this.player.healBonus) {
+        bonus = this.player.heal(this.player.healBonus);
       }
-    }
-    if (this.inv.items.some((i) => i.id === 'stim')) {
-      const r = this.inv.useConsumable('stim', this.player);
-      if (r) {
-        this.log(`Stim: +${r.healed} HP.`);
-        this.refreshHud();
-        return;
-      }
-    }
-    this.log('No bandage or stim. Craft one or scavenge.');
+      const total = (r.healed || 0) + bonus;
+      this.log(`${label}: +${total} HP.`);
+      this.refreshHud();
+      return true;
+    };
+    if (tryHeal('bandage', 'Bandage')) return;
+    if (tryHeal('stim', 'Stim')) return;
+    this.log('No bandage or stim. Craft one or put a kit in QUICK 1/2.');
   }
 
   update(_t, dtMs) {
@@ -1768,7 +1929,10 @@ export class GameScene extends Phaser.Scene {
     if (isRun) baseMs *= 0.65;
     this.moveCd = baseMs;
 
-    const noise = isRun ? PLAYER.noiseRun : isSneak ? PLAYER.noiseWalk * 0.35 : PLAYER.noiseWalk;
+    // Hat + character sneakBonus quiet you further while sneaking
+    const sneakGear = this.playerSneakBonus();
+    let noise = isRun ? PLAYER.noiseRun : isSneak ? PLAYER.noiseWalk * 0.35 : PLAYER.noiseWalk;
+    if (isSneak && sneakGear > 0) noise *= Math.max(0.15, 1 - sneakGear * 0.12);
     const res = this.alert.makeNoise(
       noise,
       nx,
@@ -2072,6 +2236,11 @@ export class GameScene extends Phaser.Scene {
     }
     this.craftUi = [];
     this.craftOpen = false;
+    this.clearMousePath();
+    this.uiBlockClick = true;
+    this.time?.delayedCall(120, () => {
+      this.uiBlockClick = false;
+    });
   }
 
   buildCraftModal() {
@@ -2111,13 +2280,34 @@ export class GameScene extends Phaser.Scene {
       });
     });
 
+    const nearBench = this.benches.some(
+      (b) => Math.abs(b.x - this.player.tx) + Math.abs(b.y - this.player.ty) <= 1
+    ) || this.ground[this.player.ty][this.player.tx] === T.BENCH;
+
     const title = this.add
-      .text(cx, cy - 200, 'STREET RIG  -  click a recipe', {
+      .text(cx, cy - 200, nearBench ? 'STREET RIG  -  click a recipe' : 'RECIPES (browse)', {
         fontFamily: 'system-ui',
         fontSize: '20px',
         fontStyle: 'bold',
         color: '#e9d5ff',
       })
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(d + 2);
+
+    const prox = this.add
+      .text(
+        cx,
+        cy - 172,
+        nearBench
+          ? 'At a purple rig. Green rows are ready.'
+          : 'Walk onto a purple Street Rig to craft. You can browse recipes anywhere.',
+        {
+          fontFamily: 'system-ui',
+          fontSize: '12px',
+          color: nearBench ? '#86efac' : '#fbbf24',
+        }
+      )
       .setOrigin(0.5)
       .setScrollFactor(0)
       .setDepth(d + 2);
@@ -2132,7 +2322,7 @@ export class GameScene extends Phaser.Scene {
       this.toggleCraft(false);
     }, d + 5);
 
-    this.craftUi.push(dim, panel, title, xBtn.bg, xBtn.label, closeBtn.bg, closeBtn.label);
+    this.craftUi.push(dim, panel, title, prox, xBtn.bg, xBtn.label, closeBtn.bg, closeBtn.label);
 
     const list = [...this.inv.blueprints];
     if (!list.length) {
@@ -2213,6 +2403,11 @@ export class GameScene extends Phaser.Scene {
       return;
     }
     const gear = this.inv.craft(id);
+    if (!gear) {
+      this.log('Craft failed.');
+      this.buildCraftModal();
+      return;
+    }
     // Neon Val bat bonus when crafting/equipping pipe
     if (gear.id === 'pipe' && this.player.batBonus) {
       gear.atk = (gear.atk || 0) + this.player.batBonus;
@@ -2237,18 +2432,32 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  /** Character sneak + equipped hat sneakBonus */
+  playerSneakBonus() {
+    let s = this.player.sneakBonus || 0;
+    const hat = this.inv.equip?.head;
+    if (hat?.sneakBonus) s += hat.sneakBonus;
+    return s;
+  }
+
+  /** Day/night vision radius including character visionBonus */
+  playerVision() {
+    const base = this.dayNight.isNight ? PLAYER.visionNight : PLAYER.visionDay;
+    return base + (this.player.visionBonus || 0);
+  }
+
   // ─── STEALTH / SPOT ──────────────────────────────────
   checkSpotting() {
     if (this.alert.state === ALERT.RED) return;
-    const vis = this.dayNight.isNight ? PLAYER.visionNight : PLAYER.visionDay;
+    const vis = this.playerVision();
+    const sneak = this.playerSneakBonus();
     for (const e of this.enemies) {
       if (!e.alive || e._dormant) continue;
       const d = Math.abs(e.tx - this.player.tx) + Math.abs(e.ty - this.player.ty);
       const theirVis = this.dayNight.isNight ? 5 : 7;
       if (d <= Math.min(vis, theirVis) && this.hasLos(e.tx, e.ty, this.player.tx, this.player.ty)) {
-        // spotted if close LOS
-        // Sneak = harder to spot; must be closer
-        const spotRange = this.sneaking ? 3 : 5;
+        // Sneak + gear = harder to spot; must be closer
+        const spotRange = this.sneaking ? Math.max(1, 3 - Math.floor(sneak / 2)) : 5;
         if (d <= spotRange && !this.hiding) {
           this.sneaking = false;
           this.syncMoveModeButtons();
@@ -2493,16 +2702,39 @@ export class GameScene extends Phaser.Scene {
 
   resolveHit(att, def, ranged = false) {
     if (!def?.alive) return;
-    let bonus = 0;
+    let atkBonus = 0;
     if (att.isPlayer) {
-      bonus = (this.inv.weapon?.atk || 0);
+      atkBonus = this.inv.weapon?.atk || 0;
       if (this.player.batBonus && (this.inv.weapon?.id === 'pipe' || this.inv.weapon?.id === 'stick')) {
-        bonus += this.player.batBonus;
+        atkBonus += this.player.batBonus;
       }
-      if (this.player.rangedBonus && this.inv.weapon?.ranged) bonus += this.player.rangedBonus;
+      if (this.player.rangedBonus && this.inv.weapon?.ranged) atkBonus += this.player.rangedBonus;
+    }
+    // Player DEF from armor / hat / legs must count (Actor.def is base only)
+    let armorDef = def.def || 0;
+    if (def.isPlayer) {
+      armorDef = this.inv.totalDef(def.baseDef || 0);
     }
     const raw = att.baseAtk + ((Math.random() * 3) | 0);
-    const { dmg, killed } = def.takeDamage(raw, bonus);
+    const dmg = Math.max(1, raw + atkBonus - armorDef);
+    def.hp = Math.max(0, def.hp - dmg);
+    def.refreshHp();
+    // Flash
+    this.tweens.killTweensOf(def.flash);
+    def.flash.setAlpha(1);
+    this.tweens.add({
+      targets: def.flash,
+      alpha: 0.25,
+      yoyo: true,
+      duration: 50,
+      repeat: 1,
+      onComplete: () => def.flash.setAlpha(1),
+    });
+    const killed = def.hp <= 0;
+    if (killed) {
+      def.alive = false;
+      def.root.setAlpha(0.4);
+    }
     this.audio.hit();
     const verb = ranged
       ? att.kind === 'drone'
@@ -2523,7 +2755,8 @@ export class GameScene extends Phaser.Scene {
     }
     if (killed && !def.isPlayer) {
       if (this.combatFocus === def) this.combatFocus = null;
-      if (def === this.guideDog || def.kind === 'dog') this._guideDogDead = true;
+      // Only count the guide dog for quest 2 (not random night dogs)
+      if (def === this.guideDog || def._isGuideDog) this._guideDogDead = true;
       this.combatLog(`${def.name} is out.`);
       try {
         def.destroy();
@@ -2613,7 +2846,7 @@ export class GameScene extends Phaser.Scene {
 
   // ─── FOW ─────────────────────────────────────────────
   isVisibleTile(tx, ty) {
-    const vis = this.dayNight.isNight ? PLAYER.visionNight : PLAYER.visionDay;
+    const vis = this.playerVision();
     const d = Math.abs(tx - this.player.tx) + Math.abs(ty - this.player.ty);
     if (d > vis) return false;
     return this.hasLos(this.player.tx, this.player.ty, tx, ty);
@@ -2626,7 +2859,7 @@ export class GameScene extends Phaser.Scene {
     const r = (((cam.worldView.x + cam.worldView.width) / TILE) | 0) + 1;
     const t = ((cam.worldView.y / TILE) | 0) - 1;
     const b = (((cam.worldView.y + cam.worldView.height) / TILE) | 0) + 1;
-    const vis = this.dayNight.isNight ? PLAYER.visionNight : PLAYER.visionDay;
+    const vis = this.playerVision();
 
     for (let y = Math.max(0, t); y < Math.min(MAP_H, b); y++) {
       for (let x = Math.max(0, l); x < Math.min(MAP_W, r); x++) {

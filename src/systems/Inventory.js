@@ -154,6 +154,7 @@ export class Inventory {
   /**
    * Equip item by uid into its natural slot, or explicit slot.
    * Unequips previous into bag.
+   * Consumables / bedroll: click-equip prefers an empty QUICK1/QUICK2.
    */
   equipItem(uid, slotOverride = null) {
     const bagIdx = this.items.findIndex((i) => i.uid === uid);
@@ -170,15 +171,22 @@ export class Inventory {
     }
     if (!item) return { ok: false, reason: 'missing' };
 
-    const slot = slotOverride || item.slot;
+    let slot = slotOverride || item.slot;
+    // Kits: auto-pick free quick slot when not dragging to a specific one
+    const isKit = item.type === 'consumable' || item.id === 'bedroll';
+    if (isKit && !slotOverride) {
+      if (!this.equip[SLOT.QUICK1]) slot = SLOT.QUICK1;
+      else if (!this.equip[SLOT.QUICK2]) slot = SLOT.QUICK2;
+      else slot = SLOT.QUICK1; // both full → swap QUICK1
+    }
     if (!slot || !Object.prototype.hasOwnProperty.call(this.equip, slot)) {
       return { ok: false, reason: 'no_slot' };
     }
-    // Quick slots accept consumables
-    if ((slot === SLOT.QUICK1 || slot === SLOT.QUICK2) && item.type !== 'consumable' && item.id !== 'bedroll') {
-      if (item.type !== 'consumable') return { ok: false, reason: 'quick_only_kits' };
+    // Quick slots accept consumables / bedroll
+    if ((slot === SLOT.QUICK1 || slot === SLOT.QUICK2) && !isKit) {
+      return { ok: false, reason: 'quick_only_kits' };
     }
-    // Slot type checks
+    // Slot type checks (skip for kits going to quick)
     if (slot === SLOT.WEAPON && item.slot !== SLOT.WEAPON) return { ok: false, reason: 'not_weapon' };
     if (slot === SLOT.HEAD && item.slot !== SLOT.HEAD) return { ok: false, reason: 'not_head' };
     if (slot === SLOT.BODY && item.slot !== SLOT.BODY) return { ok: false, reason: 'not_body' };

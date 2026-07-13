@@ -32,7 +32,7 @@ export class HelpDirector {
   intro() {
     if (!this.enabled) return;
     this.push(
-      'WHO: You’re the Runner — last courier dumb enough to try the Wall.'
+      'WHO: You’re the Runner. Last courier dumb enough to try the Wall.'
     );
     this.push(
       'WHAT: Scavenge junk. Find blueprints. Craft a Breach Kit. Escape.'
