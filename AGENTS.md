@@ -5,8 +5,8 @@
 **Stack:** Phaser **4.2+ only** (never Phaser 3), Vite 6, pure client, procedural tiles  
 **Git:** local `main` only. **Do not push / Vercel deploy unless user asks.** Remote play = push when ready.
 
-**Last session HEAD:** `59bee61` (2026-07-13)  
-**Working tree:** clean after handoff commit.
+**Last session HEAD:** `77f49d9` (2026-07-13)  
+**Working tree:** clean. City Wars audit + playtest shipped; session wrapped.
 
 ---
 
@@ -21,7 +21,7 @@ cd ~/Dev/City\ Wars
 npm install   # if needed
 npm run dev   # http://localhost:5173/
 # hard refresh: Cmd+Shift+R
-npm run playtest   # automated tutorial smoke (needs Chrome + dev server)
+npm run playtest   # automated tutorial smoke (needs Chrome + dev server up)
 ```
 
 Flow: **Day length** → **Choose Runner** → **ENTER THE GRID**.
@@ -105,7 +105,7 @@ AGENTS.md                        This handoff
 
 ---
 
-## Audit (2026-07-13) — fixed this session
+## Audit (2026-07-13) — shipped
 
 | # | Issue | Fix |
 |---|--------|-----|
@@ -134,10 +134,26 @@ AGENTS.md                        This handoff
 
 ---
 
+## Grok TUI status lights (user testing next session)
+
+User feedback: purple accent always blinks, so working vs idle is unclear. **Intended:** pulse while working, still when stopped.
+
+Global config (not in this repo):
+
+| File | Change |
+|------|--------|
+| `~/.grok/pager.toml` | calmer animation (`fps=20`), dimmer finished accents (`dim_accent=0.35`), thinking animate still on |
+| `~/.grok/config.toml` | `[ui.notifications]` always on turn_complete; title spinner/activity; **Pop.aiff** chime when a turn finishes |
+
+**Test after new session:** run any short prompt → accents should pulse → when reply finishes, chime + accents should settle. If purple never stops, set `[scrollback.blocks.thinking] animate = false` in `pager.toml`.
+
+---
+
 ## Recent commits (this arc)
 
 | Hash | Summary |
 |------|---------|
+| `77f49d9` | Handoff pin after audit |
 | `59bee61` | Audit fixes: combat DEF, guide dog dawn, heal/sneak/vision, mid-pan, playtest |
 | `d71906d` | Tighter runner select + mouse edge camera pan |
 | `a6ccb65` | Short hike guide, pulse, bag polish, bag-close auto-walk fix |
@@ -152,13 +168,15 @@ AGENTS.md                        This handoff
 - Exact product names; don’t invent dashboard paths
 - Prefer local files + git until they ask for remote
 - “Agent mode” = edit code; “ask mode” = read-only advice. They prefer you just implement when they want changes.
+- TUI: working vs idle should be obvious (accents + chime); they will re-test in a new session
 
 ---
 
 ## Session wrap checklist
 
-- [x] Code committed on `main`
-- [x] AGENTS.md updated
+- [x] Code committed on `main` (`59bee61` + `77f49d9`)
+- [x] AGENTS.md updated for wrap
 - [ ] No remote push (by design)
-- [ ] Dev: `npm run dev` → http://localhost:5173/
-- [x] Playtest: `npm run playtest` (with dev server up) PASS
+- [ ] Dev: `npm run dev` → http://localhost:5173/ (restart if needed)
+- [x] Playtest: `npm run playtest` PASS
+- [x] Grok TUI config ready for user new-session test (`pager.toml` + notifications)
