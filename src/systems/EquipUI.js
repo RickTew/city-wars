@@ -115,7 +115,8 @@ export class EquipUI {
       .setScrollFactor(0)
       .setDepth(d + 3);
 
-    const atk = inv.totalAtk(p?.baseAtk || 3);
+    // Prefer scene effective ATK (includes bat/ranged bonuses live)
+    const atk = s.playerEffectiveAtk?.() ?? inv.totalAtk(p?.baseAtk || 3);
     const def = inv.totalDef(p?.baseDef || 0);
     const stats = s.add
       .text(cx + panelW / 2 - 24, cy - panelH / 2 + 22, `ATK ${atk}   DEF ${def}`, {

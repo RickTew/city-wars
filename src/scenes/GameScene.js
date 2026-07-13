@@ -33,6 +33,7 @@ import { getCharacter } from '../config/characters.js';
 import { StoryDirector } from '../systems/StoryDirector.js';
 import { GuideDirector } from '../systems/GuideDirector.js';
 import { EquipUI } from '../systems/EquipUI.js';
+import { VFX } from '../systems/VFX.js';
 
 export class GameScene extends Phaser.Scene {
   constructor() {
@@ -84,6 +85,8 @@ export class GameScene extends Phaser.Scene {
     this.guideDog = null;
     this.bagOpen = false;
     this.equipUI = null;
+    this.menuOpen = false;
+    this.vfx = new VFX(this);
 
     this.buildMap();
     this.player = makePlayer(this, CENTER_X, CENTER_Y, this.char);
@@ -193,7 +196,7 @@ export class GameScene extends Phaser.Scene {
       ty: this.player?.ty ?? null,
       hp: this.player?.hp ?? null,
       maxHp: this.player?.maxHp ?? null,
-      atk: this.inv?.totalAtk(this.player?.baseAtk || 0) ?? null,
+      atk: this.playerEffectiveAtk?.() ?? this.inv?.totalAtk(this.player?.baseAtk || 0) ?? null,
       def: this.inv?.totalDef(this.player?.baseDef || 0) ?? null,
       vision: this.playerVision?.() ?? null,
       sneak: this.playerSneakBonus?.() ?? null,
@@ -684,8 +687,8 @@ export class GameScene extends Phaser.Scene {
             : 'WALK  -  normal pace.'
         );
       }],
-      ['HEAL', 0x22c55e, () => this.useBandage()],
-      ['?', 0x0369a1, () => this.openHelpPanel()],
+      ['HEAL', 0x22c55e, () => this.useQuickKit()],
+      ['MENU', 0x0369a1, () => this.openRunMenu()],
       ['BAG', 0x57534e, () => this.openBagPanel()],
       ['MAP', 0x0f766e, () => this.toggleLegend()],
     ];
@@ -707,13 +710,10 @@ export class GameScene extends Phaser.Scene {
       if (label === 'CRAFT') this.btnCraft = b;
       if (label === 'WALK') this.btnRun = b;
       if (label === 'HEAL') this.btnHeal = b;
-      if (label === '?') this.btnHelp = b;
+      if (label === 'MENU') this.btnMenu = b;
       if (label === 'BAG') this.btnBag = b;
       if (label === 'MAP') this.btnLegend = b;
     });
-
-    this.moreOpen = false;
-    this.moreMenu = [];
 
     // Home compass  -  graphics chevron pointing +X; rotation = atan2 toward HQ
     this.homeArrow = this.add.graphics().setScrollFactor(0).setDepth(d + 2);
@@ -766,11 +766,120 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  /** Mid-run menu: help blurb, mute, narrator, restart. Pauses world. */
+  openRunMenu() {
+    if (this.menuOpen) {
+      this.closeRunMenu();
+      return;
+    }
+    this.menuOpen = true;
+    this.clearMousePath();
+    this.uiBlockClick = true;
+
+    const d = 460;
+    const w = this.scale.width;
+    const h = this.scale.height;
+    const cx = w / 2;
+    const cy = h / 2 - 10;
+    this.menuUi = [];
+
+    const dim = this.add
+      .rectangle(cx, h / 2, w, h, 0x020617, 0.78)
+      .setScrollFactor(0)
+      .setDepth(d)
+      .setInteractive();
+    dim.on('pointerup', () => this.closeRunMenu());
+
+    const panel = this.add
+      .rectangle(cx, cy, 520, 440, 0x0f172a, 0.98)
+      .setStrokeStyle(3, 0x38bdf8)
+      .setScrollFactor(0)
+      .setDepth(d + 1)
+      .setInteractive();
+    panel.on('pointerup', (p) => {
+      p.event?.stopPropagation?.();
+      this.uiBlockClick = true;
+      this.time.delayedCall(80, () => {
+        this.uiBlockClick = false;
+      });
+    });
+
+    const title = this.add
+      .text(cx, cy - 190, 'RUN MENU', {
+        fontFamily: 'system-ui',
+        fontSize: '22px',
+        fontStyle: 'bold',
+        color: '#f8fafc',
+      })
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(d + 2);
+
+    const help =
+      'WHO: Runner  ·  WHAT: Breach Kit, escape\n' +
+      'WHEN: Day safer · Night dogs  ·  WHERE: HQ center, Wall edges\n' +
+      'HOW: Click map · BAG equip · CRAFT at purple rig · HEAL kits\n' +
+      'Street Charge (Boom craft): detonates near foes. Loud.\n' +
+      'Camera: edge-pan or middle-mouse drag.';
+    const body = this.add
+      .text(cx, cy - 100, help, {
+        fontFamily: 'system-ui',
+        fontSize: '13px',
+        color: '#cbd5e1',
+        align: 'center',
+        lineSpacing: 5,
+      })
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(d + 2);
+
+    const soundOn = this.audio?.on !== false;
+    const narr = this.story?.narratorOn !== false;
+
+    const mk = (y, label, color, fn) => {
+      const b = this.makeUiButton(cx, y, 220, 40, label, color, fn, d + 3);
+      this.menuUi.push(b.bg, b.label);
+      return b;
+    };
+
+    mk(cy + 20, soundOn ? 'SOUND: ON' : 'SOUND: OFF', soundOn ? 0x22c55e : 0x64748b, () => {
+      this.audio.on = !this.audio.on;
+      this.closeRunMenu();
+      this.openRunMenu();
+      this.log(this.audio.on ? 'Sound ON.' : 'Sound muted.');
+    });
+    mk(cy + 70, narr ? 'NARRATOR: ON' : 'NARRATOR: OFF', narr ? 0x7c3aed : 0x64748b, () => {
+      this.story.narratorOn = !this.story.narratorOn;
+      this.story.persist();
+      this.closeRunMenu();
+      this.openRunMenu();
+      this.log(this.story.narratorOn ? 'Narrator ON.' : 'Narrator OFF.');
+    });
+    mk(cy + 120, 'NEW RUN (menu)', 0xe11d48, () => {
+      this.closeRunMenu();
+      this.scene.start('Menu');
+    });
+    mk(cy + 180, 'CLOSE', 0x94a3b8, () => this.closeRunMenu());
+
+    this.menuUi.push(dim, panel, title, body);
+    this.time.delayedCall(100, () => {
+      if (this.menuOpen) this.uiBlockClick = false;
+    });
+  }
+
+  closeRunMenu() {
+    this.menuOpen = false;
+    for (const o of this.menuUi || []) o?.destroy?.();
+    this.menuUi = [];
+    this.clearMousePath();
+    this.uiBlockClick = true;
+    this.time.delayedCall(120, () => {
+      this.uiBlockClick = false;
+    });
+  }
+
   openHelpPanel() {
-    this.showPopup(
-      'HELP',
-      'WHO: You are the Runner.\nWHAT: Scavenge, craft Breach Kit, escape.\nWHEN: Day safer. Night dogs.\nWHERE: HQ center. Wall at edges.\nHOW: Click map. USE / SLEEP / CRAFT / BAG.\n\nSleep free at HQ. Away needs Sleeping Kit.\nTime pauses on popups.\nLeft-click enemies to attack.\nCamera: edge-pan or middle-mouse drag.'
-    );
+    this.openRunMenu();
   }
 
   openBagPanel() {
@@ -787,7 +896,7 @@ export class GameScene extends Phaser.Scene {
       return;
     }
     this.legendOpen = true;
-    this.closeMoreMenu();
+    this.closeRunMenu();
     const d = 350;
     const w = this.scale.width;
     const h = this.scale.height;
@@ -802,7 +911,7 @@ export class GameScene extends Phaser.Scene {
     dim.on('pointerup', () => this.closeLegend());
 
     const panel = this.add
-      .rectangle(cx, cy, 480, 420, 0x0f172a, 0.98)
+      .rectangle(cx, cy, 500, 480, 0x0f172a, 0.98)
       .setStrokeStyle(2, 0x38bdf8)
       .setScrollFactor(0)
       .setDepth(d + 1)
@@ -815,7 +924,7 @@ export class GameScene extends Phaser.Scene {
     });
 
     const title = this.add
-      .text(cx, cy - 185, 'MAP LEGEND', {
+      .text(cx, cy - 215, 'MAP LEGEND', {
         fontFamily: 'system-ui',
         fontSize: '20px',
         fontStyle: 'bold',
@@ -833,11 +942,13 @@ export class GameScene extends Phaser.Scene {
       ['Dark + yellow dots', 'Building (blocked  -  walk around)'],
       ['Red-brown solid', 'Barricade (blocked)'],
       ['Gold square', 'Loot crate  -  click to scavenge scrap'],
+      ['Brown bat shape', 'Street Stick gear pickup'],
+      ['Purple hat shape', 'Neon Fedora gear pickup'],
       ['Purple “U” bench', 'Street Rig  -  craft here'],
       ['Teal oval', 'Sleep spot  -  rest until morning'],
       ['Pink + white dot', 'Blueprint  -  walk on to learn recipe'],
       ['Amber / gold edge', 'ESCAPE pad  -  needs Breach Kit'],
-      ['Yellow ▲ marker', 'Current objective'],
+      ['Gold pulse / ▲', 'Current guide objective'],
       ['You (small figure)', 'The Runner  -  click map to walk'],
     ];
 
@@ -845,16 +956,16 @@ export class GameScene extends Phaser.Scene {
       .map(([a, b]) => `• ${a}   -   ${b}`)
       .join('\n');
     const text = this.add
-      .text(cx - 210, cy - 150, body, {
+      .text(cx - 220, cy - 185, body, {
         fontFamily: 'system-ui',
-        fontSize: '13px',
+        fontSize: '12px',
         color: '#cbd5e1',
-        lineSpacing: 6,
+        lineSpacing: 5,
       })
       .setScrollFactor(0)
       .setDepth(d + 2);
 
-    const close = this.makeUiButton(cx, cy + 180, 140, 40, 'CLOSE', 0x94a3b8, () => this.closeLegend(), d + 3);
+    const close = this.makeUiButton(cx, cy + 210, 140, 40, 'CLOSE', 0x94a3b8, () => this.closeLegend(), d + 3);
     this.legendUi = [dim, panel, title, text, close.bg, close.label];
   }
 
@@ -869,56 +980,8 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
-  toggleMoreMenu() {
-    if (this.moreOpen) {
-      this.closeMoreMenu();
-      return;
-    }
-    this.moreOpen = true;
-    this.closeLegend();
-    const d = 130;
-    const bx = this.btnMore.bg.x;
-    const by = this.btnMore.bg.y - 50;
-    const items = [
-      {
-        label: 'HELP ON/OFF',
-        color: 0x38bdf8,
-        fn: () => {
-          const on = this.help.toggle();
-          this.log(on ? 'Help ON  -  click tip text for next.' : 'Help OFF.');
-          this.refreshHud();
-          this.closeMoreMenu();
-        },
-      },
-      {
-        label: 'NEXT TIP',
-        color: 0x0369a1,
-        fn: () => {
-          if (this.help.enabled) this.help.next();
-          this.refreshHud();
-          this.closeMoreMenu();
-        },
-      },
-      {
-        label: 'STOP WALK',
-        color: 0x64748b,
-        fn: () => {
-          this.clearMousePath();
-          this.log('Stopped.');
-          this.closeMoreMenu();
-        },
-      },
-    ];
-    items.forEach((it, i) => {
-      const b = this.makeUiButton(bx, by - i * 46, 120, 40, it.label, it.color, it.fn, d);
-      this.moreMenu.push(b.bg, b.label);
-    });
-  }
-
   closeMoreMenu() {
-    this.moreOpen = false;
-    for (const o of this.moreMenu) o.destroy();
-    this.moreMenu = [];
+    // legacy no-op (MORE menu removed; use MENU)
   }
 
   /**
@@ -960,9 +1023,18 @@ export class GameScene extends Phaser.Scene {
     return { bg, label: text };
   }
 
+  /** ATK shown on HUD / combat: base + weapon + live char bonuses (never baked into gear). */
+  playerEffectiveAtk() {
+    let a = this.inv.totalAtk(this.player.baseAtk);
+    const w = this.inv.weapon;
+    if (w && this.player.batBonus && (w.id === 'pipe' || w.id === 'stick')) a += this.player.batBonus;
+    if (w?.ranged && this.player.rangedBonus) a += this.player.rangedBonus;
+    return a;
+  }
+
   refreshHud() {
     const p = this.player;
-    const atk = this.inv.totalAtk(p.baseAtk) + (this.player.batBonus && this.inv.weapon?.id === 'pipe' ? this.player.batBonus : 0);
+    const atk = this.playerEffectiveAtk();
     const def = this.inv.totalDef(p.baseDef);
     const zone = this.zones.label(this.zones.getZone(p.tx, p.ty));
 
@@ -1036,7 +1108,9 @@ export class GameScene extends Phaser.Scene {
     const pPct = Math.max(0, p.hp / p.maxHp);
     this.playerBarFill.width = 250 * pPct;
     this.playerBarFill.setFillStyle(pPct > 0.5 ? 0x22c55e : pPct > 0.25 ? 0xeab308 : 0xef4444);
-    this.playerBarLabel.setText(`YOU  ${p.hp}/${p.maxHp}  (${this.inv.weapon?.name || 'Fists'})`);
+    this.playerBarLabel.setText(
+      `YOU  ${p.hp}/${p.maxHp}  (${this.inv.weapon?.name || 'Fists'} ATK ${this.playerEffectiveAtk()})`
+    );
 
     let foe = this.combatFocus?.alive ? this.combatFocus : null;
     if (!foe) {
@@ -1059,7 +1133,7 @@ export class GameScene extends Phaser.Scene {
 
   /** True while any modal is open  -  freezes world time & AI */
   isPaused() {
-    return !!(this.popupOpen || this.craftOpen || this.legendOpen || this.bagOpen);
+    return !!(this.popupOpen || this.craftOpen || this.legendOpen || this.bagOpen || this.menuOpen);
   }
 
   spawnGuideDog() {
@@ -1539,16 +1613,11 @@ export class GameScene extends Phaser.Scene {
       }
       if (this.ended || this.uiBlockClick) return;
       // Never path while any modal is open (bag close was causing auto-walk)
-      if (this.popupOpen || this.craftOpen || this.legendOpen || this.bagOpen) return;
+      if (this.popupOpen || this.craftOpen || this.legendOpen || this.bagOpen || this.menuOpen) return;
       if (this.isPaused()) return;
 
       // Ignore top HUD / bottom action bar
       if (p.y < 56 || p.y > this.scale.height - 90) return;
-
-      // Close MORE menu if open and click elsewhere
-      if (this.moreOpen) {
-        this.closeMoreMenu();
-      }
 
       const wpt = this.cameras.main.getWorldPoint(p.x, p.y);
       const tx = (wpt.x / TILE) | 0;
@@ -1664,7 +1733,9 @@ export class GameScene extends Phaser.Scene {
       g === T.BENCH ||
       g === T.ESCAPE ||
       g === T.LANDMARK ||
-      g === T.GEAR_DROP
+      g === T.GEAR_DROP ||
+      g === T.GEAR_STICK ||
+      g === T.GEAR_HAT
     )
       return true;
     if (this.lootSpots.some((l) => l.x === tx && l.y === ty && !l.taken)) return true;
@@ -1751,15 +1822,22 @@ export class GameScene extends Phaser.Scene {
     this.pathGfx.fillCircle(last.x * TILE + TILE / 2, last.y * TILE + TILE / 2, 8);
   }
 
+  /** HEAL button: bandages / stim / MRE, or Street Charge in combat. */
+  useQuickKit() {
+    if (this.useBandage()) return;
+    if (this.useStreetCharge()) return;
+    this.log('No heal kit or Street Charge. Craft one or put it in QUICK 1/2.');
+  }
+
   useBandage() {
-    // Prefer bandage, then stim. Bag or QUICK slots (countItem covers both).
+    // Prefer bandage, then stim, then MRE. Bag or QUICK slots.
     const tryHeal = (id, label) => {
       if (this.inv.countItem(id) <= 0) return false;
       const r = this.inv.useConsumable(id, this.player);
       if (!r) return false;
-      // Character healBonus (e.g. Doc Rue) stacks after base heal
+      // Character healBonus (e.g. Doc Rue) stacks after base heal (not on tiny MRE)
       let bonus = 0;
-      if (this.player.healBonus) {
+      if (this.player.healBonus && id !== 'mre') {
         bonus = this.player.heal(this.player.healBonus);
       }
       const total = (r.healed || 0) + bonus;
@@ -1767,9 +1845,81 @@ export class GameScene extends Phaser.Scene {
       this.refreshHud();
       return true;
     };
-    if (tryHeal('bandage', 'Bandage')) return;
-    if (tryHeal('stim', 'Stim')) return;
-    this.log('No bandage or stim. Craft one or put a kit in QUICK 1/2.');
+    if (tryHeal('bandage', 'Bandage')) return true;
+    if (tryHeal('stim', 'Stim')) return true;
+    if (tryHeal('mre', 'MRE Paste')) return true;
+    return false;
+  }
+
+  /**
+   * Boom Chi fantasy: detonate Street Charge.
+   * Hits all living enemies within 2 tiles. Power + explosiveBonus.
+   */
+  useStreetCharge() {
+    if (this.inv.countItem('charge') <= 0) return false;
+    const pulled = this.inv.takeConsumable('charge');
+    if (!pulled?.item) return false;
+
+    const power = (pulled.item.power || 6) + (this.player.explosiveBonus || 0);
+    const px = this.player.tx;
+    const py = this.player.ty;
+    const hits = [];
+    for (const e of [...this.enemies]) {
+      if (!e.alive || e._dormant) continue;
+      const d = Math.abs(e.tx - px) + Math.abs(e.ty - py);
+      if (d <= 2) hits.push(e);
+    }
+
+    this.audio.red();
+    this.vfx?.burst(this.player.x, this.player.y, 0xf97316, 14);
+    this.vfx?.pulseRing(this.player.x, this.player.y, 0xef4444);
+    this.alert.makeNoise(
+      1,
+      px,
+      py,
+      this.enemies.filter((e) => e.alive && !e._dormant)
+    );
+
+    if (!hits.length) {
+      this.log(`Street Charge boom (+${power} max). Nobody close enough.`);
+      this.refreshHud();
+      return true;
+    }
+
+    const wasCombat = this.mode === 'combat';
+    for (const e of hits) {
+      if (!e.alive) continue;
+      const dmg = Math.max(1, power - (e.def || 0) + ((Math.random() * 2) | 0));
+      e.hp = Math.max(0, e.hp - dmg);
+      e.refreshHp();
+      this.vfx?.floatText(e.x, e.y - 8, `-${dmg}`, '#fbbf24', 18);
+      this.vfx?.burst(e.x, e.y, 0xef4444, 6);
+      const line = `Charge hits ${e.name} for ${dmg}${e.hp <= 0 ? '  -  DOWN!' : ''}`;
+      if (wasCombat) this.combatLog(line);
+      this.log(line);
+      if (e.hp <= 0) {
+        e.alive = false;
+        if (e === this.guideDog || e._isGuideDog) this._guideDogDead = true;
+        try {
+          e.destroy();
+        } catch (_) {
+          /* gone */
+        }
+        this.enemies = this.enemies.filter((x) => x !== e && x.alive);
+      }
+    }
+    this.checkGuide();
+    this.refreshHud();
+
+    // If used as combat action, spend the turn. Else engage survivors only.
+    if (wasCombat) {
+      this.checkCombatEnd();
+      if (this.mode === 'combat' && this.player.alive) this.afterPlayerCombat();
+    } else {
+      const live = hits.find((e) => e.alive);
+      if (live) this.startCombat(live, true);
+    }
+    return true;
   }
 
   update(_t, dtMs) {
@@ -1831,10 +1981,10 @@ export class GameScene extends Phaser.Scene {
     this.handleMousePathStep(shiftRun);
     this.enemyExploreAI(dt);
 
-    // Occasional ambient narrator (only if enabled and free)
+    // Occasional ambient narrator (only if enabled and free). Longer cooldown.
     if (!this.popupOpen && this.story?.narratorOn) {
       this._ambT = (this._ambT || 0) + dt;
-      if (this._ambT > 12) {
+      if (this._ambT > 28) {
         this._ambT = 0;
         const amb = this.story.ambientChance();
         if (amb) this.showPopup(amb.title, amb.body);
@@ -2020,7 +2170,7 @@ export class GameScene extends Phaser.Scene {
       this.tryEscape();
       return;
     }
-    this.useBandage();
+    this.useQuickKit();
   }
 
   scavenge(tx, ty) {
@@ -2036,7 +2186,8 @@ export class GameScene extends Phaser.Scene {
     }
 
     // roll mats  -  guide crate always yields enough cloth for bandage
-    const table = ['scrap', 'scrap', 'wire', 'cloth', 'battery', 'chem', 'circuit', 'food', 'scrap'];
+    // food mat rolls become MRE Paste items (real consumable)
+    const table = ['scrap', 'scrap', 'wire', 'cloth', 'battery', 'chem', 'circuit', 'mre', 'scrap'];
     const z = this.zones.getZone(tx, ty);
     const rolls = 2 + (z === ZONE.OUTER || z === ZONE.WALL ? 1 : 0) + (this.player.scavengeBonus || 0);
     const got = [];
@@ -2050,13 +2201,14 @@ export class GameScene extends Phaser.Scene {
       for (let i = 0; i < rolls; i++) {
         let id = table[(Math.random() * table.length) | 0];
         if (this.dayNight.isNight && Math.random() < 0.15) id = 'circuit';
-        this.inv.addMat(id, 1);
-        got.push(MAT[id].name);
+        if (id === 'mre') {
+          this.inv.addItem('mre');
+          got.push('MRE Paste');
+        } else {
+          this.inv.addMat(id, 1);
+          got.push(MAT[id]?.name || id);
+        }
       }
-    }
-    // food auto nibble option
-    if (got.includes('MRE Paste') && Math.random() < 0.5) {
-      this.player.heal(4);
     }
     this.audio.scavenge();
     this.alert.makeNoise(0.35, tx, ty, this.enemies.filter((e) => e.alive && !e._dormant));
@@ -2223,7 +2375,7 @@ export class GameScene extends Phaser.Scene {
     else this.craftOpen = !this.craftOpen;
 
     if (this.craftOpen) {
-      this.closeMoreMenu();
+      this.closeRunMenu();
       this.buildCraftModal();
     } else {
       this.destroyCraftModal();
@@ -2265,8 +2417,12 @@ export class GameScene extends Phaser.Scene {
     });
 
     // Panel (does not close when clicked  -  stopPropagation via uiBlock)
+    const list = [...this.inv.blueprints];
+    const rowH = list.length > 8 ? 40 : list.length > 6 ? 44 : 50;
+    const panelH = Math.min(this.scale.height - 40, Math.max(460, 160 + list.length * rowH + 80));
+
     const panel = this.add
-      .rectangle(cx, cy, 580, 460, 0x0f172a, 0.98)
+      .rectangle(cx, cy, 580, panelH, 0x0f172a, 0.98)
       .setStrokeStyle(3, 0xa855f7)
       .setScrollFactor(0)
       .setDepth(d + 1)
@@ -2284,8 +2440,9 @@ export class GameScene extends Phaser.Scene {
       (b) => Math.abs(b.x - this.player.tx) + Math.abs(b.y - this.player.ty) <= 1
     ) || this.ground[this.player.ty][this.player.tx] === T.BENCH;
 
+    const titleY = cy - panelH / 2 + 28;
     const title = this.add
-      .text(cx, cy - 200, nearBench ? 'STREET RIG  -  click a recipe' : 'RECIPES (browse)', {
+      .text(cx, titleY, nearBench ? 'STREET RIG  -  click a recipe' : 'RECIPES (browse)', {
         fontFamily: 'system-ui',
         fontSize: '20px',
         fontStyle: 'bold',
@@ -2298,9 +2455,9 @@ export class GameScene extends Phaser.Scene {
     const prox = this.add
       .text(
         cx,
-        cy - 172,
+        titleY + 28,
         nearBench
-          ? 'At a purple rig. Green rows are ready.'
+          ? 'At a purple rig. Green rows are ready. Craft+ may refund a mat.'
           : 'Walk onto a purple Street Rig to craft. You can browse recipes anywhere.',
         {
           fontFamily: 'system-ui',
@@ -2313,18 +2470,17 @@ export class GameScene extends Phaser.Scene {
       .setDepth(d + 2);
 
     // X close (top-right of panel)
-    const xBtn = this.makeUiButton(cx + 250, cy - 200, 44, 36, '✕', 0xef4444, () => {
+    const xBtn = this.makeUiButton(cx + 250, titleY, 44, 36, '✕', 0xef4444, () => {
       this.toggleCraft(false);
     }, d + 5);
 
     // CLOSE button (bottom center)  -  guaranteed scene-level
-    const closeBtn = this.makeUiButton(cx, cy + 195, 160, 44, 'CLOSE', 0x94a3b8, () => {
+    const closeBtn = this.makeUiButton(cx, cy + panelH / 2 - 28, 160, 44, 'CLOSE', 0x94a3b8, () => {
       this.toggleCraft(false);
     }, d + 5);
 
     this.craftUi.push(dim, panel, title, prox, xBtn.bg, xBtn.label, closeBtn.bg, closeBtn.label);
 
-    const list = [...this.inv.blueprints];
     if (!list.length) {
       const empty = this.add
         .text(cx, cy, 'No blueprints yet.\nClick pink landmarks on the map,\nthen come back.', {
@@ -2341,16 +2497,17 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
+    const listTop = titleY + 56;
     list.forEach((id, i) => {
       const bp = BLUEPRINTS[id];
       const need = Object.entries(bp.needs)
         .map(([m, n]) => `${MAT[m]?.name || m}×${n} (have ${this.inv.count(m)})`)
         .join(', ');
       const ready = this.inv.canCraft(id);
-      const rowY = cy - 140 + i * 56;
+      const rowY = listTop + i * rowH;
 
       const row = this.add
-        .rectangle(cx, rowY, 520, 50, ready ? 0x14532d : 0x1e293b, 1)
+        .rectangle(cx, rowY, 520, rowH - 4, ready ? 0x14532d : 0x1e293b, 1)
         .setStrokeStyle(2, ready ? 0x4ade80 : 0x475569)
         .setScrollFactor(0)
         .setDepth(d + 3)
@@ -2359,9 +2516,9 @@ export class GameScene extends Phaser.Scene {
       const rowText = this.add
         .text(cx - 250, rowY, `${bp.name}   ${ready ? '✓  CLICK TO CRAFT' : '… need parts'}\n${need}`, {
           fontFamily: 'system-ui',
-          fontSize: '13px',
+          fontSize: rowH < 45 ? '11px' : '13px',
           color: '#f1f5f9',
-          lineSpacing: 3,
+          lineSpacing: 2,
         })
         .setOrigin(0, 0.5)
         .setScrollFactor(0)
@@ -2402,21 +2559,20 @@ export class GameScene extends Phaser.Scene {
       this.buildCraftModal();
       return;
     }
-    const gear = this.inv.craft(id);
-    if (!gear) {
+    const result = this.inv.craft(id, { craftBonus: this.player.craftBonus || 0 });
+    if (!result?.gear) {
       this.log('Craft failed.');
       this.buildCraftModal();
       return;
     }
-    // Neon Val bat bonus when crafting/equipping pipe
-    if (gear.id === 'pipe' && this.player.batBonus) {
-      gear.atk = (gear.atk || 0) + this.player.batBonus;
-    }
-    if (gear.id === 'zipgun' && this.player.rangedBonus) {
-      gear.atk = (gear.atk || 0) + this.player.rangedBonus;
-    }
+    const gear = result.gear;
+    // batBonus / rangedBonus apply at combat time only (never bake into gear.atk)
     this.audio.craft();
-    this.log(`Crafted ${gear.name}. ${gear.desc}`);
+    let msg = `Crafted ${gear.name}. ${gear.desc}`;
+    if (result.refunded) {
+      msg += ` (${this.char?.name || 'You'} salvaged 1 ${MAT[result.refunded]?.name || result.refunded}.)`;
+    }
+    this.log(msg);
     this.huntList = this.huntList.filter((h) => BLUEPRINTS[h.bpId]?.result !== gear.id);
     this.refreshHuntHud();
     this.buildCraftModal();
@@ -2544,7 +2700,7 @@ export class GameScene extends Phaser.Scene {
     this.mode = 'combat';
     this.clearMousePath();
     this.destroyCraftModal();
-    this.closeMoreMenu();
+    this.closeRunMenu();
     this.closeLegend();
     this.combatFocus = enemy;
     this.combatTurn = 'player';
@@ -2573,7 +2729,7 @@ export class GameScene extends Phaser.Scene {
       this.seenCombatHelp = true;
       this.showPopup(
         'FIRST FIGHT',
-        'Left panel: your HP, enemy HP, and a live combat log.\n\n• Left-click the enemy to attack\n• Click an adjacent empty tile to step\n• Melee foes must be next to you\n• Sneak first for a better chance to strike first\n• Later: right-click may open special actions\n• Craft a Zip Gun for ranged attacks',
+        'Left panel: your HP, enemy HP, and a live combat log.\n\n• Left-click the enemy to attack\n• Click an adjacent empty tile to step\n• Melee foes must be next to you\n• HEAL uses bandages, stims, or MRE Paste\n• Street Charge (Boom craft) blasts foes within 2 tiles\n• Craft a Zip Gun for ranged attacks',
         begin
       );
     } else {
@@ -2705,6 +2861,7 @@ export class GameScene extends Phaser.Scene {
     let atkBonus = 0;
     if (att.isPlayer) {
       atkBonus = this.inv.weapon?.atk || 0;
+      // Live bonuses only (not baked into weapon.atk on craft)
       if (this.player.batBonus && (this.inv.weapon?.id === 'pipe' || this.inv.weapon?.id === 'stick')) {
         atkBonus += this.player.batBonus;
       }
@@ -2730,6 +2887,11 @@ export class GameScene extends Phaser.Scene {
       repeat: 1,
       onComplete: () => def.flash.setAlpha(1),
     });
+    // Floating damage + slash
+    this.vfx?.floatText(def.x, def.y - 10, `-${dmg}`, att.isPlayer ? '#7dd3fc' : '#fca5a5', 17);
+    this.vfx?.slash(att.x, att.y, def.x, def.y, att.isPlayer ? 0x38bdf8 : 0xef4444);
+    if (dmg >= 6) this.vfx?.burst(def.x, def.y, 0xfbbf24, 5);
+
     const killed = def.hp <= 0;
     if (killed) {
       def.alive = false;

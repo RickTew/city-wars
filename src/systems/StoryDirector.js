@@ -36,10 +36,12 @@ export class StoryDirector {
         `${char.name}: "${char.blurb}"\n\n` +
         'The Wall still stands. Dogs own the dark.\n' +
         'Scavenge. Craft. Breach. Get out.\n\n' +
-        'First jobs: Bandage, Sleeping Kit, Pipe Club.\n' +
-        'I will nudge you until those three are real.\n\n' +
-        'Click map to walk. Click enemies to fight.\n' +
-        'SNEAK keeps you quiet. HQ sleep is free.',
+        'First jobs (follow the gold pulse):\n' +
+        '1. Gold crate east. Stick south. Hat west.\n' +
+        '2. BAG equip. CRAFT a Field Bandage at HQ.\n' +
+        '3. Fight the dog. SLEEP at HQ.\n\n' +
+        'Then hunt the pink Breach Kit print north.\n' +
+        'Click map to walk. Left-click enemies to fight.',
     };
   }
 
@@ -155,7 +157,7 @@ export class StoryDirector {
 
   ambientChance() {
     if (!this.narratorOn) return null;
-    if (Math.random() > 0.04) return null;
+    if (Math.random() > 0.022) return null;
     const key = `amb_${(Math.random() * 20) | 0}`;
     if (!this.once(key)) return null;
     const lines = [

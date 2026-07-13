@@ -284,6 +284,68 @@ async function main() {
     if (st.hp <= 10) fail(`HEAL from quick failed, hp=${st.hp}`);
     else log(`  HP after heal = ${st.hp}`);
 
+    // batBonus is live-only (not double-baked into craft)
+    st = await step('batBonus live (not double-baked)', async () => {
+      await page.evaluate(() => {
+        const g = window.__CITY_WARS__;
+        // Force a bat character bonus for math check
+        g.player.batBonus = 2;
+        g.inv.addItem('pipe');
+        const pipe = g.inv.items.find((i) => i.id === 'pipe');
+        g.inv.equipItem(pipe.uid);
+        // Weapon base ATK must stay 3; effective ATK = base player + 3 + 2 bat
+      });
+    });
+    {
+      const math = await page.evaluate(() => {
+        const g = window.__CITY_WARS__;
+        const wAtk = g.inv.weapon?.atk || 0;
+        const eff = g.playerEffectiveAtk();
+        return { wAtk, eff, base: g.player.baseAtk, bat: g.player.batBonus };
+      });
+      if (math.wAtk !== 3) fail(`pipe.atk should stay 3, got ${math.wAtk}`);
+      else if (math.eff !== math.base + 3 + math.bat) fail(`effective ATK wrong: ${JSON.stringify(math)}`);
+      else log(`  pipe.atk=${math.wAtk} effective=${math.eff} (base ${math.base}+bat ${math.bat})`);
+    }
+
+    // craftBonus refund path does not crash
+    st = await step('craftBonus craft path', async () => {
+      await page.evaluate(() => {
+        const g = window.__CITY_WARS__;
+        g.player.craftBonus = 2;
+        g.inv.addMat('cloth', 4);
+        g.inv.learnBlueprint('rags');
+        const b = g.benches[0];
+        g.debugWarp(b.x, b.y);
+        g.tryCraftId('rags');
+      });
+    });
+    if (!st.items.includes('rags') && st.equip.legs !== 'rags') fail('Rags craft failed');
+    else log('  rags craft OK');
+
+    // MRE heal
+    st = await step('MRE Paste heal', async () => {
+      await page.evaluate(() => {
+        const g = window.__CITY_WARS__;
+        g.player.hp = 20;
+        g.inv.addItem('mre');
+        g.useBandage(); // prefers bandage/stim first; clear them
+      });
+      await page.evaluate(() => {
+        const g = window.__CITY_WARS__;
+        // strip heals so MRE is used
+        g.inv.items = g.inv.items.filter((i) => i.id === 'mre' || (i.type !== 'consumable' && i.id !== 'bandage' && i.id !== 'stim'));
+        for (const s of ['quick1', 'quick2']) {
+          if (g.inv.equip[s]?.id === 'bandage' || g.inv.equip[s]?.id === 'stim') g.inv.equip[s] = null;
+        }
+        if (g.inv.countItem('mre') === 0) g.inv.addItem('mre');
+        g.player.hp = 20;
+        g.useBandage();
+      });
+    });
+    if (st.hp <= 20) fail(`MRE heal failed, hp=${st.hp}`);
+    else log(`  HP after MRE = ${st.hp}`);
+
     if (errors.length) {
       console.warn('Page errors:', errors.slice(0, 5));
     }

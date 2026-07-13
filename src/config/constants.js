@@ -27,7 +27,9 @@ export const T = {
   SLEEP: 13,
   LANDMARK: 14,
   GATE: 15,
-  GEAR_DROP: 16, // world pickup for pre-placed gear
+  GEAR_DROP: 16, // generic world gear (legacy / fallback)
+  GEAR_STICK: 17, // Street Stick hike pickup
+  GEAR_HAT: 18, // Neon Fedora hike pickup
 };
 
 export const WALKABLE = new Set([
@@ -44,6 +46,8 @@ export const WALKABLE = new Set([
   T.LANDMARK,
   T.GATE,
   T.GEAR_DROP,
+  T.GEAR_STICK,
+  T.GEAR_HAT,
 ]);
 
 export const BLOCKING = new Set([T.BUILDING, T.BARRICADE, T.WATER]);
@@ -116,6 +120,7 @@ export const GEAR = {
     type: 'legs',
     slot: SLOT.LEGS,
     def: 0,
+    sneakBonus: 0,
     desc: 'Bottom layer. Fashion is dead.',
   },
   jacket: {
@@ -142,6 +147,14 @@ export const GEAR = {
     heal: 22,
     desc: 'Heart goes brr.',
   },
+  mre: {
+    id: 'mre',
+    name: 'MRE Paste',
+    type: 'consumable',
+    slot: SLOT.QUICK1,
+    heal: 6,
+    desc: 'Tastes like regret. Still counts as food.',
+  },
   pipe: {
     id: 'pipe',
     name: 'Pipe Club',
@@ -167,6 +180,15 @@ export const GEAR = {
     slot: SLOT.BODY,
     def: 2,
     desc: 'Road signs and hope.',
+  },
+  charge: {
+    id: 'charge',
+    name: 'Street Charge',
+    type: 'consumable',
+    slot: SLOT.QUICK1,
+    explosive: true,
+    power: 6,
+    desc: 'Pin, run, boom. Loud on purpose.',
   },
   breach: {
     id: 'breach',
@@ -233,6 +255,27 @@ export const BLUEPRINTS = {
     result: 'bedroll',
     needs: { cloth: 3, scrap: 1 },
     desc: 'Sleep away from home base.',
+  },
+  rags: {
+    id: 'rags',
+    name: 'Layer Rags',
+    result: 'rags',
+    needs: { cloth: 2 },
+    desc: 'Something for the legs. Barely.',
+  },
+  jacket: {
+    id: 'jacket',
+    name: 'Scuffed Jacket',
+    result: 'jacket',
+    needs: { cloth: 2, scrap: 2 },
+    desc: 'Light body armor from scrap and pride.',
+  },
+  charge: {
+    id: 'charge',
+    name: 'Street Charge',
+    result: 'charge',
+    needs: { scrap: 2, chem: 1, battery: 1 },
+    desc: 'Boom Chi approved. Clears a crowd.',
   },
 };
 

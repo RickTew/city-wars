@@ -42,7 +42,7 @@ export class CharacterSelectScene extends Phaser.Scene {
     const cols = 3;
     const rows = 3;
     const cardW = Math.min(248, Math.floor((w - 80) / 3));
-    const cardH = 118;
+    const cardH = 128;
     const gapX = 14;
     const gapY = 12;
     const gridW = cols * cardW + (cols - 1) * gapX;
@@ -85,14 +85,26 @@ export class CharacterSelectScene extends Phaser.Scene {
         })
         .setOrigin(0.5, 0);
       this.add
-        .text(x, y + 12, c.blurb, {
+        .text(x, y + 8, c.blurb, {
           fontFamily: 'system-ui',
-          fontSize: '10px',
+          fontSize: '9px',
           color: '#94a3b8',
           align: 'center',
           wordWrap: { width: cardW - 20 },
         })
         .setOrigin(0.5, 0);
+
+      const bonusLine = formatBonuses(c.bonuses);
+      this.add
+        .text(x, y + cardH / 2 - 14, bonusLine, {
+          fontFamily: 'system-ui',
+          fontSize: '10px',
+          fontStyle: 'bold',
+          color: on ? '#fde68a' : '#64748b',
+          align: 'center',
+          wordWrap: { width: cardW - 16 },
+        })
+        .setOrigin(0.5, 0.5);
 
       bg.on('pointerup', () => {
         this.selected = c.id;
@@ -147,4 +159,22 @@ export class CharacterSelectScene extends Phaser.Scene {
       this.scene.start('Game');
     });
   }
+}
+
+/** Short mechanical summary for runner cards */
+function formatBonuses(b = {}) {
+  const parts = [];
+  if (b.atk) parts.push(`ATK${b.atk > 0 ? '+' : ''}${b.atk}`);
+  if (b.def) parts.push(`DEF+${b.def}`);
+  if (b.maxHp) parts.push(`HP${b.maxHp > 0 ? '+' : ''}${b.maxHp}`);
+  if (b.moveBonus) parts.push(b.moveBonus > 0 ? 'FAST' : 'SLOW');
+  if (b.sneakBonus) parts.push(b.sneakBonus > 0 ? `SNEAK+${b.sneakBonus}` : 'LOUD');
+  if (b.visionDay) parts.push(`VISION+${b.visionDay}`);
+  if (b.scavengeBonus) parts.push(`LOOT+${b.scavengeBonus}`);
+  if (b.healBonus) parts.push(`HEAL+${b.healBonus}`);
+  if (b.batBonus) parts.push(`CLUB+${b.batBonus}`);
+  if (b.rangedBonus) parts.push(`GUN+${b.rangedBonus}`);
+  if (b.craftBonus) parts.push(`CRAFT+${b.craftBonus}`);
+  if (b.explosiveBonus) parts.push(`BOOM+${b.explosiveBonus}`);
+  return parts.length ? parts.join(' · ') : 'balanced';
 }

@@ -62,14 +62,14 @@ export class CityGenerator {
     const stickX = CENTER_X;
     const stickY = CENTER_Y + 12;
     w[stickY][stickX] = 0;
-    g[stickY][stickX] = T.GEAR_DROP;
+    g[stickY][stickX] = T.GEAR_STICK;
     this.gearDrops.push({ x: stickX, y: stickY, id: 'stick', taken: false, guide: true });
 
     // 3) Neon Fedora WEST ~12 tiles
     const hatX = CENTER_X - 12;
     const hatY = CENTER_Y;
     w[hatY][hatX] = 0;
-    g[hatY][hatX] = T.GEAR_DROP;
+    g[hatY][hatX] = T.GEAR_HAT;
     this.gearDrops.push({ x: hatX, y: hatY, id: 'sexy_hat', taken: false, guide: true });
 
     // More world furniture  -  keep clear of HQ and guide hike spots
@@ -96,6 +96,9 @@ export class CityGenerator {
       { x: CENTER_X - 14, y: CENTER_Y - 6, id: 'stim' },
       { x: CENTER_X + 16, y: CENTER_Y - 12, id: 'zipgun' },
       { x: CENTER_X - 18, y: CENTER_Y + 14, id: 'vest' },
+      { x: CENTER_X + 10, y: CENTER_Y + 8, id: 'rags' },
+      { x: CENTER_X - 10, y: CENTER_Y - 10, id: 'jacket' },
+      { x: CENTER_X + 12, y: CENTER_Y - 16, id: 'charge' },
       { x: CENTER_X + 6, y: 5, id: 'breach' }, // north wall  -  the big prize
     ];
     for (const b of bps) {

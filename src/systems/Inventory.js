@@ -81,15 +81,33 @@ export class Inventory {
     return miss;
   }
 
-  craft(bpId) {
+  /**
+   * @param {string} bpId
+   * @param {{ craftBonus?: number }} [opts] craftBonus = chance per point to refund 1 spent mat
+   */
+  craft(bpId, opts = {}) {
     if (!this.canCraft(bpId)) return null;
     const bp = BLUEPRINTS[bpId];
+    const spent = [];
     for (const [mat, need] of Object.entries(bp.needs)) {
       this.mats[mat] -= need;
       if (this.mats[mat] <= 0) delete this.mats[mat];
+      for (let i = 0; i < need; i++) spent.push(mat);
+    }
+    // Scrapwright / Static / Needle: refund a spent mat sometimes
+    const bonus = opts.craftBonus || 0;
+    let refunded = null;
+    if (bonus > 0 && spent.length) {
+      for (let i = 0; i < bonus; i++) {
+        if (Math.random() < 0.45) {
+          const mat = spent[(Math.random() * spent.length) | 0];
+          this.addMat(mat, 1);
+          refunded = mat;
+        }
+      }
     }
     const gear = this.addItem(bp.result);
-    return gear;
+    return { gear, refunded };
   }
 
   hasBreach() {
@@ -127,26 +145,38 @@ export class Inventory {
     return false;
   }
 
-  useConsumable(id, player) {
-    // From bag or quick slots
-    let item = null;
-    let from = null;
+  /**
+   * Pull a consumable by id from bag or quick slots (does not apply effects).
+   * @returns {{ item: object, from: string } | null}
+   */
+  takeConsumable(id) {
     const idx = this.items.findIndex((x) => x.id === id);
     if (idx >= 0) {
-      item = this.items[idx];
-      from = 'bag';
-    } else {
-      for (const slot of [SLOT.QUICK1, SLOT.QUICK2]) {
-        if (this.equip[slot]?.id === id) {
-          item = this.equip[slot];
-          from = slot;
-          break;
-        }
+      const item = this.items[idx];
+      this.items.splice(idx, 1);
+      return { item, from: 'bag' };
+    }
+    for (const slot of [SLOT.QUICK1, SLOT.QUICK2]) {
+      if (this.equip[slot]?.id === id) {
+        const item = this.equip[slot];
+        this.equip[slot] = null;
+        return { item, from: slot };
       }
     }
-    if (!item || item.type !== 'consumable' || !item.heal) return null;
-    if (from === 'bag') this.items.splice(this.items.findIndex((x) => x.uid === item.uid), 1);
-    else this.equip[from] = null;
+    return null;
+  }
+
+  useConsumable(id, player) {
+    // From bag or quick slots. Heal kits only (charges use takeConsumable).
+    const pulled = this.takeConsumable(id);
+    if (!pulled) return null;
+    const { item } = pulled;
+    if (item.type !== 'consumable' || !item.heal) {
+      // put back if not a heal kit
+      if (pulled.from === 'bag') this.items.push(item);
+      else this.equip[pulled.from] = item;
+      return null;
+    }
     const healed = player ? player.heal(item.heal || 0) : 0;
     return { item, healed };
   }

@@ -17,18 +17,13 @@ npm install
 npm run dev
 ```
 
-## Spec (from design)
+## Spec (live)
 
 - **Tiles**: 32×32 px
-- **Map**: 256×256 tiles (world ~8192×8192 px)
-- **Zones**: concentric rings by **Manhattan distance** from city center
-  1. Safe (center) — low danger, home base
-  2. Mid-city — medium danger
-  3. Outer chaos — high danger
-  4. Perimeter escape — max danger + escape points
-- **Blocks**: 8×8 grid of 32×32-tile flavor blocks
-- **Gameplay**: turn-based grid movement, adjacent-tile combat, camera follow with soft limits
-- **Systems**: `ZoneManager` drives enemy difficulty + spawn weight by zone
+- **Map**: 96×96 tiles (see `MAP_W` / `MAP_H` in constants)
+- **Zones**: concentric rings by Manhattan distance from HQ center
+- **Gameplay**: real-time explore (click path), turn combat, day/night, craft Breach Kit, escape
+- **Canonical rules**: `AGENTS.md` (Grok is primary)
 
 ## Stack
 
@@ -37,23 +32,8 @@ npm run dev
 - Procedural tileset (no external art required)
 - No backend
 
-## Layout
-
-```
-src/
-  main.js
-  config/constants.js
-  systems/ZoneManager.js
-  systems/CityGenerator.js
-  systems/TurnController.js
-  entities/Actor.js
-  scenes/BootScene.js
-  scenes/MenuScene.js
-  scenes/GameScene.js
-```
-
 ## Controls
 
-- Arrow keys / WASD: move one tile (or attack if enemy adjacent in that direction)
-- Click/tap adjacent tile: move or attack
-- Space: wait / end turn
+- Click map to path-walk; left-click enemies to fight
+- Bottom bar: USE / SLEEP / HIDE / SNEAK / CRAFT / WALK|RUN / HEAL / MENU / BAG / MAP
+- WASD / arrows still step one tile; camera edge-pan + middle-mouse drag
