@@ -6,7 +6,8 @@
 **Git:** local `main` only. **Do not push / Vercel deploy unless user asks.** Remote play = push when ready.
 
 **Version:** 3.5.0 (scan polish wave)  
-**Working tree:** see git status after session wrap.
+**Last session HEAD:** `78a8315` (2026-07-13)  
+**Working tree:** clean after commit.
 
 ---
 
@@ -145,8 +146,8 @@ AGENTS.md                        This handoff
 
 ## Session wrap checklist
 
-- [ ] Code committed on `main`
-- [ ] AGENTS.md updated
+- [x] Code committed on `main` (`78a8315`)
+- [x] AGENTS.md updated
 - [ ] No remote push (by design)
-- [ ] Dev: `npm run dev` → http://localhost:5173/
-- [ ] Playtest: `npm run playtest`
+- [x] Dev: `npm run dev` → http://localhost:5173/
+- [x] Playtest: `npm run playtest` PASS
