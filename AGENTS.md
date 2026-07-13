@@ -3,11 +3,11 @@
 **Primary agent:** Grok  
 **Path:** `~/Dev/City Wars` (absolute: `/Users/ricktew/Dev/City Wars`)  
 **Stack:** Phaser **4.2+ only** (never Phaser 3), Vite 6, pure client, procedural tiles  
-**Git:** local `main` only. **Do not push / Vercel deploy unless user asks.**
+**Git:** `https://github.com/RickTew/city-wars` (public) · branch `main`  
+**Vercel:** project `ricktew/city-wars` · prod **https://city-wars-rho.vercel.app**  
+GitHub connected → push to `main` auto-deploys. CLI: `vercel --prod` from repo.
 
-**Version:** 3.6.0  
-**Last session HEAD:** see git log  
-**Working tree:** commit after wrap.
+**Version:** 3.6.0
 
 ---
 
@@ -37,8 +37,8 @@ Flow: **Day length** → **START RUN** or **CONTINUE** → runners → game.
 ### Still open
 
 1. Pixel art (PixelLab) when wanted  
-2. Push + Vercel only when user asks  
-3. Further GameScene splits (craft UI, FOW)  
+2. Further GameScene splits (craft UI, FOW)  
+3. Custom domain on Vercel if wanted  
 4. TUI idle purple (user: last config did not work — revisit outside game)
 
 ---
