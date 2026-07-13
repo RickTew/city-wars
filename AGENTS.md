@@ -5,7 +5,7 @@
 **Stack:** Phaser **4.2+ only** (never Phaser 3), Vite 6, pure client, procedural tiles  
 **Git:** local `main` only. **Do not push / Vercel deploy unless user asks.** Remote play = push when ready.
 
-**Last session HEAD:** (see latest commit on `main`)  
+**Last session HEAD:** `59bee61` (2026-07-13)  
 **Working tree:** clean after handoff commit.
 
 ---
@@ -138,7 +138,7 @@ AGENTS.md                        This handoff
 
 | Hash | Summary |
 |------|---------|
-| (latest) | Audit fixes: combat DEF, guide dog dawn, heal/sneak/vision, mid-pan, playtest |
+| `59bee61` | Audit fixes: combat DEF, guide dog dawn, heal/sneak/vision, mid-pan, playtest |
 | `d71906d` | Tighter runner select + mouse edge camera pan |
 | `a6ccb65` | Short hike guide, pulse, bag polish, bag-close auto-walk fix |
 | `aa0686e` | 3-quest guide, equip UI, stick/hat gear drops |
