@@ -11,7 +11,7 @@
 | **Vercel project** | `ricktew/city-wars` · auto-deploys on push to `main` |
 
 **Version:** 3.6.0 + PWA icons  
-**Last session HEAD:** `7b14dc8` (2026-07-13) · working tree clean after wrap commit  
+**Last session HEAD:** `7d4917f` (2026-07-14) · tutorial/mobile MORE+SPEC on main  
 
 ---
 
