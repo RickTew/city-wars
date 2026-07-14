@@ -28,8 +28,22 @@ export class StoryDirector {
     return true;
   }
 
-  /** Main intro after character select (single card; quest 1 merged in). */
-  introCard(char) {
+  /**
+   * Main intro after character select (single card; quest 1 merged in).
+   * opts.compact: shorter copy for phones so GOT IT stays tappable.
+   */
+  introCard(char, opts = {}) {
+    if (opts.compact) {
+      return {
+        title: 'SIGNAL BOOT',
+        body:
+          `${char.name}\n\n` +
+          'QUEST 1: Follow the gold pulse / arrow.\n' +
+          'Tap the gold crate EAST of you.\n\n' +
+          'Then: stick · hat · BAG · bandage · dog · SLEEP.\n' +
+          'Tap map to walk.',
+      };
+    }
     return {
       title: 'SIGNAL BOOT',
       body:

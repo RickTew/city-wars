@@ -195,7 +195,8 @@ export class GameScene extends Phaser.Scene {
 
   /** One intro modal for a new run. Unlocks story + nudges camera to the gold target. */
   showTutorialBoot() {
-    const intro = this.story.introCard(this.char);
+    const compact = this.scale.width < 520 || this.scale.height < 700;
+    const intro = this.story.introCard(this.char, { compact });
     this.showPopup(intro.title, intro.body, () => {
       this._storyQuiet = false;
       this.updateObjective();
@@ -1243,8 +1244,8 @@ export class GameScene extends Phaser.Scene {
       .setStrokeStyle(2, 0xf8fafc, 0.4)
       .setScrollFactor(0)
       .setDepth(depth);
-    // Extra hit padding so finger slides still count on small bar buttons
-    const pad = w < 48 ? 6 : 4;
+    // Extra hit padding so finger slides still count (fatter for large modal buttons)
+    const pad = w >= 160 ? 14 : w < 48 ? 6 : 4;
     bg.setInteractive({
       useHandCursor: true,
       hitArea: new Phaser.Geom.Rectangle(-w / 2 - pad, -h / 2 - pad, w + pad * 2, h + pad * 2),
@@ -1603,43 +1604,58 @@ export class GameScene extends Phaser.Scene {
     this.clearMousePath();
     this.movePath = [];
 
-    const d = 500;
+    // Depth above guide edge-beacon (520) so GOT IT is always tappable on phones
+    const d = 560;
     const w = Math.round(this.scale.width);
     const h = Math.round(this.scale.height);
     const cx = Math.round(w / 2);
     const hasCheck = !!opts.checkboxLabel;
-    const panelW = Math.min(560, w - 48);
+    const narrow = w < 520 || h < 700;
+    // Keep clear of top status + bottom action bar / home indicator
+    const safeTop = narrow ? 52 : 24;
+    const safeBot = narrow ? 100 : 40;
+    const maxPanelH = h - safeTop - safeBot;
+    const panelW = Math.min(560, w - (narrow ? 20 : 48));
+    const bodyFont = narrow ? '13px' : '15px';
+    const titleFont = narrow ? '20px' : '24px';
+    const lineSp = narrow ? 5 : 8;
+    const wrapW = panelW - (narrow ? 36 : 56);
 
-    // Measure body first so panel fits and button sits below text
+    // Measure body; clamp so button never gets pushed off-screen
     const probe = this.add
       .text(0, 0, body, {
         fontFamily: 'system-ui',
-        fontSize: '15px',
+        fontSize: bodyFont,
         align: 'center',
-        wordWrap: { width: panelW - 56 },
-        lineSpacing: 8,
+        wordWrap: { width: wrapW },
+        lineSpacing: lineSp,
       })
       .setVisible(false);
-    const bodyH = Math.ceil(probe.height);
+    let bodyH = Math.ceil(probe.height);
     probe.destroy();
 
-    const titleH = 36;
-    const padTop = 24;
-    const gapTitleBody = 20;
-    const gapBodyCheck = hasCheck ? 28 : 16;
+    const titleH = narrow ? 28 : 36;
+    const padTop = narrow ? 16 : 24;
+    const gapTitleBody = narrow ? 12 : 20;
+    const gapBodyCheck = hasCheck ? 24 : 12;
     const checkH = hasCheck ? 28 : 0;
-    const gapCheckBtn = 24;
-    const btnH = 48;
-    const padBot = 24;
-    const panelH = Math.min(
-      h - 40,
-      padTop + titleH + gapTitleBody + bodyH + gapBodyCheck + checkH + gapCheckBtn + btnH + padBot
-    );
-    const cy = Math.round(h / 2);
+    const gapCheckBtn = narrow ? 16 : 24;
+    const btnH = narrow ? 52 : 48;
+    const padBot = narrow ? 16 : 24;
+    const chrome =
+      padTop + titleH + gapTitleBody + gapBodyCheck + checkH + gapCheckBtn + btnH + padBot;
+    const maxBodyH = Math.max(80, maxPanelH - chrome);
+    if (bodyH > maxBodyH) bodyH = maxBodyH;
+
+    const panelH = Math.min(maxPanelH, chrome + bodyH);
+    // Prefer sitting above the bottom bar on phones
+    const cy = narrow
+      ? Math.round(safeTop + panelH / 2 + 4)
+      : Math.round(h / 2);
     const panelTop = Math.round(cy - panelH / 2);
 
     const dim = this.add
-      .rectangle(cx, cy, w, h, 0x020617, 0.78)
+      .rectangle(w / 2, h / 2, w, h, 0x020617, 0.82)
       .setScrollFactor(0)
       .setDepth(d)
       .setInteractive();
@@ -1648,13 +1664,13 @@ export class GameScene extends Phaser.Scene {
       .rectangle(cx, cy, panelW, panelH, 0x0f172a, 1)
       .setStrokeStyle(3, 0x38bdf8)
       .setScrollFactor(0)
-      .setDepth(d + 1)
-      .setInteractive();
+      .setDepth(d + 1);
+    // Panel is visual only  -  do NOT setInteractive (it was eating taps meant for GOT IT)
 
     const t1 = this.add
       .text(cx, panelTop + padTop, title, {
         fontFamily: 'system-ui',
-        fontSize: '24px',
+        fontSize: titleFont,
         fontStyle: 'bold',
         color: '#f8fafc',
       })
@@ -1666,30 +1682,34 @@ export class GameScene extends Phaser.Scene {
     const t2 = this.add
       .text(cx, bodyY, body, {
         fontFamily: 'system-ui',
-        fontSize: '15px',
+        fontSize: bodyFont,
         color: '#cbd5e1',
         align: 'center',
-        wordWrap: { width: panelW - 56 },
-        lineSpacing: 8,
+        wordWrap: { width: wrapW },
+        lineSpacing: lineSp,
       })
       .setOrigin(0.5, 0)
       .setScrollFactor(0)
       .setDepth(d + 2);
+    // Clip long body so it cannot cover the button
+    if (t2.height > maxBodyH) {
+      t2.setCrop(0, 0, wrapW + 8, maxBodyH);
+    }
 
     // Default OFF for track checkbox
     let checked = opts.checkboxDefault === true;
     const ui = [dim, panel, t1, t2];
 
     if (hasCheck) {
-      const boxY = Math.round(bodyY + bodyH + gapBodyCheck + 10);
+      const boxY = Math.round(Math.min(bodyY + bodyH, panelTop + panelH - padBot - btnH - 36));
       const box = this.add
-        .rectangle(cx - 170, boxY, 22, 22, checked ? 0x0ea5e9 : 0x1e293b, 1)
+        .rectangle(cx - Math.min(150, panelW / 2 - 40), boxY, 22, 22, checked ? 0x0ea5e9 : 0x1e293b, 1)
         .setStrokeStyle(2, 0x94a3b8)
         .setScrollFactor(0)
         .setDepth(d + 3)
         .setInteractive({ useHandCursor: true });
       const mark = this.add
-        .text(cx - 170, boxY, checked ? 'Y' : '', {
+        .text(box.x, boxY, checked ? 'Y' : '', {
           fontFamily: 'system-ui',
           fontSize: '14px',
           fontStyle: 'bold',
@@ -1699,10 +1719,11 @@ export class GameScene extends Phaser.Scene {
         .setScrollFactor(0)
         .setDepth(d + 4);
       const lab = this.add
-        .text(cx - 150, boxY, opts.checkboxLabel, {
+        .text(box.x + 20, boxY, opts.checkboxLabel, {
           fontFamily: 'system-ui',
-          fontSize: '14px',
+          fontSize: narrow ? '12px' : '14px',
           color: '#e2e8f0',
+          wordWrap: { width: panelW - 80 },
         })
         .setOrigin(0, 0.5)
         .setScrollFactor(0)
@@ -1725,6 +1746,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     const btnY = Math.round(panelTop + panelH - padBot - btnH / 2);
+    const btnW = Math.min(240, panelW - 32);
 
     const finish = (fromOk) => {
       if (!this.popupOpen) return;
@@ -1745,7 +1767,8 @@ export class GameScene extends Phaser.Scene {
     };
     this._popupFinish = finish;
 
-    const ok = this.makeUiButton(cx, btnY, 200, btnH, 'GOT IT', 0x0ea5e9, () => finish(true), d + 5);
+    // Slightly oversized so thumbs hit reliably (makeUiButton already pads hit area)
+    const ok = this.makeUiButton(cx, btnY, btnW, Math.max(btnH, 52), 'GOT IT', 0x0ea5e9, () => finish(true), d + 10);
     // Only close on dimmer when no checkbox (avoid misclicks)
     if (!hasCheck) {
       dim.on('pointerup', () => finish(true));
