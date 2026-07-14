@@ -145,7 +145,7 @@ export class MenuScene extends Phaser.Scene {
       .text(
         w / 2,
         h * 0.78,
-        'Mouse: click map to walk · loot / bench / enemy · buttons below\nMENU mid-run: save · MAP legend · right-click combat specials',
+        'Click/tap map to walk · loot / bench / enemy · buttons below\nCombat: SPEC or long-press for specials · MORE on phones',
         {
           fontFamily: 'system-ui',
           fontSize: '14px',

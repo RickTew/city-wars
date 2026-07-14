@@ -106,7 +106,7 @@ async function main() {
       return st;
     };
 
-    let st = await step('Loot guide crate (east +12)', async () => {
+    let st = await step('Loot guide crate (east hike)', async () => {
       await page.evaluate(() => {
         const g = window.__CITY_WARS__;
         const loot = g.lootSpots.find((l) => l.guide);
@@ -117,7 +117,7 @@ async function main() {
     if (!st.guide.flags.looted && st.mats.cloth < 2) fail('Guide crate cloth missing');
     else log(`  cloth=${st.mats.cloth} scrap=${st.mats.scrap}`);
 
-    st = await step('Pick Street Stick (south +12)', async () => {
+    st = await step('Pick Street Stick (south hike)', async () => {
       await page.evaluate(() => {
         const g = window.__CITY_WARS__;
         const d = g.gearDrops.find((x) => x.id === 'stick');
@@ -126,7 +126,7 @@ async function main() {
     });
     if (!st.items.includes('stick') && st.equip.weapon !== 'stick') fail('Stick not picked up');
 
-    st = await step('Pick Neon Fedora (west -12)', async () => {
+    st = await step('Pick Neon Fedora (west hike)', async () => {
       await page.evaluate(() => {
         const g = window.__CITY_WARS__;
         const d = g.gearDrops.find((x) => x.id === 'sexy_hat');

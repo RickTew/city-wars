@@ -16,11 +16,14 @@ export const combatMixin = {
     this.destroyCraftModal();
     this.closeRunMenu();
     this.closeLegend();
+    this.closeMoreMenu?.();
     this.combatFocus = enemy;
     this.combatTurn = 'player';
     this.combatLogLines = [];
     this.audio.red();
     this.cameras.main.flash(120, 180, 40, 40);
+    // Show SPEC on the bottom bar (touch-friendly)
+    this.rebuildActionBar?.();
 
     const rangeHint = enemy.ranged
       ? `${enemy.name} can shoot from a distance.`
@@ -34,8 +37,8 @@ export const combatMixin = {
           : `${enemy.name} engages!`
       );
       this.combatLog(rangeHint);
-      this.combatLog('Your turn  -  left-click enemy. Right-click for specials.');
-      this.logText.setText('Combat log on the left. Right-click for specials.');
+      this.combatLog('Your turn  -  tap enemy. SPEC / long-press for specials.');
+      this.logText.setText('Combat: tap foe. SPEC or long-press for specials.');
       this.refreshHud();
     };
 
@@ -43,7 +46,14 @@ export const combatMixin = {
       this.seenCombatHelp = true;
       this.showPopup(
         'FIRST FIGHT',
-        'Left panel: your HP, enemy HP, and a live combat log.\n\n• Left-click the enemy to attack\n• Right-click for specials (Power / Charge / Flee)\n• Click an adjacent empty tile to step\n• HEAL uses bandages, stims, or MRE Paste\n• Street Charge blasts foes within 2 tiles\n• Craft a Zip Gun for ranged attacks',
+        'Left panel: your HP, enemy HP, and a live combat log.\n\n' +
+          '• Tap the enemy to attack\n' +
+          '• Tap SPEC (or long-press the map) for specials\n' +
+          '  Power Strike / Street Charge / Flee\n' +
+          '• Desktop: right-click also opens specials\n' +
+          '• Tap an adjacent empty tile to step\n' +
+          '• HEAL uses bandages, stims, or MRE Paste\n' +
+          '• Craft a Zip Gun for ranged attacks',
         begin
       );
     } else {
@@ -96,7 +106,7 @@ export const combatMixin = {
 
     mk(cy - 40, 'POWER STRIKE (+50% dmg)', 0xea580c, () => {
       this._powerNext = true;
-      this.log('Power strike ready. Left-click a foe.');
+      this.log('Power strike ready. Tap a foe.');
     });
     mk(cy + 5, this.inv.countItem('charge') > 0 ? 'STREET CHARGE' : 'CHARGE (none)', 0xdc2626, () => {
       if (!this.useStreetCharge()) this.log('No Street Charge equipped or in bag.');
@@ -413,11 +423,14 @@ export const combatMixin = {
     this.combatFocus = null;
     this._powerNext = false;
     this.closeCombatSpecials?.();
+    this.closeMoreMenu?.();
     this.clearMousePath();
     this.alert.clearCombat();
     this.combatLog(won ? ' -  fight over  - ' : ' - ');
     this.logText.setText(won ? 'Fight over. CLEAR  -  for now.' : '…');
     if (this.combatHud) this.combatHud.setVisible(false);
+    // Hide SPEC, restore explore bar
+    this.rebuildActionBar?.();
     this.refreshHud();
   },
 };

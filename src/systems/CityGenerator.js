@@ -50,23 +50,25 @@ export class CityGenerator {
     place(g, w, CENTER_X + 2, CENTER_Y, T.BENCH, this.benches);
     place(g, w, CENTER_X - 2, CENTER_Y + 1, T.SLEEP, this.sleeps);
 
-    // Quest 1 hikes: targets on main roads so pathing is clean
-    // 1) Gold crate EAST ~12 tiles
-    const glX = CENTER_X + 12;
+    // Quest 1 hikes: short enough to stay on-screen (phones ~390px ≈ 6 tiles half-width)
+    // Keep on main roads so pathing is clean. ~6 tiles also sits inside day vision (9).
+    const HIKE = 6;
+    // 1) Gold crate EAST
+    const glX = CENTER_X + HIKE;
     const glY = CENTER_Y;
     w[glY][glX] = 0;
     g[glY][glX] = T.LOOT;
     this.loot.push({ x: glX, y: glY, taken: false, guide: true });
 
-    // 2) Street Stick SOUTH ~12 tiles
+    // 2) Street Stick SOUTH
     const stickX = CENTER_X;
-    const stickY = CENTER_Y + 12;
+    const stickY = CENTER_Y + HIKE;
     w[stickY][stickX] = 0;
     g[stickY][stickX] = T.GEAR_STICK;
     this.gearDrops.push({ x: stickX, y: stickY, id: 'stick', taken: false, guide: true });
 
-    // 3) Neon Fedora WEST ~12 tiles
-    const hatX = CENTER_X - 12;
+    // 3) Neon Fedora WEST
+    const hatX = CENTER_X - HIKE;
     const hatY = CENTER_Y;
     w[hatY][hatX] = 0;
     g[hatY][hatX] = T.GEAR_HAT;
@@ -76,7 +78,7 @@ export class CityGenerator {
     for (let y = 4; y < MAP_H - 4; y += 5) {
       for (let x = 4; x < MAP_W - 4; x += 5) {
         if (w[y][x] || road(x, y)) continue;
-        if (Math.abs(x - CENTER_X) + Math.abs(y - CENTER_Y) < 14) continue;
+        if (Math.abs(x - CENTER_X) + Math.abs(y - CENTER_Y) < 10) continue;
         // Don't bury guide targets
         if (Math.abs(x - glX) + Math.abs(y - glY) < 3) continue;
         if (Math.abs(x - stickX) + Math.abs(y - stickY) < 3) continue;

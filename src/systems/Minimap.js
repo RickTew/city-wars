@@ -1,5 +1,5 @@
 /**
- * Corner minimap + optional objective compass after tutorial.
+ * Corner minimap + objective compass (active during tutorial too).
  */
 import { CENTER_X, CENTER_Y, MAP_H, MAP_W, T } from '../config/constants.js';
 
@@ -20,6 +20,8 @@ export class Minimap {
     const s = this.scene;
     const d = 115;
     const w = s.scale.width;
+    // On narrow screens, shrink minimap so it does not own the top-right
+    this.size = w < 520 ? 88 : 118;
     const x = w - this.pad - this.size / 2;
     const y = 78 + this.size / 2;
 
@@ -60,11 +62,13 @@ export class Minimap {
   onResize() {
     if (!this.frame) return;
     const w = this.scene.scale.width;
+    this.size = w < 520 ? 88 : 118;
     const x = w - this.pad - this.size / 2;
     const y = 78 + this.size / 2;
     this._cx = x;
     this._cy = y;
     this.frame.setPosition(x, y);
+    this.frame.setSize(this.size + 6, this.size + 6);
     this.label.setPosition(x, y + this.size / 2 + 10);
   }
 
@@ -114,7 +118,7 @@ export class Minimap {
       g.fillCircle(cx - half + 2 + e.tx * scale, cy - half + 2 + e.ty * scale, 1.6);
     }
 
-    // objective
+    // objective / guide target on minimap
     const t = s.objTarget;
     if (t && !t.ui) {
       const ox = t.tx ?? t.x;
@@ -134,7 +138,10 @@ export class Minimap {
     this.updateCompass();
   }
 
-  /** After tutorial: point to breach BP / escape if objective is far */
+  /**
+   * Point at current objective always (tutorial + post-guide).
+   * UI targets (BAG / CRAFT / SLEEP) show a short label instead of an arrow.
+   */
   updateCompass() {
     const s = this.scene;
     const g = this.compass;
@@ -142,36 +149,53 @@ export class Minimap {
     if (!g || !lab) return;
     g.clear();
 
-    // HQ arrow already bottom-left; this is secondary objective compass mid-left
-    if (!s.guide?.done) {
-      lab.setText('');
-      return;
-    }
     const t = s.objTarget;
-    if (!t || t.ui) {
+    if (!t) {
       lab.setText('');
       return;
     }
+
+    // Mid-left under top bar (HQ arrow is bottom-left)
+    const bx = 40;
+    const by = Math.min(108, 64 + (s.scale.height < 700 ? 8 : 20));
+
+    if (t.ui) {
+      const name = String(t.ui).toUpperCase();
+      lab.setPosition(bx, by);
+      lab.setColor('#fbbf24');
+      lab.setText(`→ ${name}`);
+      return;
+    }
+
     const ox = t.tx ?? t.x;
     const oy = t.ty ?? t.y;
-    if (ox == null) {
+    if (ox == null || oy == null) {
       lab.setText('');
       return;
     }
     const dx = ox - s.player.tx;
     const dy = oy - s.player.ty;
     const dist = Math.abs(dx) + Math.abs(dy);
-    if (dist <= 8) {
-      lab.setText('OBJ NEAR');
+    if (dist <= 2) {
+      lab.setPosition(bx, by);
       lab.setColor('#4ade80');
+      lab.setText('OBJ HERE');
       return;
     }
+    if (dist <= 6) {
+      lab.setPosition(bx, by + 16);
+      lab.setColor('#4ade80');
+      lab.setText(`OBJ ${dist}`);
+      // still draw short arrow
+    } else {
+      lab.setPosition(bx, by + 16);
+      lab.setColor('#fbbf24');
+      lab.setText(`OBJ ${dist}`);
+    }
+
     const ang = Math.atan2(dy, dx);
-    const bx = 40;
-    const by = 108;
     g.lineStyle(2, 0xfbbf24, 1);
     g.fillStyle(0xfbbf24, 1);
-    // arrow
     const len = 14;
     const ex = bx + Math.cos(ang) * len;
     const ey = by + Math.sin(ang) * len;
@@ -184,8 +208,5 @@ export class Minimap {
       ex - Math.cos(ang + 0.5) * 6,
       ey - Math.sin(ang + 0.5) * 6
     );
-    lab.setPosition(bx, by + 16);
-    lab.setColor('#fbbf24');
-    lab.setText(`OBJ ${dist}`);
   }
 }

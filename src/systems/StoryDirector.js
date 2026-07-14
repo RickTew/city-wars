@@ -28,7 +28,7 @@ export class StoryDirector {
     return true;
   }
 
-  /** Main intro after character select */
+  /** Main intro after character select (single card; quest 1 merged in). */
   introCard(char) {
     return {
       title: 'SIGNAL BOOT',
@@ -36,11 +36,10 @@ export class StoryDirector {
         `${char.name}: "${char.blurb}"\n\n` +
         'The Wall still stands. Dogs own the dark.\n' +
         'Scavenge. Craft. Breach. Get out.\n\n' +
-        'First jobs (follow the gold pulse):\n' +
-        '1. Gold crate east. Stick south. Hat west.\n' +
-        '2. BAG equip. CRAFT a Field Bandage at HQ.\n' +
-        '3. Fight the dog. SLEEP at HQ.\n\n' +
-        'Then hunt the pink Breach Kit print north.\n' +
+        'QUEST 1: Follow the gold pulse / arrow.\n' +
+        'Click the gold crate EAST of you.\n\n' +
+        'Then: stick south · hat west · BAG equip ·\n' +
+        'CRAFT bandage · fight dog · SLEEP at HQ.\n\n' +
         'Click map to walk. Left-click enemies to fight.',
     };
   }

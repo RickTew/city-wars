@@ -50,7 +50,7 @@ Top-down **Escape-from-NY grit** city escape: scavenge, craft **Breach Kit**, le
 | **BAG** | Paper-doll HEAD/BODY/LEGS/WEAPON/QUICK1/2. Pauses time |
 | **HEAL** | Bandage → Stim → MRE. Else **Street Charge** (Boom AOE) |
 | **MENU** | Mute, narrator, **SAVE RUN**, NEW RUN, help |
-| **Combat specials** | **Right-click** (desktop): Power Strike / Charge / Flee |
+| **Combat specials** | **SPEC** button · **long-press** map · **right-click** (desktop): Power / Charge / Flee |
 | **XP** | Kills → XP. Level: +4 max HP + heal; odd levels +1 ATK |
 | **Save** | `localStorage` key `city_wars_save_v1`. Main menu **CONTINUE** |
 | **Minimap** | Top-right. Post-tutorial **OBJ** compass left |
@@ -60,7 +60,7 @@ Top-down **Escape-from-NY grit** city escape: scavenge, craft **Breach Kit**, le
 
 | Step | What |
 |------|------|
-| 1a–c | Gold crate east · stick south (brown bat tile) · hat west (purple hat tile) |
+| 1a–c | Gold crate east ~6 · stick south ~6 · hat west ~6 (pulse + OBJ arrow) |
 | 1d–e | BAG equip · CRAFT bandage at HQ purple rig |
 | 2 | Left-click guide dog (`_isGuideDog` survives dawn) |
 | 3 | SLEEP at HQ |
@@ -95,10 +95,10 @@ Select cards show mechanical bonuses (ATK/SNEAK/CRAFT/BOOM…).
 
 ## Still open (next session priorities)
 
-1. **Mobile-friendly pass** (user asked; not done yet)
-   - Crowded 10-button bar on phones
-   - No right-click → specials unreachable on touch
-   - Long-press specials, bigger targets, overflow menu, simpler HUD
+1. **Mobile-friendly pass** (tutorial + MORE + SPEC shipped; further polish open)
+   - Narrow bar uses MORE (SNEAK / WALK / MENU / MAP)
+   - Combat: **SPEC** button + **long-press** map for specials (right-click still works)
+   - Optional later: two-row HUD, pinch zoom
 2. **Pixel art** (PixelLab) when wanted
 3. Further **GameScene** splits (craft UI, FOW)
 4. Custom domain on Vercel if wanted
@@ -140,7 +140,8 @@ AGENTS.md                           This handoff
 - Player-facing copy: **no em/en dashes** (periods or hyphens).
 - Popups / craft / legend / bag / menu / specials → `isPaused`.
 - Clear mouse path on open/close modals.
-- Guide hikes ~12 tiles; pulse targets; guide dog `_isGuideDog` not culled at dawn.
+- Guide hikes ~6 tiles (on-screen + in vision); pulse + edge beacon + OBJ compass during tutorial; guide dog `_isGuideDog` not culled at dawn.
+- Tutorial boot: one SIGNAL BOOT card (no DISTRICT READ first); coach steps are toasts not modals.
 - Combat uses `inv.totalDef` for player; bat/ranged bonuses **live only**.
 - HEAL: bag or QUICK; bandage → stim → mre → charge.
 - Save: `city_wars_save_v1`. CONTINUE → `registry.loadSave = true` → Game.

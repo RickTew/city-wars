@@ -10,46 +10,49 @@ export const QUESTS = [
   {
     id: 'q1',
     title: 'QUEST 1',
-    body: 'Click the pulsing gold crate.\n(East of you.)',
-    objective: 'Click the pulsing gold crate',
+    body: 'Follow the gold pulse / arrow.\nClick the gold crate EAST of HQ.',
+    objective: 'Gold crate east (follow gold arrow)',
   },
   {
     id: 'q2',
     title: 'QUEST 2',
-    body: 'A dog is near. Left-click it.\nFight until it drops.',
-    objective: 'Left-click the dog. Fight.',
+    body: 'A dog is near. Follow the gold pulse.\nLeft-click it. Fight until it drops.',
+    objective: 'Left-click the pulsing dog',
   },
   {
     id: 'q3',
     title: 'QUEST 3',
-    body: 'Back to HQ (blue).\nPress SLEEP.',
+    body: 'Back to HQ (blue pad).\nFollow gold. Press SLEEP.',
     objective: 'SLEEP at HQ',
   },
   {
     id: 'done',
     title: 'YOU ARE FREE',
-    body: 'Gear. Fight. Sleep. You got it.\nBreach Kit is north when ready.',
+    body: 'Gear. Fight. Sleep. You got it.\nBreach Kit is pink, north when ready.',
     objective: 'Find BREACH KIT (pink, north Wall)',
   },
 ];
 
-/** One step at a time after each action. */
+/**
+ * Micro-steps after each action.
+ * Shown as toast/log only (not full modals) so the player is not stuck in popups.
+ */
 const COACH = {
   looted: {
     title: 'NEXT',
-    body: 'Hike SOUTH.\nWalk onto the pulsing stick.',
+    body: 'Hike SOUTH. Walk onto the pulsing stick (gold arrow).',
   },
   stick: {
     title: 'NEXT',
-    body: 'Hike WEST.\nWalk onto the pulsing hat.',
+    body: 'Hike WEST. Walk onto the pulsing hat (gold arrow).',
   },
   hat: {
     title: 'NEXT',
-    body: 'Open BAG (bottom bar).\nClick stick, then hat.',
+    body: 'Open BAG (bottom bar, gold pulse). Click stick, then hat.',
   },
   equipped: {
     title: 'NEXT',
-    body: 'Back to HQ purple rig.\nCRAFT Field Bandage.',
+    body: 'Back to HQ purple rig. CRAFT Field Bandage (gold pulse).',
   },
 };
 
@@ -80,14 +83,14 @@ export class GuideDirector {
     if (this.done) return QUESTS[3].objective;
     const f = this.flags;
     if (this.quest === 0) {
-      if (!f.looted) return 'Click the pulsing gold crate (east)';
-      if (!f.stick) return 'Hike south. Walk on the pulsing stick';
-      if (!f.hat) return 'Hike west. Walk on the pulsing hat';
-      if (!f.equippedStick || !f.equippedHat) return 'Open BAG. Click stick, then hat';
-      if (!f.bandage) return 'HQ purple rig. CRAFT Field Bandage';
+      if (!f.looted) return '→ Gold crate EAST (follow gold pulse)';
+      if (!f.stick) return '→ Stick SOUTH (follow gold pulse)';
+      if (!f.hat) return '→ Hat WEST (follow gold pulse)';
+      if (!f.equippedStick || !f.equippedHat) return '→ Open BAG. Equip stick, then hat';
+      if (!f.bandage) return '→ HQ purple rig. CRAFT Field Bandage';
     }
-    if (this.quest === 1) return 'Left-click the pulsing dog';
-    if (this.quest === 2) return 'HQ. Press SLEEP';
+    if (this.quest === 1) return '→ Left-click the pulsing dog';
+    if (this.quest === 2) return '→ HQ. Press SLEEP';
     return QUESTS[this.quest]?.objective || '';
   }
 

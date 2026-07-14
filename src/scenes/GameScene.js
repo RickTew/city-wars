@@ -86,6 +86,12 @@ export class GameScene extends Phaser.Scene {
     this.progression = new Progression();
     this.specialOpen = false;
     this._powerNext = false;
+    this.moreOpen = false;
+    this.moreUi = [];
+    this._longPress = null;
+    // Block zone/ambient story until tutorial boot card is dismissed
+    this._storyQuiet = true;
+    this._lastStoryZone = null;
 
     const loading = !!this.registry.get('loadSave');
     if (loading) {
@@ -153,6 +159,9 @@ export class GameScene extends Phaser.Scene {
       }
     });
 
+    // Seed current district so first-zone story does not steal the tutorial intro
+    this._lastStoryZone = this.zones.getZone(this.player.tx, this.player.ty);
+
     if (loading) {
       const data = SaveSystem.peek();
       const ok = data && SaveSystem.apply(this, data);
@@ -162,27 +171,20 @@ export class GameScene extends Phaser.Scene {
       this.refreshHud();
       this.cameras.main.fadeIn(400);
       this.log(ok ? 'Save loaded. Welcome back.' : 'Save corrupt. Fresh run.');
-      if (!ok) {
-        this.time.delayedCall(400, () => {
-          const intro = this.story.introCard(this.char);
-          this.showPopup(intro.title, intro.body);
-        });
+      if (ok) {
+        // Resume mid-run: allow story cards again
+        this._storyQuiet = false;
+        this._lastStoryZone = this.zones.getZone(this.player.tx, this.player.ty);
+      } else {
+        this.time.delayedCall(400, () => this.showTutorialBoot());
       }
     } else {
       this.updateObjective();
       this.updateFow();
       this.refreshHud();
       this.cameras.main.fadeIn(400);
-      // Full hand-hold: character intro, then Quest 1 card
-      this.time.delayedCall(400, () => {
-        const intro = this.story.introCard(this.char);
-        this.showPopup(intro.title, intro.body, () => {
-          const step = this.guide.current();
-          if (step) this.showPopup(step.title, step.body);
-          this.updateObjective();
-          this.refreshHud();
-        });
-      });
+      // Single boot card (intro + quest 1 merged). No second modal.
+      this.time.delayedCall(400, () => this.showTutorialBoot());
     }
 
     // Dev / playtest harness (console + automated smoke)
@@ -191,16 +193,58 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  /** Dismiss current modal if open (playtest helper). */
+  /** One intro modal for a new run. Unlocks story + nudges camera to the gold target. */
+  showTutorialBoot() {
+    const intro = this.story.introCard(this.char);
+    this.showPopup(intro.title, intro.body, () => {
+      this._storyQuiet = false;
+      this.updateObjective();
+      this.refreshHud();
+      this.nudgeCameraTowardGuide();
+    });
+  }
+
+  /**
+   * Briefly free-look toward the current guide target so the gold pulse is on-screen.
+   * Relocks after a short peek.
+   */
+  nudgeCameraTowardGuide() {
+    if (!this.guide || this.guide.done || !this.player) return;
+    const t = this.guide.resolveTarget();
+    if (!t || t.ui) return;
+    const ox = t.tx ?? t.x;
+    const oy = t.ty ?? t.y;
+    if (ox == null || oy == null) return;
+
+    const cam = this.cameras.main;
+    const px = this.player.x;
+    const py = this.player.y;
+    const tx = ox * TILE + TILE / 2;
+    const ty = oy * TILE + TILE / 2;
+    // Blend player + target so both stay in frame when possible
+    const cx = px * 0.45 + tx * 0.55;
+    const cy = py * 0.45 + ty * 0.55;
+
+    this.beginFreeCam?.();
+    cam.centerOn(cx, cy);
+    this.clampCamScroll?.();
+    this._edgePanIdle = 0;
+    // Longer peek on small screens
+    const peekMs = this.scale.width < 600 ? 2200 : 1600;
+    this.time.delayedCall(peekMs, () => {
+      if (!this.ended) this.relockCameraToPlayer?.();
+    });
+  }
+
+  /** Dismiss current modal if open (playtest helper + keyboard escape path). */
   dismissPopup() {
     if (!this.popupOpen) return false;
-    // Find GOT IT via queued finish: re-fire through any top-depth button is hard;
-    // close by simulating the queue drain used in showPopup finish path.
-    // Prefer: call any registered closer via forcing popupOpen false after destroy.
-    // Practical: hide by draining through click on dim is not scriptable easily.
-    // Instead expose close of top popup by rebuilding finish logic:
+    // Prefer the registered closer (runs onClose: story quiet, camera nudge, etc.)
+    if (typeof this._popupFinish === 'function') {
+      this._popupFinish(true);
+      return true;
+    }
     const kids = this.children.list.filter((c) => c.depth >= 500);
-    // Soft close: clear queue flags and destroy high-depth UI
     kids.forEach((c) => {
       try {
         c.destroy?.();
@@ -209,6 +253,7 @@ export class GameScene extends Phaser.Scene {
       }
     });
     this.popupOpen = false;
+    this._popupFinish = null;
     this.clearMousePath();
     if (this.popupQueue.length) {
       const n = this.popupQueue.shift();
@@ -313,11 +358,19 @@ export class GameScene extends Phaser.Scene {
     const next = this.guide.tick();
     this.updateObjective();
     this.refreshHud();
-    if (next) {
-      this.time.delayedCall(120, () => {
-        this.showPopup(next.title, next.body);
-      });
+    if (!next) return;
+
+    // Micro-coach steps: toast only (no full modal stack)
+    if (!next.id) {
+      this.log(String(next.body || '').replace(/\n/g, ' '));
+      this.time.delayedCall(80, () => this.nudgeCameraTowardGuide());
+      return;
     }
+
+    // Full quest banners still use a modal
+    this.time.delayedCall(120, () => {
+      this.showPopup(next.title, next.body, () => this.nudgeCameraTowardGuide());
+    });
   }
 
   onResize(gameSize) {
@@ -331,7 +384,10 @@ export class GameScene extends Phaser.Scene {
       this.topBar.setSize(w, 52);
       this.topBar.setPosition(0, 0);
     }
-    if (this.objText) this.objText.setPosition(w / 2, 6);
+    if (this.objText) {
+      this.objText.setPosition(w / 2, 6);
+      this.objText.setWordWrapWidth?.(Math.min(420, w * 0.42));
+    }
     if (this.invText) this.invText.setPosition(w - 14, 10);
     if (this.dayBarBg) this.dayBarBg.setPosition(w / 2, 42);
     if (this.dayBarFill) this.dayBarFill.setPosition(w / 2 - 100, 42);
@@ -342,23 +398,196 @@ export class GameScene extends Phaser.Scene {
       this.bottomBar.setPosition(w / 2, h - 58);
       this.bottomBar.setSize(w, 52);
     }
-    if (this.actionButtons?.length) {
-      const n = this.actionButtons.length;
-      const pad = 96;
-      const usable = Math.max(400, w - pad * 2);
-      const gap = Math.min(88, usable / n);
-      const btnW = Math.min(80, Math.max(56, gap - 6));
-      const startX = w / 2 - ((n - 1) * gap) / 2;
-      const y = h - 58;
-      this.actionButtons.forEach((b, i) => {
-        b.bg.setPosition(startX + i * gap, y);
-        b.bg.setSize(btnW, 40);
-        b.label.setPosition(startX + i * gap, y);
-      });
+    // Rebuild bar so MORE / SPEC slots match new width + combat state
+    if (this.actionButtons) this.rebuildActionBar();
+    if (this.moreOpen) {
+      this.closeMoreMenu();
     }
-    if (this.homeArrow) this.homeArrow.setPosition(40, h - 96);
-    if (this.homeArrowLabel) this.homeArrowLabel.setPosition(40, h - 74);
+    if (this.homeArrow) this.homeArrow.setPosition(36, h - 96);
+    if (this.homeArrowLabel) this.homeArrowLabel.setPosition(36, h - 74);
     this.minimap?.onResize?.();
+  }
+
+  /** True when the bottom bar should collapse secondary actions into MORE. */
+  isNarrowBar(w = this.scale.width) {
+    return w < 700;
+  }
+
+  /** Fit visible action buttons into any width. */
+  layoutActionBar(w = this.scale.width, h = this.scale.height, n = 0) {
+    const count = n || this.actionButtons?.length || 8;
+    const narrow = this.isNarrowBar(w);
+    const pad = narrow ? 8 : 48;
+    const usable = Math.max(160, w - pad * 2);
+    const gap = usable / count;
+    const btnW = Math.min(80, Math.max(narrow ? 34 : 48, gap - (narrow ? 2 : 6)));
+    const btnH = narrow ? 36 : 40;
+    const fontSize = narrow ? (btnW < 42 ? '9px' : '11px') : '13px';
+    const startX = w / 2 - ((count - 1) * gap) / 2;
+    return { n: count, pad, usable, gap, btnW, btnH, fontSize, startX, y: h - 58 };
+  }
+
+  /** Catalog of bottom-bar actions. */
+  barActionCatalog() {
+    return {
+      use: { id: 'use', label: 'USE', color: 0x0ea5e9, fn: () => this.useTile() },
+      sleep: { id: 'sleep', label: 'SLEEP', color: 0x0f766e, fn: () => this.doSleep() },
+      hide: { id: 'hide', label: 'HIDE', color: 0xeab308, fn: () => this.tryHide() },
+      sneak: {
+        id: 'sneak',
+        label: 'SNEAK',
+        color: 0x64748b,
+        fn: () => {
+          this.closeMoreMenu();
+          this.toggleSneak();
+        },
+      },
+      craft: { id: 'craft', label: 'CRAFT', color: 0xa855f7, fn: () => this.toggleCraft() },
+      walk: {
+        id: 'walk',
+        label: 'WALK',
+        color: 0x475569,
+        fn: () => {
+          this.closeMoreMenu();
+          this.running = !this.running;
+          if (this.running) this.sneaking = false;
+          this.syncMoveModeButtons();
+          this.log(
+            this.running
+              ? 'RUN ON  -  faster but louder (easier to get spotted).'
+              : 'WALK  -  normal pace.'
+          );
+        },
+      },
+      heal: { id: 'heal', label: 'HEAL', color: 0x22c55e, fn: () => this.useQuickKit() },
+      menu: {
+        id: 'menu',
+        label: 'MENU',
+        color: 0x0369a1,
+        fn: () => {
+          this.closeMoreMenu();
+          this.openRunMenu();
+        },
+      },
+      bag: { id: 'bag', label: 'BAG', color: 0x57534e, fn: () => this.openBagPanel() },
+      map: {
+        id: 'map',
+        label: 'MAP',
+        color: 0x0f766e,
+        fn: () => {
+          this.closeMoreMenu();
+          this.toggleLegend();
+        },
+      },
+      specials: {
+        id: 'specials',
+        label: 'SPEC',
+        color: 0xea580c,
+        fn: () => {
+          this.closeMoreMenu();
+          this.openCombatSpecials();
+        },
+      },
+      more: {
+        id: 'more',
+        label: 'MORE',
+        color: 0x475569,
+        fn: () => this.toggleMoreMenu(),
+      },
+    };
+  }
+
+  /**
+   * Visible bottom-bar slots for current width + combat mode.
+   * Narrow phones: primary + MORE. Combat always exposes SPEC.
+   */
+  getVisibleBarIds() {
+    const combat = this.mode === 'combat';
+    if (!this.isNarrowBar()) {
+      if (combat) {
+        return ['use', 'sleep', 'hide', 'sneak', 'craft', 'walk', 'heal', 'specials', 'bag', 'menu'];
+      }
+      return ['use', 'sleep', 'hide', 'sneak', 'craft', 'walk', 'heal', 'menu', 'bag', 'map'];
+    }
+    // Narrow: fewer primary buttons
+    if (combat) {
+      return ['use', 'sleep', 'hide', 'craft', 'heal', 'specials', 'bag', 'more'];
+    }
+    return ['use', 'sleep', 'hide', 'craft', 'heal', 'bag', 'more'];
+  }
+
+  /** Secondary actions shown inside the MORE sheet. */
+  getMoreMenuIds() {
+    const ids = ['sneak', 'walk', 'menu', 'map'];
+    // Wide combat already has SPEC on the bar; narrow combat too. Keep MAP always in MORE.
+    if (this.mode === 'combat' && !ids.includes('specials')) {
+      // SPEC is primary; optional duplicate not needed
+    }
+    return ids;
+  }
+
+  clearActionButtons() {
+    for (const b of this.actionButtons || []) {
+      try {
+        b.bg?.destroy?.();
+        b.label?.destroy?.();
+      } catch (_) {
+        /* ignore */
+      }
+    }
+    this.actionButtons = [];
+    this.btnUse = null;
+    this.btnSleep = null;
+    this.btnHide = null;
+    this.btnSneak = null;
+    this.btnCraft = null;
+    this.btnRun = null;
+    this.btnHeal = null;
+    this.btnMenu = null;
+    this.btnBag = null;
+    this.btnLegend = null;
+    this.btnSpecials = null;
+    this.btnMore = null;
+  }
+
+  /** Rebuild bottom bar for width / combat (destroys + recreates buttons). */
+  rebuildActionBar() {
+    const d = 120;
+    const w = this.scale.width;
+    const h = this.scale.height;
+    if (!this.bottomBar) return;
+
+    this.clearActionButtons();
+    const catalog = this.barActionCatalog();
+    const ids = this.getVisibleBarIds();
+    const layout = this.layoutActionBar(w, h, ids.length);
+
+    ids.forEach((id, i) => {
+      const def = catalog[id];
+      if (!def) return;
+      const x = layout.startX + i * layout.gap;
+      const b = this.makeUiButton(x, layout.y, layout.btnW, layout.btnH, def.label, def.color, def.fn, d + 1);
+      if (b.label?.setFontSize) b.label.setFontSize(layout.fontSize);
+      this.actionButtons.push(b);
+      if (id === 'use') this.btnUse = b;
+      if (id === 'sleep') this.btnSleep = b;
+      if (id === 'hide') this.btnHide = b;
+      if (id === 'sneak') this.btnSneak = b;
+      if (id === 'craft') this.btnCraft = b;
+      if (id === 'walk') this.btnRun = b;
+      if (id === 'heal') this.btnHeal = b;
+      if (id === 'menu') this.btnMenu = b;
+      if (id === 'bag') this.btnBag = b;
+      if (id === 'map') this.btnLegend = b;
+      if (id === 'specials') this.btnSpecials = b;
+      if (id === 'more') this.btnMore = b;
+    });
+    this.syncMoveModeButtons();
+    // Refresh sleep kit count label if present
+    if (this.btnSleep) {
+      const kits = this.countBedrolls?.() || 0;
+      this.btnSleep.label.setText(kits > 0 ? `SLEEP×${kits}` : 'SLEEP');
+    }
   }
 
   // ─── MAP ─────────────────────────────────────────────
@@ -620,7 +849,7 @@ export class GameScene extends Phaser.Scene {
     this.pathGfx = this.add.graphics().setDepth(12);
   }
 
-  /** Bottom action bar  -  primary mouse UI (scales button gap to window width) */
+  /** Bottom action bar  -  primary mouse UI (MORE on narrow; SPEC in combat) */
   setupMouseBar() {
     const d = 120;
     const w = this.scale.width;
@@ -632,56 +861,15 @@ export class GameScene extends Phaser.Scene {
       .setDepth(d)
       .setStrokeStyle(1, 0x334155);
 
-    const labels = [
-      ['USE', 0x0ea5e9, () => this.useTile()],
-      ['SLEEP', 0x0f766e, () => this.doSleep()],
-      ['HIDE', 0xeab308, () => this.tryHide()],
-      ['SNEAK', 0x64748b, () => this.toggleSneak()],
-      ['CRAFT', 0xa855f7, () => this.toggleCraft()],
-      ['WALK', 0x475569, () => {
-        this.running = !this.running;
-        if (this.running) this.sneaking = false;
-        this.syncMoveModeButtons();
-        this.log(
-          this.running
-            ? 'RUN ON  -  faster but louder (easier to get spotted).'
-            : 'WALK  -  normal pace.'
-        );
-      }],
-      ['HEAL', 0x22c55e, () => this.useQuickKit()],
-      ['MENU', 0x0369a1, () => this.openRunMenu()],
-      ['BAG', 0x57534e, () => this.openBagPanel()],
-      ['MAP', 0x0f766e, () => this.toggleLegend()],
-    ];
-    // Fit all 10 buttons into the window with side padding for HQ arrow
-    const n = labels.length;
-    const pad = 96;
-    const usable = Math.max(400, w - pad * 2);
-    const gap = Math.min(88, usable / n);
-    const btnW = Math.min(80, Math.max(56, gap - 6));
-    const startX = w / 2 - ((n - 1) * gap) / 2;
     this.actionButtons = [];
-    labels.forEach(([label, color, fn], i) => {
-      const b = this.makeUiButton(startX + i * gap, barY, btnW, 40, label, color, fn, d + 1);
-      this.actionButtons.push(b);
-      if (label === 'USE') this.btnUse = b;
-      if (label === 'SLEEP') this.btnSleep = b;
-      if (label === 'HIDE') this.btnHide = b;
-      if (label === 'SNEAK') this.btnSneak = b;
-      if (label === 'CRAFT') this.btnCraft = b;
-      if (label === 'WALK') this.btnRun = b;
-      if (label === 'HEAL') this.btnHeal = b;
-      if (label === 'MENU') this.btnMenu = b;
-      if (label === 'BAG') this.btnBag = b;
-      if (label === 'MAP') this.btnLegend = b;
-    });
+    this.rebuildActionBar();
 
     // Home compass  -  graphics chevron pointing +X; rotation = atan2 toward HQ
     this.homeArrow = this.add.graphics().setScrollFactor(0).setDepth(d + 2);
-    this.homeArrow.setPosition(40, h - 96);
+    this.homeArrow.setPosition(36, h - 96);
     this.drawHomeChevron();
     this.homeArrowLabel = this.add
-      .text(40, h - 74, 'HQ', {
+      .text(36, h - 74, 'HQ', {
         fontFamily: 'system-ui',
         fontSize: '11px',
         fontStyle: 'bold',
@@ -690,6 +878,103 @@ export class GameScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setScrollFactor(0)
       .setDepth(d + 2);
+  }
+
+  toggleMoreMenu() {
+    if (this.moreOpen) this.closeMoreMenu();
+    else this.openMoreMenu();
+  }
+
+  openMoreMenu() {
+    if (this.moreOpen) return;
+    this.closeRunMenu?.();
+    this.moreOpen = true;
+    this.clearMousePath();
+    this.uiBlockClick = true;
+    const d = 350;
+    const w = this.scale.width;
+    const h = this.scale.height;
+    const ids = this.getMoreMenuIds();
+    const catalog = this.barActionCatalog();
+    const rowH = 48;
+    const panelH = 56 + ids.length * rowH + 16;
+    const panelW = Math.min(300, w - 32);
+    const cx = w / 2;
+    const cy = h - 58 - panelH / 2 - 12;
+
+    this.moreUi = [];
+    const dim = this.add
+      .rectangle(cx, h / 2, w, h, 0x020617, 0.45)
+      .setScrollFactor(0)
+      .setDepth(d)
+      .setInteractive();
+    dim.on('pointerup', () => this.closeMoreMenu());
+
+    const panel = this.add
+      .rectangle(cx, cy, panelW, panelH, 0x0f172a, 0.98)
+      .setStrokeStyle(2, 0x64748b)
+      .setScrollFactor(0)
+      .setDepth(d + 1);
+
+    const title = this.add
+      .text(cx, cy - panelH / 2 + 22, 'MORE', {
+        fontFamily: 'system-ui',
+        fontSize: '15px',
+        fontStyle: 'bold',
+        color: '#e2e8f0',
+      })
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(d + 2);
+
+    this.moreUi.push(dim, panel, title);
+
+    ids.forEach((id, i) => {
+      const def = catalog[id];
+      if (!def) return;
+      const y = cy - panelH / 2 + 52 + i * rowH;
+      const b = this.makeUiButton(cx, y, panelW - 36, 40, def.label, def.color, () => {
+        def.fn();
+        // keep MORE open for sneak/walk toggle so player sees state; close for menu/map
+        if (id === 'menu' || id === 'map') this.closeMoreMenu();
+        else this.syncMoveModeButtons();
+      }, d + 3);
+      this.moreUi.push(b.bg, b.label);
+      // Stash refs so syncMoveModeButtons can update labels inside MORE
+      if (id === 'sneak') this.btnSneak = b;
+      if (id === 'walk') this.btnRun = b;
+    });
+    this.syncMoveModeButtons();
+    this.time.delayedCall(80, () => {
+      if (this.moreOpen) this.uiBlockClick = false;
+    });
+  }
+
+  closeMoreMenu() {
+    if (!this.moreOpen && !(this.moreUi || []).length) return;
+    this.moreOpen = false;
+    for (const o of this.moreUi || []) {
+      try {
+        o?.destroy?.();
+      } catch (_) {
+        /* ignore */
+      }
+    }
+    this.moreUi = [];
+    // Sneak/walk buttons may have lived only in MORE; clear dangling refs if not on main bar
+    if (!this.actionButtons?.some((b) => b === this.btnSneak)) this.btnSneak = null;
+    if (!this.actionButtons?.some((b) => b === this.btnRun)) this.btnRun = null;
+    // Re-bind sneak/walk if they exist on the main bar
+    this.actionButtons?.forEach((b) => {
+      const t = b.label?.text || '';
+      if (t.startsWith('SNEAK')) this.btnSneak = b;
+      if (t.startsWith('WALK') || t.startsWith('RUN')) this.btnRun = b;
+    });
+    this.clearMousePath();
+    this.uiBlockClick = true;
+    this.time.delayedCall(80, () => {
+      this.uiBlockClick = false;
+    });
   }
 
   /** Draw a right-pointing arrow in local space (rotation 0 = east) */
@@ -849,6 +1134,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   openBagPanel() {
+    this.closeMoreMenu();
     this.clearMousePath();
     this.equipUI?.toggle();
     if (this.bagOpen) {
@@ -863,6 +1149,7 @@ export class GameScene extends Phaser.Scene {
     }
     this.legendOpen = true;
     this.closeRunMenu();
+    this.closeMoreMenu();
     const d = 350;
     const w = this.scale.width;
     const h = this.scale.height;
@@ -946,20 +1233,23 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
-  closeMoreMenu() {
-    // legacy no-op (MORE menu removed; use MENU)
-  }
-
   /**
    * HUD button  -  always scrollFactor 0, high depth, reliable clicks.
+   * Larger hit pad on touch-sized buttons; fires on pointerup with down-guard.
    */
   makeUiButton(x, y, w, h, label, color, onClick, depth = 121) {
     const bg = this.add
       .rectangle(x, y, w, h, color, 1)
       .setStrokeStyle(2, 0xf8fafc, 0.4)
       .setScrollFactor(0)
-      .setDepth(depth)
-      .setInteractive({ useHandCursor: true });
+      .setDepth(depth);
+    // Extra hit padding so finger slides still count on small bar buttons
+    const pad = w < 48 ? 6 : 4;
+    bg.setInteractive({
+      useHandCursor: true,
+      hitArea: new Phaser.Geom.Rectangle(-w / 2 - pad, -h / 2 - pad, w + pad * 2, h + pad * 2),
+      hitAreaCallback: Phaser.Geom.Rectangle.Contains,
+    });
     const text = this.add
       .text(x, y, label, {
         fontFamily: 'system-ui',
@@ -973,14 +1263,23 @@ export class GameScene extends Phaser.Scene {
     // Text must not steal clicks
     text.disableInteractive?.();
 
+    let pressed = false;
     bg.on('pointerover', () => bg.setAlpha(0.88));
-    bg.on('pointerout', () => bg.setAlpha(1));
+    bg.on('pointerout', () => {
+      bg.setAlpha(1);
+      pressed = false;
+    });
     bg.on('pointerdown', (pointer) => {
       if (pointer.event?.stopPropagation) pointer.event.stopPropagation();
+      pressed = true;
       this.uiBlockClick = true;
     });
     bg.on('pointerup', (pointer) => {
       if (pointer.event?.stopPropagation) pointer.event.stopPropagation();
+      if (!pressed) {
+        // Still accept if released on button (mobile often skips clean down/up pairing)
+      }
+      pressed = false;
       onClick();
       this.time.delayedCall(80, () => {
         this.uiBlockClick = false;
@@ -1106,7 +1405,8 @@ export class GameScene extends Phaser.Scene {
       this.legendOpen ||
       this.bagOpen ||
       this.menuOpen ||
-      this.specialOpen
+      this.specialOpen ||
+      this.moreOpen
     );
   }
 
@@ -1149,16 +1449,20 @@ export class GameScene extends Phaser.Scene {
     world?.clear();
     ui?.clear();
     if (!this.guide || this.guide.done || this.mode === 'combat') return;
-    if (this.bagOpen || this.craftOpen) return;
+    if (this.bagOpen || this.craftOpen || this.menuOpen || this.legendOpen) return;
 
     const target = this.guide.resolveTarget();
     if (!target) return;
 
     const phase = (Math.sin(this._pulseT * 5.5) + 1) / 2;
-    const a = 0.4 + phase * 0.55;
-    const r = 12 + phase * 14;
+    const a = 0.45 + phase * 0.55;
+    const r = 14 + phase * 16;
+    // Sit above modal dimmer (500) so edge beacons stay visible while reading GOT IT
+    if (ui) ui.setDepth(this.popupOpen ? 520 : 140);
 
     if (target.ui) {
+      // UI pulses only when not under a full modal
+      if (this.popupOpen) return;
       const btn =
         target.ui === 'bag'
           ? this.btnBag
@@ -1170,26 +1474,102 @@ export class GameScene extends Phaser.Scene {
       if (!btn?.bg) return;
       const bx = btn.bg.x;
       const by = btn.bg.y;
+      const hw = (btn.bg.width || 80) / 2 + 6;
+      const hh = (btn.bg.height || 40) / 2 + 6;
       const pad = phase * 5;
       ui.lineStyle(3, 0xfbbf24, a);
-      ui.strokeRect(bx - 44 - pad, by - 24 - pad, 88 + pad * 2, 48 + pad * 2);
+      ui.strokeRect(bx - hw - pad, by - hh - pad, hw * 2 + pad * 2, hh * 2 + pad * 2);
       ui.lineStyle(2, 0xfde68a, a * 0.7);
-      ui.strokeRect(bx - 50 - pad * 1.4, by - 30 - pad * 1.4, 100 + pad * 2.8, 60 + pad * 2.8);
+      ui.strokeRect(
+        bx - hw - pad * 1.4 - 4,
+        by - hh - pad * 1.4 - 4,
+        hw * 2 + pad * 2.8 + 8,
+        hh * 2 + pad * 2.8 + 8
+      );
       return;
     }
 
     const ox = target.tx ?? target.x;
     const oy = target.ty ?? target.y;
     if (ox == null || oy == null) return;
-    const cx = ox * TILE + TILE / 2;
-    const cy = oy * TILE + TILE / 2;
-    world.lineStyle(4, 0xfbbf24, a);
-    world.strokeCircle(cx, cy, r);
-    world.lineStyle(2, 0xfef08a, a * 0.75);
-    world.strokeCircle(cx, cy, r + 8 + phase * 6);
-    // soft fill flash
-    world.fillStyle(0xfbbf24, 0.08 + phase * 0.1);
-    world.fillCircle(cx, cy, r * 0.85);
+    const wx = ox * TILE + TILE / 2;
+    const wy = oy * TILE + TILE / 2;
+
+    // World pulse only when world is visible (not under a modal)
+    if (!this.popupOpen && world) {
+      world.lineStyle(4, 0xfbbf24, a);
+      world.strokeCircle(wx, wy, r);
+      world.lineStyle(2, 0xfef08a, a * 0.75);
+      world.strokeCircle(wx, wy, r + 8 + phase * 6);
+      world.fillStyle(0xfbbf24, 0.1 + phase * 0.12);
+      world.fillCircle(wx, wy, r * 0.85);
+    }
+
+    // Screen-edge beacon when off-screen, or always under a modal (world hidden by dimmer)
+    this.drawOffscreenGuideBeacon(ui, wx, wy, phase, a, !!this.popupOpen);
+  }
+
+  /**
+   * Draw a gold chevron on the screen edge pointing at a world target when off-screen.
+   * force=true: always show (used under modals so "follow the pulse" is visible).
+   */
+  drawOffscreenGuideBeacon(ui, worldX, worldY, phase, a, force = false) {
+    if (!ui || !this.cameras?.main) return;
+    const cam = this.cameras.main;
+    const sx = (worldX - cam.worldView.x) * cam.zoom;
+    const sy = (worldY - cam.worldView.y) * cam.zoom;
+    // Keep clear of center modal + HUD when forced
+    const margin = force ? 36 : 28;
+    const left = margin;
+    const right = cam.width - margin;
+    const top = force ? 72 : 64;
+    const bot = cam.height - (force ? 110 : 100);
+    const onScreen = sx >= left && sx <= right && sy >= top && sy <= bot;
+    if (onScreen && !force) return;
+
+    // When forced and target is "on screen", still park beacon on the nearest edge
+    // so it is not buried under the center panel.
+    let cx;
+    let cy;
+    if (force) {
+      const midX = cam.width / 2;
+      const midY = cam.height / 2;
+      const dx = sx - midX;
+      const dy = sy - midY;
+      // Project onto screen rectangle edge from center toward target
+      const scaleX = dx === 0 ? Infinity : (dx > 0 ? right - midX : midX - left) / Math.abs(dx);
+      const scaleY = dy === 0 ? Infinity : (dy > 0 ? bot - midY : midY - top) / Math.abs(dy);
+      const s = Math.min(scaleX, scaleY);
+      cx = midX + dx * s;
+      cy = midY + dy * s;
+      cx = Phaser.Math.Clamp(cx, left, right);
+      cy = Phaser.Math.Clamp(cy, top, bot);
+    } else {
+      cx = Phaser.Math.Clamp(sx, left, right);
+      cy = Phaser.Math.Clamp(sy, top, bot);
+    }
+
+    const ang = Math.atan2(sy - cy, sx - cx) || Math.atan2(sy - cam.height / 2, sx - cam.width / 2);
+    const pulse = 10 + phase * 8;
+
+    ui.lineStyle(3, 0xfbbf24, a);
+    ui.strokeCircle(cx, cy, pulse);
+    ui.fillStyle(0xfbbf24, 0.35 + phase * 0.25);
+    ui.fillCircle(cx, cy, 6 + phase * 2);
+    const len = 16;
+    const ex = cx + Math.cos(ang) * len;
+    const ey = cy + Math.sin(ang) * len;
+    ui.lineStyle(3, 0xfef08a, a);
+    ui.lineBetween(cx, cy, ex, ey);
+    ui.fillStyle(0xfef08a, a);
+    ui.fillTriangle(
+      ex,
+      ey,
+      ex - Math.cos(ang - 0.5) * 8,
+      ey - Math.sin(ang - 0.5) * 8,
+      ex - Math.cos(ang + 0.5) * 8,
+      ey - Math.sin(ang + 0.5) * 8
+    );
   }
 
   updateDayBar() {
@@ -1347,10 +1727,12 @@ export class GameScene extends Phaser.Scene {
     const btnY = Math.round(panelTop + panelH - padBot - btnH / 2);
 
     const finish = (fromOk) => {
+      if (!this.popupOpen) return;
       ui.forEach((o) => o?.destroy?.());
       ok.bg.destroy();
       ok.label.destroy();
       this.popupOpen = false;
+      this._popupFinish = null;
       this.clearMousePath();
       if (fromOk && opts.onConfirm) opts.onConfirm(checked);
       if (typeof onClose === 'function') onClose(checked);
@@ -1361,8 +1743,9 @@ export class GameScene extends Phaser.Scene {
         });
       }
     };
+    this._popupFinish = finish;
 
-    const ok = this.makeUiButton(cx, btnY, 168, btnH, 'GOT IT', 0x0ea5e9, () => finish(true), d + 5);
+    const ok = this.makeUiButton(cx, btnY, 200, btnH, 'GOT IT', 0x0ea5e9, () => finish(true), d + 5);
     // Only close on dimmer when no checkbox (avoid misclicks)
     if (!hasCheck) {
       dim.on('pointerup', () => finish(true));
@@ -1554,7 +1937,7 @@ export class GameScene extends Phaser.Scene {
     return best;
   }
 
-  // ─── INPUT (mouse-first; keyboard still works) ───────
+  // ─── INPUT (mouse-first; touch long-press specials; keyboard still works) ───────
   setupInput() {
     this.cursors = this.input.keyboard.createCursorKeys();
     this.keys = this.input.keyboard.addKeys({
@@ -1582,12 +1965,30 @@ export class GameScene extends Phaser.Scene {
       if (p.button === 1 || this._midDrag) {
         this._midDrag = null;
         this._edgePanIdle = 0;
-        // leave free cam until idle relock / move
+        this.cancelLongPress();
         return;
       }
+
+      const longFired = !!this._longPress?.fired;
+      this.cancelLongPress();
+      if (longFired) {
+        // Long-press already opened specials; do not also walk/attack
+        return;
+      }
+
       if (this.ended || this.uiBlockClick) return;
       // Never path while any modal is open (bag close was causing auto-walk)
-      if (this.popupOpen || this.craftOpen || this.legendOpen || this.bagOpen || this.menuOpen) return;
+      if (
+        this.popupOpen ||
+        this.craftOpen ||
+        this.legendOpen ||
+        this.bagOpen ||
+        this.menuOpen ||
+        this.moreOpen ||
+        this.specialOpen
+      ) {
+        return;
+      }
       if (this.isPaused()) return;
 
       // Ignore top HUD / bottom action bar
@@ -1599,25 +2000,48 @@ export class GameScene extends Phaser.Scene {
       this.handleWorldClick(tx, ty, p.rightButtonReleased() || p.button === 2);
     });
 
-    // Middle-mouse drag pan (look around without walking)
     this.input.on('pointerdown', (p) => {
-      if (p.button !== 1) return;
-      if (this.ended || this.isPaused() || this.mode === 'combat') return;
-      this.beginFreeCam();
-      this._midDrag = {
+      // Middle-mouse drag pan
+      if (p.button === 1) {
+        if (this.ended || this.isPaused() || this.mode === 'combat') return;
+        this.beginFreeCam();
+        this._midDrag = {
+          x: p.x,
+          y: p.y,
+          scrollX: this.cameras.main.scrollX,
+          scrollY: this.cameras.main.scrollY,
+        };
+        this._edgePanIdle = 0;
+        return;
+      }
+
+      // Primary press: arm long-press for combat specials (touch + mouse hold)
+      if (p.button !== 0 && p.button != null) return;
+      if (this.ended || this.uiBlockClick || this.isPaused()) return;
+      if (p.y < 56 || p.y > this.scale.height - 90) return;
+
+      this.cancelLongPress();
+      this._longPress = {
         x: p.x,
         y: p.y,
-        scrollX: this.cameras.main.scrollX,
-        scrollY: this.cameras.main.scrollY,
+        fired: false,
+        timer: this.time.delayedCall(480, () => {
+          if (!this._longPress) return;
+          this._longPress.fired = true;
+          this.onLongPressMap();
+        }),
       };
-      this._edgePanIdle = 0;
     });
+
     this.input.on('pointermove', (p) => {
-      if (!this._midDrag || !p.isDown) return;
-      // button 1 held or middle drag active
-      if (p.buttons != null && (p.buttons & 4) === 0 && p.button !== 1) {
-        // not middle; still allow if we started mid-drag
+      // Cancel long-press if finger/mouse slides too far
+      if (this._longPress && !this._longPress.fired) {
+        const dx = p.x - this._longPress.x;
+        const dy = p.y - this._longPress.y;
+        if (dx * dx + dy * dy > 22 * 22) this.cancelLongPress();
       }
+
+      if (!this._midDrag || !p.isDown) return;
       const cam = this.cameras.main;
       const dx = p.x - this._midDrag.x;
       const dy = p.y - this._midDrag.y;
@@ -1628,6 +2052,30 @@ export class GameScene extends Phaser.Scene {
     });
 
     this.input.mouse?.disableContextMenu();
+  }
+
+  cancelLongPress() {
+    if (this._longPress?.timer) {
+      try {
+        this._longPress.timer.remove?.(false);
+      } catch (_) {
+        /* ignore */
+      }
+    }
+    this._longPress = null;
+  }
+
+  /** Long-press map during combat → specials (mobile substitute for right-click). */
+  onLongPressMap() {
+    if (this.ended || this.popupOpen || this.specialOpen) return;
+    if (this.mode === 'combat' && this.combatTurn === 'player') {
+      this.uiBlockClick = true;
+      this.openCombatSpecials();
+      this.log('Specials (long-press). Or tap SPEC on the bar.');
+      this.time.delayedCall(100, () => {
+        this.uiBlockClick = false;
+      });
+    }
   }
 
   handleWorldClick(tx, ty, rightClick = false) {
@@ -1934,8 +2382,11 @@ export class GameScene extends Phaser.Scene {
           Math.round(this.cameras.main.scrollY)
         );
       }
+      // Keep screen-edge / UI guide beacon visible under popups so "follow the pulse" is real
+      this.updateObjective();
       this.questPulseWorld?.clear();
-      this.questPulseUi?.clear();
+      this.updateQuestPulse(dt);
+      this.minimap?.update?.();
       return;
     }
 
@@ -1967,7 +2418,8 @@ export class GameScene extends Phaser.Scene {
     this.enemyExploreAI(dt);
 
     // Occasional ambient narrator (only if enabled and free). Longer cooldown.
-    if (!this.popupOpen && this.story?.narratorOn) {
+    // Quiet during tutorial boot + early guide so popups do not stack on the hand-hold.
+    if (!this.popupOpen && !this._storyQuiet && this.story?.narratorOn && this.guide?.done) {
       this._ambT = (this._ambT || 0) + dt;
       if (this._ambT > 28) {
         this._ambT = 0;
@@ -1976,12 +2428,14 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
-    // Zone story once when entering
-    const zNow = this.zones.getZone(this.player.tx, this.player.ty);
-    if (zNow !== this._lastStoryZone) {
-      this._lastStoryZone = zNow;
-      const zc = this.story.onZone(zNow);
-      if (zc) this.time.delayedCall(200, () => this.showPopup(zc.title, zc.body));
+    // Zone story once when entering (skipped until boot card dismissed)
+    if (!this._storyQuiet) {
+      const zNow = this.zones.getZone(this.player.tx, this.player.ty);
+      if (zNow !== this._lastStoryZone) {
+        this._lastStoryZone = zNow;
+        const zc = this.story.onZone(zNow);
+        if (zc) this.time.delayedCall(200, () => this.showPopup(zc.title, zc.body));
+      }
     }
 
     if (Phaser.Input.Keyboard.JustDown(this.keys.e)) this.useTile();
@@ -2255,6 +2709,7 @@ export class GameScene extends Phaser.Scene {
 
     if (this.craftOpen) {
       this.closeRunMenu();
+      this.closeMoreMenu();
       this.buildCraftModal();
     } else {
       this.destroyCraftModal();
@@ -2572,6 +3027,17 @@ export class GameScene extends Phaser.Scene {
     return this.hasLos(this.player.tx, this.player.ty, tx, ty);
   }
 
+  /** Active guide world tile (if any) — stay lit so the pulse/crate is readable. */
+  guideRevealTile() {
+    if (!this.guide || this.guide.done) return null;
+    const t = this.guide.resolveTarget();
+    if (!t || t.ui) return null;
+    const x = t.tx ?? t.x;
+    const y = t.ty ?? t.y;
+    if (x == null || y == null) return null;
+    return { x, y };
+  }
+
   updateFow() {
     this.fow.clear();
     const cam = this.cameras.main;
@@ -2580,9 +3046,18 @@ export class GameScene extends Phaser.Scene {
     const t = ((cam.worldView.y / TILE) | 0) - 1;
     const b = (((cam.worldView.y + cam.worldView.height) / TILE) | 0) + 1;
     const vis = this.playerVision();
+    const reveal = this.guideRevealTile();
 
     for (let y = Math.max(0, t); y < Math.min(MAP_H, b); y++) {
       for (let x = Math.max(0, l); x < Math.min(MAP_W, r); x++) {
+        // Keep current guide objective unfogged (and a 1-tile ring) so the gold pulse is obvious
+        if (
+          reveal &&
+          Math.abs(x - reveal.x) <= 1 &&
+          Math.abs(y - reveal.y) <= 1
+        ) {
+          continue;
+        }
         const d = Math.abs(x - this.player.tx) + Math.abs(y - this.player.ty);
         if (d > vis + 2) {
           this.fow.fillStyle(0x020617, 0.88);
