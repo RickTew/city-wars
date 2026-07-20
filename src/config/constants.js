@@ -96,6 +96,9 @@ export const SLOT = {
   QUICK2: 'quick2',
 };
 
+/** Consumables that stack in bag / quick slots. */
+export const STACKABLE = new Set(['bandage', 'stim', 'mre', 'charge', 'bedroll']);
+
 export const GEAR = {
   stick: {
     id: 'stick',

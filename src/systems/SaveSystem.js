@@ -122,7 +122,7 @@ export class SaveSystem {
     try {
       const inv = scene.inv;
       inv.mats = { ...(data.mats || {}) };
-      inv.items = (data.items || []).map((i) => ({ ...i }));
+      inv.items = (data.items || []).map((i) => ({ ...i, qty: i.qty || 1 }));
       inv.blueprints = new Set(data.blueprints || []);
       inv.equip = {
         head: null,
@@ -133,7 +133,7 @@ export class SaveSystem {
         quick2: null,
       };
       for (const k of Object.keys(inv.equip)) {
-        if (data.equip?.[k]) inv.equip[k] = { ...data.equip[k] };
+        if (data.equip?.[k]) inv.equip[k] = { ...data.equip[k], qty: data.equip[k].qty || 1 };
       }
 
       scene.player.hp = data.hp ?? scene.player.hp;

@@ -13,6 +13,7 @@ import {
   MAT,
   NIGHT_START,
   PLAYER,
+  STACKABLE,
   T,
   TILE,
   WALKABLE,
@@ -42,6 +43,7 @@ import { sleepMixin } from './mixins/sleepMixin.js';
 import { Progression } from '../systems/Progression.js';
 import { SaveSystem } from '../systems/SaveSystem.js';
 import { Minimap } from '../systems/Minimap.js';
+import { CraftPanel } from '../systems/CraftPanel.js';
 import { RunLegacy } from '../systems/RunLegacy.js';
 import { HUD_FONT, ZONE_TINT } from '../config/art.js';
 
@@ -138,6 +140,7 @@ export class GameScene extends Phaser.Scene {
     this.setupInput();
     this.setupSneakRing();
     this.equipUI = new EquipUI(this);
+    this.craftPanel = new CraftPanel(this);
     this.minimap = new Minimap(this);
     this.minimap.create();
     this.questPulseWorld = this.add.graphics().setDepth(27);
@@ -436,6 +439,11 @@ export class GameScene extends Phaser.Scene {
     if (this.homeArrow) this.homeArrow.setPosition(36, h - 96);
     if (this.homeArrowLabel) this.homeArrowLabel.setPosition(36, h - 74);
     this.minimap?.onResize?.();
+    this.craftPanel?.refresh?.();
+  }
+
+  isNearBench() {
+    return this.craftPanel?.isNearBench?.() ?? false;
   }
 
   /** True when the bottom bar should collapse secondary actions into MORE. */
@@ -2849,223 +2857,58 @@ export class GameScene extends Phaser.Scene {
 
   // Combat attacks are click-enemy only (FIGHT button removed)
 
-  // ─── CRAFT MODAL (full-screen overlay, click CLOSE or dimmer) ───
+  // ─── CRAFT (inline bench panel) ───
   toggleCraft(forceOpen) {
-    if (forceOpen === true) this.craftOpen = true;
-    else if (forceOpen === false) this.craftOpen = false;
-    else this.craftOpen = !this.craftOpen;
-
-    if (this.craftOpen) {
-      this.closeRunMenu();
-      this.closeMoreMenu();
-      this.buildCraftModal();
-    } else {
-      this.destroyCraftModal();
-    }
+    this.craftPanel.toggle(forceOpen);
   }
 
   destroyCraftModal() {
-    for (const o of this.craftUi || []) {
-      o?.destroy?.();
-    }
-    this.craftUi = [];
-    this.craftOpen = false;
-    this.clearMousePath();
-    this.uiBlockClick = true;
-    this.time?.delayedCall(120, () => {
-      this.uiBlockClick = false;
-    });
+    this.craftPanel.close();
   }
 
   buildCraftModal() {
-    this.destroyCraftModal();
-    this.craftOpen = true;
-    const d = this.craftModalDepth;
-    const cx = this.scale.width / 2;
-    const cy = this.scale.height / 2 - 20;
-
-    // Dimmer  -  click to close
-    const dim = this.add
-      .rectangle(cx, this.scale.height / 2, this.scale.width, this.scale.height, 0x020617, 0.72)
-      .setScrollFactor(0)
-      .setDepth(d)
-      .setInteractive();
-    dim.on('pointerup', () => {
-      this.uiBlockClick = true;
-      this.toggleCraft(false);
-      this.time.delayedCall(80, () => {
-        this.uiBlockClick = false;
-      });
-    });
-
-    // Panel (does not close when clicked  -  stopPropagation via uiBlock)
-    const list = this.inv.sortedBlueprints();
-    const rowH = list.length > 8 ? 40 : list.length > 6 ? 44 : 50;
-    const panelH = Math.min(this.scale.height - 40, Math.max(460, 160 + list.length * rowH + 80));
-
-    const panel = this.add
-      .rectangle(cx, cy, 580, panelH, 0x0f172a, 0.98)
-      .setStrokeStyle(3, 0xa855f7)
-      .setScrollFactor(0)
-      .setDepth(d + 1)
-      .setInteractive();
-    panel.on('pointerup', (p) => {
-      // swallow  -  don't close when clicking panel body
-      if (p.event?.stopPropagation) p.event.stopPropagation();
-      this.uiBlockClick = true;
-      this.time.delayedCall(80, () => {
-        this.uiBlockClick = false;
-      });
-    });
-
-    const nearBench = this.benches.some(
-      (b) => Math.abs(b.x - this.player.tx) + Math.abs(b.y - this.player.ty) <= 1
-    ) || this.ground[this.player.ty][this.player.tx] === T.BENCH;
-
-    const titleY = cy - panelH / 2 + 28;
-    const title = this.add
-      .text(cx, titleY, nearBench ? 'STREET RIG  -  click a recipe' : 'RECIPES (browse)', {
-        fontFamily: 'system-ui',
-        fontSize: '20px',
-        fontStyle: 'bold',
-        color: '#e9d5ff',
-      })
-      .setOrigin(0.5)
-      .setScrollFactor(0)
-      .setDepth(d + 2);
-
-    const prox = this.add
-      .text(
-        cx,
-        titleY + 28,
-        nearBench
-          ? 'At a purple rig. Green rows are ready. Craft+ may refund a mat.'
-          : 'Walk onto a purple Street Rig to craft. You can browse recipes anywhere.',
-        {
-          fontFamily: 'system-ui',
-          fontSize: '12px',
-          color: nearBench ? '#86efac' : '#fbbf24',
-        }
-      )
-      .setOrigin(0.5)
-      .setScrollFactor(0)
-      .setDepth(d + 2);
-
-    // X close (top-right of panel)
-    const xBtn = this.makeUiButton(cx + 250, titleY, 44, 36, '✕', 0xef4444, () => {
-      this.toggleCraft(false);
-    }, d + 5);
-
-    // CLOSE button (bottom center)  -  guaranteed scene-level
-    const closeBtn = this.makeUiButton(cx, cy + panelH / 2 - 28, 160, 44, 'CLOSE', 0x94a3b8, () => {
-      this.toggleCraft(false);
-    }, d + 5);
-
-    this.craftUi.push(dim, panel, title, prox, xBtn.bg, xBtn.label, closeBtn.bg, closeBtn.label);
-
-    if (!list.length) {
-      const empty = this.add
-        .text(cx, cy, 'No blueprints yet.\nClick pink landmarks on the map,\nthen come back.', {
-          fontFamily: 'system-ui',
-          fontSize: '16px',
-          color: '#94a3b8',
-          align: 'center',
-          lineSpacing: 6,
-        })
-        .setOrigin(0.5)
-        .setScrollFactor(0)
-        .setDepth(d + 2);
-      this.craftUi.push(empty);
-      return;
-    }
-
-    const listTop = titleY + 56;
-    list.forEach((id, i) => {
-      const bp = BLUEPRINTS[id];
-      const need = Object.entries(bp.needs)
-        .map(([m, n]) => `${MAT[m]?.name || m}×${n} (have ${this.inv.count(m)})`)
-        .join(', ');
-      const ready = this.inv.canCraft(id);
-      const rowY = listTop + i * rowH;
-
-      const row = this.add
-        .rectangle(cx, rowY, 520, rowH - 4, ready ? 0x14532d : 0x1e293b, 1)
-        .setStrokeStyle(2, ready ? 0x4ade80 : 0x475569)
-        .setScrollFactor(0)
-        .setDepth(d + 3)
-        .setInteractive({ useHandCursor: true });
-
-      const rowText = this.add
-        .text(cx - 250, rowY, `${bp.name}   ${ready ? '✓  CLICK TO CRAFT' : '… need parts'}\n${need}`, {
-          fontFamily: 'system-ui',
-          fontSize: rowH < 45 ? '11px' : '13px',
-          color: '#f1f5f9',
-          lineSpacing: 2,
-        })
-        .setOrigin(0, 0.5)
-        .setScrollFactor(0)
-        .setDepth(d + 4);
-
-      row.on('pointerover', () => row.setAlpha(0.9));
-      row.on('pointerout', () => row.setAlpha(1));
-      row.on('pointerup', () => {
-        this.uiBlockClick = true;
-        this.tryCraftId(id);
-        this.time.delayedCall(80, () => {
-          this.uiBlockClick = false;
-        });
-      });
-
-      this.craftUi.push(row, rowText);
-    });
+    this.craftPanel.refresh();
   }
 
   tryCraftKey(index) {
-    if (!this.craftOpen) return;
-    const list = [...this.inv.blueprints];
-    const id = list[index];
-    if (id) this.tryCraftId(id);
+    if (this.craftOpen || this.isNearBench()) this.craftPanel.tryHotkey(index);
   }
 
   tryCraftId(id) {
-    const nearBench = this.benches.some(
-      (b) => Math.abs(b.x - this.player.tx) + Math.abs(b.y - this.player.ty) <= 1
-    );
-    if (!nearBench && this.ground[this.player.ty][this.player.tx] !== T.BENCH) {
+    if (!this.isNearBench()) {
       this.log('Stand on / next to a purple Street Rig, then craft.');
       return;
     }
     if (!this.inv.canCraft(id)) {
       this.log(`Missing: ${this.inv.missingFor(id).join(', ')}`);
-      // rebuild list so counts stay fresh
-      this.buildCraftModal();
+      this.craftPanel.refresh();
       return;
     }
     const result = this.inv.craft(id, { craftBonus: this.player.craftBonus || 0 });
     if (!result?.gear) {
       this.log('Craft failed.');
-      this.buildCraftModal();
+      this.craftPanel.refresh();
       return;
     }
     const gear = result.gear;
-    // batBonus / rangedBonus apply at combat time only (never bake into gear.atk)
     this.audio.craft();
     let msg = `Crafted ${gear.name}. ${gear.desc}`;
     if (result.refunded) {
       msg += ` (${this.char?.name || 'You'} salvaged 1 ${MAT[result.refunded]?.name || result.refunded}.)`;
     }
+    const q = this.inv.countItem(gear.id);
+    if (STACKABLE.has(gear.id) && q > 0) msg += ` (${q} ready)`;
     this.log(msg);
     this.huntList = this.huntList.filter((h) => BLUEPRINTS[h.bpId]?.result !== gear.id);
     this.refreshHuntHud();
-    this.buildCraftModal();
+    this.craftPanel.refresh();
     this.updateObjective();
     this.refreshHud();
     this.checkGuide();
     this.checkEscape();
     const card = this.story.onCraft(gear.id, gear.name);
-    // Prefer guide card over story craft card during tutorial
     if (this.guide && !this.guide.done) {
-      // checkGuide already queues next step popup
+      /* checkGuide handles tutorial */
     } else if (card) {
       this.time.delayedCall(80, () => this.showPopup(card.title, card.body));
     }

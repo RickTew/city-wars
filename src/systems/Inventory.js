@@ -1,7 +1,7 @@
-import { MAT, GEAR, BLUEPRINTS, SLOT } from '../config/constants.js';
+import { MAT, GEAR, BLUEPRINTS, SLOT, STACKABLE } from '../config/constants.js';
 
 let _uid = 1;
-function uid() {
+function newUid() {
   return `it_${_uid++}`;
 }
 
@@ -52,9 +52,75 @@ export class Inventory {
   addItem(gearIdOrObj) {
     const base = typeof gearIdOrObj === 'string' ? GEAR[gearIdOrObj] : gearIdOrObj;
     if (!base) return null;
-    const item = { ...base, uid: uid() };
+    if (STACKABLE.has(base.id)) {
+      const existing = this.items.find((i) => i.id === base.id);
+      if (existing) {
+        existing.qty = (existing.qty || 1) + 1;
+        return existing;
+      }
+      const item = { ...base, uid: newUid(), qty: 1 };
+      this.items.push(item);
+      return item;
+    }
+    const item = { ...base, uid: newUid() };
     this.items.push(item);
     return item;
+  }
+
+  itemQty(item) {
+    return item?.qty || 1;
+  }
+
+  /** After craft: slide consumables into empty / matching quick slots. */
+  autoEquipConsumable(id) {
+    const def = GEAR[id];
+    if (!def) return;
+    const isKit = def.type === 'consumable' || id === 'bedroll';
+    if (!isKit) return;
+
+    for (const slot of [SLOT.QUICK1, SLOT.QUICK2]) {
+      const eq = this.equip[slot];
+      if (eq?.id === id) {
+        eq.qty = (eq.qty || 1) + 1;
+        this._consumeOneFromBag(id);
+        return;
+      }
+    }
+
+    for (const slot of [SLOT.QUICK1, SLOT.QUICK2]) {
+      if (this.equip[slot]) continue;
+      const bagIdx = this.items.findIndex((i) => i.id === id);
+      if (bagIdx < 0) return;
+      const stack = this.items[bagIdx];
+      if ((stack.qty || 1) <= 1) {
+        this.items.splice(bagIdx, 1);
+        this.equip[slot] = { ...stack, qty: 1 };
+      } else {
+        stack.qty--;
+        this.equip[slot] = { ...def, uid: newUid(), qty: 1 };
+      }
+      return;
+    }
+  }
+
+  _consumeOneFromBag(id) {
+    const idx = this.items.findIndex((i) => i.id === id);
+    if (idx < 0) return;
+    const stack = this.items[idx];
+    if ((stack.qty || 1) <= 1) this.items.splice(idx, 1);
+    else stack.qty--;
+  }
+
+  _splitOneFromBag(id) {
+    const idx = this.items.findIndex((i) => i.id === id);
+    if (idx < 0) return null;
+    const stack = this.items[idx];
+    if ((stack.qty || 1) <= 1) {
+      this.items.splice(idx, 1);
+      return { ...stack, qty: 1 };
+    }
+    stack.qty--;
+    return { ...GEAR[id], uid: newUid(), qty: 1 };
   }
 
   findByUid(u) {
@@ -107,6 +173,7 @@ export class Inventory {
       }
     }
     const gear = this.addItem(bp.result);
+    if (STACKABLE.has(bp.result)) this.autoEquipConsumable(bp.result);
     return { gear, refunded };
   }
 
@@ -122,23 +189,29 @@ export class Inventory {
   }
 
   countItem(id) {
-    let n = this.items.filter((x) => x.id === id).length;
+    let n = 0;
+    for (const i of this.items) {
+      if (i.id === id) n += i.qty || 1;
+    }
     for (const s of Object.values(this.equip)) {
-      if (s?.id === id) n += 1;
+      if (s?.id === id) n += s.qty || 1;
     }
     return n;
   }
 
   spendItem(id) {
-    // Prefer bag, then quick slots
     const idx = this.items.findIndex((x) => x.id === id);
     if (idx >= 0) {
-      this.items.splice(idx, 1);
+      const stack = this.items[idx];
+      if ((stack.qty || 1) <= 1) this.items.splice(idx, 1);
+      else stack.qty--;
       return true;
     }
     for (const slot of [SLOT.QUICK1, SLOT.QUICK2]) {
-      if (this.equip[slot]?.id === id) {
-        this.equip[slot] = null;
+      const eq = this.equip[slot];
+      if (eq?.id === id) {
+        if ((eq.qty || 1) <= 1) this.equip[slot] = null;
+        else eq.qty--;
         return true;
       }
     }
@@ -152,14 +225,28 @@ export class Inventory {
   takeConsumable(id) {
     const idx = this.items.findIndex((x) => x.id === id);
     if (idx >= 0) {
-      const item = this.items[idx];
-      this.items.splice(idx, 1);
+      const stack = this.items[idx];
+      let item;
+      if ((stack.qty || 1) <= 1) {
+        item = stack;
+        this.items.splice(idx, 1);
+      } else {
+        stack.qty--;
+        item = { ...stack, uid: newUid(), qty: 1 };
+      }
       return { item, from: 'bag' };
     }
     for (const slot of [SLOT.QUICK1, SLOT.QUICK2]) {
-      if (this.equip[slot]?.id === id) {
-        const item = this.equip[slot];
-        this.equip[slot] = null;
+      const eq = this.equip[slot];
+      if (eq?.id === id) {
+        let item;
+        if ((eq.qty || 1) <= 1) {
+          item = eq;
+          this.equip[slot] = null;
+        } else {
+          eq.qty--;
+          item = { ...eq, uid: newUid(), qty: 1 };
+        }
         return { item, from: slot };
       }
     }
@@ -223,7 +310,15 @@ export class Inventory {
     if (slot === SLOT.LEGS && item.slot !== SLOT.LEGS) return { ok: false, reason: 'not_legs' };
 
     // Remove from current place
-    if (bagIdx >= 0) this.items.splice(bagIdx, 1);
+    if (bagIdx >= 0) {
+      const stack = this.items[bagIdx];
+      if (STACKABLE.has(stack.id) && (stack.qty || 1) > 1 && isKit) {
+        stack.qty--;
+        item = { ...stack, uid: newUid(), qty: 1 };
+      } else {
+        this.items.splice(bagIdx, 1);
+      }
+    }
     if (fromSlot) this.equip[fromSlot] = null;
 
     // Swap previous out to bag

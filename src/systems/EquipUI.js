@@ -290,8 +290,9 @@ export class EquipUI {
         .setScrollFactor(0)
         .setDepth(d + 4);
 
+      const eqLabel = eq ? `${eq.name}${(eq.qty || 1) > 1 ? ` ×${eq.qty}` : ''}` : sd.sub;
       const name = s.add
-        .text(sd.x, sd.y + 1, eq ? eq.name : sd.sub, {
+        .text(sd.x, sd.y + 1, eqLabel, {
           fontFamily: 'system-ui',
           fontSize: eq ? (narrow ? '10px' : '12px') : narrow ? '10px' : '11px',
           color: eq ? '#f8fafc' : '#475569',
@@ -437,7 +438,7 @@ export class EquipUI {
                   : '';
 
       const tx = s.add
-        .text(ix, iy - (slotHint ? 6 : 0), item.name, {
+        .text(ix, iy - (slotHint ? 6 : 0), (item.qty || 1) > 1 ? `${item.name} ×${item.qty}` : item.name, {
           fontFamily: 'system-ui',
           fontSize: narrow ? '11px' : '12px',
           fontStyle: 'bold',
