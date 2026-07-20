@@ -35,5 +35,7 @@ npm run dev
 ## Controls
 
 - Click map to path-walk; left-click enemies to fight
-- Bottom bar: USE / SLEEP / HIDE / SNEAK / CRAFT / WALK|RUN / HEAL / MENU / BAG / MAP
-- WASD / arrows still step one tile; camera edge-pan + middle-mouse drag
+- Bottom bar (desktop): USE / SLEEP / HIDE / SNEAK / CRAFT / WALK|RUN / HEAL / MENU / BAG / MAP
+- Bottom bar (phone): two rows — SNEAK/WALK/HEAL/MAP/MENU then USE/SLEEP/HIDE/CRAFT/BAG
+- WASD / arrows still step one tile
+- Camera: **no auto-follow**. Edge-pan + middle-mouse drag (desktop); touch drag + pinch zoom (phone)
