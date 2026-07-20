@@ -85,8 +85,9 @@ export class EquipUI {
     dim.on('pointerup', blockMap);
 
     // Fit inside safe margins (phone status bar + bottom action bar)
+    const hudInset = s.barMetrics?.().hudBottom ?? 58;
     const panelW = Math.min(narrow ? w - 16 : 820, w - (narrow ? 12 : 36));
-    const panelH = Math.min(narrow ? h - 24 : 540, h - (narrow ? 16 : 40));
+    const panelH = Math.min(narrow ? h - hudInset - 20 : 540, h - (narrow ? hudInset : 40));
     const panelTop = cy - panelH / 2;
     const panelLeft = cx - panelW / 2;
 
@@ -105,8 +106,9 @@ export class EquipUI {
       .setScrollFactor(0)
       .setDepth(d + 2);
 
+    const titleStr = narrow ? 'LOADOUT' : `${char?.name || 'Runner'} · LOADOUT`;
     const title = s.add
-      .text(panelLeft + 14, panelTop + topH / 2, `${char?.name || 'Runner'} · LOADOUT`, {
+      .text(panelLeft + 14, panelTop + topH / 2, titleStr, {
         fontFamily: 'system-ui',
         fontSize: narrow ? '14px' : '18px',
         fontStyle: 'bold',
@@ -195,10 +197,10 @@ export class EquipUI {
 
     if (narrow) {
       // ── Mobile: compact doll row on top, bag list fills rest ──
-      const dollBandH = Math.min(168, Math.floor(contentH * 0.38));
+      const dollBandH = Math.min(188, Math.floor(contentH * 0.4));
       const dollCy = contentTop + dollBandH / 2;
-      const slotW = Math.min(88, Math.floor((panelW - 48) / 3.2));
-      const slotH = 40;
+      const slotW = Math.min(82, Math.floor((panelW - 56) / 3.2));
+      const slotH = 38;
       const leftX = cx;
 
       // Soft band behind doll
@@ -209,15 +211,15 @@ export class EquipUI {
         .setDepth(d + 2);
       this.nodes.push(dollBand);
 
-      this._drawDoll(s, leftX, dollCy - 6, d, char, inv, 0.85);
+      this._drawDoll(s, leftX, dollCy - 8, d, char, inv, 0.8);
 
       slotDefs = [
-        { slot: SLOT.HEAD, label: 'HEAD', sub: 'hat', x: leftX, y: dollCy - 62, w: slotW, h: slotH },
-        { slot: SLOT.WEAPON, label: 'WPN', sub: 'hand', x: leftX - slotW - 10, y: dollCy + 4, w: slotW, h: slotH },
-        { slot: SLOT.BODY, label: 'BODY', sub: 'armor', x: leftX, y: dollCy + 18, w: slotW, h: slotH },
-        { slot: SLOT.QUICK1, label: 'Q1', sub: 'kit', x: leftX + slotW + 10, y: dollCy - 18, w: slotW, h: slotH },
-        { slot: SLOT.QUICK2, label: 'Q2', sub: 'kit', x: leftX + slotW + 10, y: dollCy + 28, w: slotW, h: slotH },
-        { slot: SLOT.LEGS, label: 'LEGS', sub: 'bottom', x: leftX, y: dollCy + 64, w: slotW, h: slotH },
+        { slot: SLOT.HEAD, label: 'HEAD', sub: 'hat', x: leftX, y: dollCy - 68, w: slotW, h: slotH },
+        { slot: SLOT.WEAPON, label: 'WPN', sub: 'hand', x: leftX - slotW - 12, y: dollCy + 2, w: slotW, h: slotH },
+        { slot: SLOT.BODY, label: 'BODY', sub: 'armor', x: leftX, y: dollCy + 22, w: slotW, h: slotH },
+        { slot: SLOT.QUICK1, label: 'Q1', sub: 'kit', x: leftX + slotW + 12, y: dollCy - 22, w: slotW, h: slotH },
+        { slot: SLOT.QUICK2, label: 'Q2', sub: 'kit', x: leftX + slotW + 12, y: dollCy + 32, w: slotW, h: slotH },
+        { slot: SLOT.LEGS, label: 'LEGS', sub: 'bottom', x: leftX, y: dollCy + 72, w: slotW, h: slotH },
       ];
 
       const bagTop = contentTop + dollBandH + 6;
@@ -290,11 +292,13 @@ export class EquipUI {
         .setScrollFactor(0)
         .setDepth(d + 4);
 
-      const eqLabel = eq ? `${eq.name}${(eq.qty || 1) > 1 ? ` ×${eq.qty}` : ''}` : sd.sub;
+      const eqLabel = eq
+        ? `${narrow && eq.name.length > 11 ? `${eq.name.slice(0, 10)}…` : eq.name}${(eq.qty || 1) > 1 ? ` ×${eq.qty}` : ''}`
+        : sd.sub;
       const name = s.add
-        .text(sd.x, sd.y + 1, eqLabel, {
+        .text(sd.x, sd.y + (narrow ? 0 : 1), eqLabel, {
           fontFamily: 'system-ui',
-          fontSize: eq ? (narrow ? '10px' : '12px') : narrow ? '10px' : '11px',
+          fontSize: eq ? (narrow ? '9px' : '12px') : narrow ? '9px' : '11px',
           color: eq ? '#f8fafc' : '#475569',
           wordWrap: { width: sd.w - 8 },
           align: 'center',

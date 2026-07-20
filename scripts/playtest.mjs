@@ -65,15 +65,16 @@ async function main() {
     log(`Open ${BASE}`);
     await page.goto(BASE, { waitUntil: 'networkidle0', timeout: 30000 });
 
-    // Menu → pick medium day → start
+    // Menu → pick medium day → start (layout-aware tap)
     await page.waitForFunction(() => document.querySelector('canvas'), { timeout: 10000 });
     await sleep(400);
-
-    // Click START RUN (centerish)
-    await page.mouse.click(640, 418);
+    const vp = page.viewport();
+    const mw = vp?.width || 1280;
+    const mh = vp?.height || 720;
+    await page.mouse.click(mw / 2, mh * 0.4);
     await sleep(500);
     // Character select: ENTER THE GRID
-    await page.mouse.click(640, 680);
+    await page.mouse.click(mw / 2, mh - 40);
     await sleep(900);
 
     // Wait for game scene debug API
@@ -385,16 +386,20 @@ async function main() {
     const mobile = await page.evaluate(() => {
       const g = window.__CITY_WARS__;
       const m = g.barMetrics();
+      const bag = g.btnBag?.bg;
+      const menu = g.btnMenu?.bg;
       return {
         twoRow: m.twoRow,
         healOnBar: !!g.btnHeal,
         moreHidden: !g.btnMore,
         healLabel: g.healButtonLabel(),
+        bagMenuSep: bag && menu ? Math.abs(bag.y - menu.y) > 8 : true,
       };
     });
     if (!mobile.twoRow) fail('Expected two-row bar on phone viewport');
     if (!mobile.healOnBar) fail('HEAL should be visible on mobile bar');
     if (!mobile.moreHidden) fail('MORE should be hidden on two-row mobile');
+    if (!mobile.bagMenuSep) fail('BAG and MENU should be on separate rows');
     else log(`  two-row bar · heal=${mobile.healLabel}`);
 
     await page.setViewport({ width: 1280, height: 720 });

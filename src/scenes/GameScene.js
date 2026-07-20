@@ -414,6 +414,39 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
+  /** Position top HUD elements — avoids objective overlapping stats on phones. */
+  layoutTopHud(w = this.scale.width, h = this.scale.height) {
+    const mobile = this.isMobileHud(w, h);
+    if (this.alertText) {
+      this.alertText.setPosition(10, mobile ? 6 : 8);
+      this.alertText.setFontSize(mobile ? '15px' : '18px');
+    }
+    if (this.statText) {
+      this.statText.setPosition(10, mobile ? 24 : 32);
+    }
+    if (this.invText) {
+      this.invText.setVisible(!mobile);
+      if (!mobile) this.invText.setPosition(w - 14, 10);
+    }
+    if (this.dayBarBg) this.dayBarBg.setPosition(w / 2, mobile ? 38 : 42);
+    if (this.dayBarFill) this.dayBarFill.setPosition(w / 2 - 100, mobile ? 38 : 42);
+    if (this.dayBarLabel) this.dayBarLabel.setPosition(w / 2, mobile ? 38 : 42);
+    if (this.heatText) this.heatText.setPosition(w / 2, mobile ? 50 : 54);
+    if (this.heatBarBg) this.heatBarBg.setPosition(w / 2, mobile ? 58 : 62);
+    if (this.heatBarFill) this.heatBarFill.setPosition(w / 2 - 50, mobile ? 58 : 62);
+    if (this.objText) {
+      if (mobile) {
+        this.objText.setPosition(w / 2, 64);
+        this.objText.setWordWrapWidth?.(w - 24);
+        this.objText.setFontSize('11px');
+      } else {
+        this.objText.setPosition(w / 2, 6);
+        this.objText.setWordWrapWidth?.(Math.min(420, w * 0.42));
+        this.objText.setFontSize('13px');
+      }
+    }
+  }
+
   onResize(gameSize) {
     const w = gameSize.width;
     const h = gameSize.height;
@@ -423,20 +456,11 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.setDeadzone(w * 0.2, h * 0.18);
 
     if (this.topBar) {
-      this.topBar.setSize(w, 52);
+      const topH = this.isMobileHud(w, h) ? 78 : 56;
+      this.topBar.setSize(w, topH);
       this.topBar.setPosition(0, 0);
     }
-    if (this.objText) {
-      this.objText.setPosition(w / 2, 6);
-      this.objText.setWordWrapWidth?.(Math.min(420, w * 0.42));
-    }
-    if (this.invText) this.invText.setPosition(w - 14, 10);
-    if (this.dayBarBg) this.dayBarBg.setPosition(w / 2, 42);
-    if (this.dayBarFill) this.dayBarFill.setPosition(w / 2 - 100, 42);
-    if (this.dayBarLabel) this.dayBarLabel.setPosition(w / 2, 42);
-    if (this.heatText) this.heatText.setPosition(w / 2, 54);
-    if (this.heatBarBg) this.heatBarBg.setPosition(w / 2, 62);
-    if (this.heatBarFill) this.heatBarFill.setPosition(w / 2 - 50, 62);
+    this.layoutTopHud(w, h);
     if (this.logText) this.logText.setPosition(w / 2, m.logY);
     if (this.combatHud?.visible) this.combatHud.setPosition(12, 64);
     if (this.bottomBar) {
@@ -489,7 +513,8 @@ export class GameScene extends Phaser.Scene {
   /** Pointer is over top or bottom HUD strips (not the map). */
   hudPointerZone(p) {
     const m = this.barMetrics();
-    return p.y < 56 || p.y > this.scale.height - m.hudBottom;
+    const topHud = this.isMobileHud() ? 78 : 56;
+    return p.y < topHud || p.y > this.scale.height - m.hudBottom;
   }
 
   isTouchInput() {
@@ -517,7 +542,8 @@ export class GameScene extends Phaser.Scene {
           : '11px'
         : '13px';
     const startX = w / 2 - ((n - 1) * gap) / 2;
-    return { gap, btnW, btnH, fontSize, startX, y: rowY };
+    const hitPad = Math.max(2, Math.min(mobile ? 4 : 8, Math.floor((gap - btnW) / 2)));
+    return { gap, btnW, btnH, fontSize, startX, y: rowY, hitPad };
   }
 
   /** Catalog of bottom-bar actions. */
@@ -603,16 +629,16 @@ export class GameScene extends Phaser.Scene {
       return {
         twoRow: true,
         rows: [
-          ['sneak', 'walk', 'heal', 'specials'],
-          ['use', 'sleep', 'hide', 'craft', 'bag', 'menu'],
+          ['sneak', 'walk', 'heal', 'specials', 'menu'],
+          ['use', 'sleep', 'hide', 'craft', 'bag'],
         ],
       };
     }
     return {
       twoRow: true,
       rows: [
-        ['sneak', 'walk', 'heal', 'map'],
-        ['use', 'sleep', 'hide', 'craft', 'bag', 'menu'],
+        ['sneak', 'walk', 'heal', 'map', 'menu'],
+        ['use', 'sleep', 'hide', 'craft', 'bag'],
       ],
     };
   }
@@ -695,7 +721,17 @@ export class GameScene extends Phaser.Scene {
         const def = catalog[id];
         if (!def) return;
         const x = layout.startX + i * layout.gap;
-        const b = this.makeUiButton(x, layout.y, layout.btnW, layout.btnH, def.label, def.color, def.fn, d + 1);
+        const b = this.makeUiButton(
+          x,
+          layout.y,
+          layout.btnW,
+          layout.btnH,
+          def.label,
+          def.color,
+          def.fn,
+          d + 1,
+          layout.hitPad
+        );
         if (b.label?.setFontSize) b.label.setFontSize(layout.fontSize);
         this.actionButtons.push(b);
         if (id === 'use') this.btnUse = b;
@@ -864,8 +900,9 @@ export class GameScene extends Phaser.Scene {
     const h = this.scale.height;
 
     // Top bar  -  three clean columns, no stacked text
+    const topH = this.isMobileHud(w, h) ? 78 : 56;
     this.topBar = this.add
-      .rectangle(0, 0, w, 56, 0x020617, 0.92)
+      .rectangle(0, 0, w, topH, 0x020617, 0.92)
       .setOrigin(0)
       .setScrollFactor(0)
       .setDepth(d);
@@ -1030,6 +1067,7 @@ export class GameScene extends Phaser.Scene {
 
     this.objMarker = this.add.triangle(0, 0, 0, 12, 9, 0, 18, 12, 0xfbbf24).setDepth(28);
     this.pathGfx = this.add.graphics().setDepth(12);
+    this.layoutTopHud(w, h);
   }
 
   /** Bottom action bar  -  primary mouse UI (MORE on narrow; SPEC in combat) */
@@ -1421,15 +1459,16 @@ export class GameScene extends Phaser.Scene {
    * HUD button  -  always scrollFactor 0, high depth, reliable clicks.
    * Larger hit pad on touch-sized buttons; fires on pointerup with down-guard.
    */
-  makeUiButton(x, y, w, h, label, color, onClick, depth = 121) {
+  makeUiButton(x, y, w, h, label, color, onClick, depth = 121, hitPad) {
     const bg = this.add
       .rectangle(x, y, w, h, color, 1)
       .setStrokeStyle(2, 0xf8fafc, 0.4)
       .setScrollFactor(0)
       .setDepth(depth);
-    // Extra hit padding so finger slides still count (fatter on mobile)
     const mobile = this.isMobileHud?.() ?? false;
-    const pad = w >= 160 ? 14 : w < 48 ? (mobile ? 10 : 6) : mobile ? 6 : 4;
+    const pad =
+      hitPad ??
+      (w >= 160 ? 14 : w < 48 ? (mobile ? 4 : 6) : mobile ? 4 : 4);
     bg.setInteractive({
       useHandCursor: true,
       hitArea: new Phaser.Geom.Rectangle(-w / 2 - pad, -h / 2 - pad, w + pad * 2, h + pad * 2),

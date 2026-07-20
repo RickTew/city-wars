@@ -40,28 +40,45 @@ export class MenuScene extends Phaser.Scene {
       }
     }
 
+    const titleY = h * 0.11;
+    const titleSize = Math.round(Math.min(76, Math.max(44, w * 0.11, h * 0.052)));
+
+    // Soft glow behind title
     this.add
-      .text(w / 2, h * 0.12, 'CITY WARS', {
+      .text(w / 2, titleY, 'CITY WARS', {
         fontFamily: HUD_FONT,
-        fontSize: Math.min(64, w * 0.055) + 'px',
+        fontSize: titleSize + 'px',
+        fontStyle: 'bold',
+        color: '#0ea5e9',
+      })
+      .setOrigin(0.5)
+      .setAlpha(0.35)
+      .setScale(1.06);
+
+    this.add
+      .text(w / 2, titleY, 'CITY WARS', {
+        fontFamily: HUD_FONT,
+        fontSize: titleSize + 'px',
         fontStyle: 'bold',
         color: '#f8fafc',
         stroke: '#0ea5e9',
-        strokeThickness: 4,
+        strokeThickness: Math.max(3, Math.round(titleSize * 0.06)),
+        shadow: { offsetX: 0, offsetY: 0, color: '#38bdf8', blur: 16, fill: true },
       })
       .setOrigin(0.5);
 
     this.add
-      .text(w / 2, h * 0.22, 'ESCAPE FROM THE GRID', {
-        fontFamily: 'system-ui',
-        fontSize: '18px',
+      .text(w / 2, titleY + titleSize * 0.62, 'ESCAPE FROM THE GRID', {
+        fontFamily: HUD_FONT,
+        fontSize: Math.min(20, Math.max(14, w * 0.038)) + 'px',
         color: '#38bdf8',
+        letterSpacing: 2,
       })
       .setOrigin(0.5);
 
     const legacy = RunLegacy.summaryLine();
     this.add
-      .text(w / 2, h * 0.27, legacy, {
+      .text(w / 2, titleY + titleSize * 0.62 + 28, legacy, {
         fontFamily: 'system-ui',
         fontSize: '13px',
         color: '#64748b',
@@ -69,7 +86,7 @@ export class MenuScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     this.add
-      .text(w / 2, h * 0.32, 'Day length (how fast night comes)', {
+      .text(w / 2, titleY + titleSize * 0.62 + 48, 'Day length (how fast night comes)', {
         fontFamily: 'system-ui',
         fontSize: '15px',
         color: '#94a3b8',
@@ -81,14 +98,15 @@ export class MenuScene extends Phaser.Scene {
       { key: 'medium', label: 'MEDIUM', sub: '~15 min cycle' },
       { key: 'long', label: 'LONG', sub: '~25 min cycle' },
     ];
-    const gap = 140;
+    const btnW = Math.min(120, Math.max(88, (w - 48) / 3 - 8));
+    const gap = btnW + 12;
     const startX = w / 2 - gap;
+    const by = titleY + titleSize * 0.62 + 88;
     opts.forEach((o, i) => {
       const selected = dayKey === o.key;
       const bx = startX + i * gap;
-      const by = h * 0.42;
       const bg = this.add
-        .rectangle(bx, by, 120, 56, selected ? 0x0ea5e9 : 0x1e293b, 1)
+        .rectangle(bx, by, btnW, 56, selected ? 0x0ea5e9 : 0x1e293b, 1)
         .setStrokeStyle(2, selected ? 0x7dd3fc : 0x475569)
         .setInteractive({ useHandCursor: true });
       this.add
@@ -112,9 +130,9 @@ export class MenuScene extends Phaser.Scene {
       });
     });
 
-    const startY = hasSave ? h * 0.55 : h * 0.58;
+    const startY = hasSave ? by + 88 : by + 72;
     const start = this.add
-      .rectangle(w / 2, startY, 300, 64, 0x0ea5e9)
+      .rectangle(w / 2, startY, Math.min(300, w - 40), 64, 0x0ea5e9)
       .setStrokeStyle(3, 0x7dd3fc)
       .setInteractive({ useHandCursor: true });
     this.add
@@ -132,12 +150,12 @@ export class MenuScene extends Phaser.Scene {
 
     if (hasSave) {
       const cont = this.add
-        .rectangle(w / 2, h * 0.66, 300, 52, 0x14532d)
+        .rectangle(w / 2, startY + 72, Math.min(300, w - 40), 52, 0x14532d)
         .setStrokeStyle(2, 0x4ade80)
         .setInteractive({ useHandCursor: true });
       const when = peek?.savedAt ? new Date(peek.savedAt).toLocaleString() : '';
       this.add
-        .text(w / 2, h * 0.66, `CONTINUE${when ? `  ·  ${when}` : ''}`, {
+        .text(w / 2, startY + 72, `CONTINUE${when ? `  ·  ${when}` : ''}`, {
           fontFamily: 'system-ui',
           fontSize: '18px',
           fontStyle: 'bold',
@@ -152,17 +170,21 @@ export class MenuScene extends Phaser.Scene {
       });
     }
 
+    const helpY = hasSave ? startY + 148 : startY + 96;
+    const helpBg = this.add
+      .rectangle(w / 2, helpY, Math.min(340, w - 24), 52, 0x0f172a, 0.92)
+      .setStrokeStyle(1, 0x334155);
     this.add
       .text(
         w / 2,
-        h * 0.78,
-        'Click/tap map to walk · loot / bench / enemy · buttons below\nCombat: SPEC or long-press for specials · MORE on phones',
+        helpY,
+        'Tap map to walk · loot / bench / enemy\nCombat: SPEC or long-press · two-row bar on phone',
         {
           fontFamily: 'system-ui',
-          fontSize: '14px',
-          color: '#64748b',
+          fontSize: '12px',
+          color: '#94a3b8',
           align: 'center',
-          lineSpacing: 5,
+          lineSpacing: 4,
         }
       )
       .setOrigin(0.5);

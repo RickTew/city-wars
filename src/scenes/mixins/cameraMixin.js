@@ -61,7 +61,7 @@ export const cameraMixin = {
     if (!p) return;
 
     const m = this.edgePan.margin;
-    const topHud = 56;
+    const topHud = this.isMobileHud?.() ? 78 : 56;
     const botHud = this.barMetrics?.().hudBottom ?? 90;
     let dx = 0;
     let dy = 0;

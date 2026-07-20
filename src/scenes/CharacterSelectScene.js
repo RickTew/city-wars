@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { CHARACTERS } from '../config/characters.js';
+import { HUD_FONT } from '../config/art.js';
 
 export class CharacterSelectScene extends Phaser.Scene {
   constructor() {
@@ -21,17 +22,20 @@ export class CharacterSelectScene extends Phaser.Scene {
 
     this.add.rectangle(w / 2, h / 2, w, h, 0x070b12);
 
+    const titleSize = Math.min(30, Math.max(22, w * 0.065));
     this.add
-      .text(w / 2, Math.max(20, h * 0.06), 'CHOOSE YOUR RUNNER', {
-        fontFamily: 'system-ui',
-        fontSize: '26px',
+      .text(w / 2, Math.max(20, h * 0.04), 'CHOOSE YOUR RUNNER', {
+        fontFamily: HUD_FONT,
+        fontSize: titleSize + 'px',
         fontStyle: 'bold',
         color: '#f8fafc',
+        stroke: '#0ea5e9',
+        strokeThickness: 2,
       })
       .setOrigin(0.5, 0);
 
     this.add
-      .text(w / 2, Math.max(48, h * 0.06 + 28), '9 runners. Pick your scar.', {
+      .text(w / 2, Math.max(48, h * 0.04 + titleSize + 6), '9 runners. Pick your scar.', {
         fontFamily: 'system-ui',
         fontSize: '13px',
         color: '#94a3b8',
@@ -41,16 +45,15 @@ export class CharacterSelectScene extends Phaser.Scene {
     // Tight fixed grid, centered (not stretched to screen edges)
     const cols = 3;
     const rows = 3;
-    const cardW = Math.min(248, Math.floor((w - 80) / 3));
-    const cardH = 128;
-    const gapX = 14;
-    const gapY = 12;
+    const gapX = 10;
+    const gapY = 10;
+    const topLimit = Math.max(80, h * 0.04 + titleSize + 32);
+    const bottomLimit = h - 100;
+    const cardW = Math.min(220, Math.floor((w - 32 - gapX * (cols - 1)) / cols));
+    const cardH = Math.min(148, Math.floor((bottomLimit - topLimit - gapY * (rows - 1)) / rows));
     const gridW = cols * cardW + (cols - 1) * gapX;
     const gridH = rows * cardH + (rows - 1) * gapY;
     const startX = w / 2 - gridW / 2 + cardW / 2;
-    // Vertical: center pack between title and bottom controls
-    const topLimit = Math.max(88, h * 0.06 + 60);
-    const bottomLimit = h - 110;
     const midY = (topLimit + bottomLimit) / 2;
     const startY = midY - gridH / 2 + cardH / 2;
 
@@ -66,45 +69,48 @@ export class CharacterSelectScene extends Phaser.Scene {
         .setStrokeStyle(3, on ? c.color : 0x475569)
         .setInteractive({ useHandCursor: true });
 
-      this.add.circle(x - cardW * 0.34, y - 6, 14, c.color);
-      this.add.circle(x - cardW * 0.34, y - 16, 7, c.hair || 0xfde68a);
+      const cardTop = y - cardH / 2;
+
+      this.add.circle(x - cardW * 0.34, cardTop + 22, 12, c.color);
+      this.add.circle(x - cardW * 0.34, cardTop + 14, 6, c.hair || 0xfde68a);
 
       this.add
-        .text(x + 10, y - 30, c.name, {
+        .text(x + 8, cardTop + 10, c.name, {
           fontFamily: 'system-ui',
-          fontSize: '14px',
+          fontSize: '13px',
           fontStyle: 'bold',
           color: '#f8fafc',
         })
-        .setOrigin(0.5, 0);
+        .setOrigin(0, 0);
       this.add
-        .text(x + 10, y - 12, c.title, {
+        .text(x + 8, cardTop + 26, c.title, {
           fontFamily: 'system-ui',
-          fontSize: '11px',
+          fontSize: '10px',
           color: '#7dd3fc',
         })
-        .setOrigin(0.5, 0);
+        .setOrigin(0, 0);
+
+      const bonusLine = formatBonuses(c.bonuses);
       this.add
-        .text(x, y + 8, c.blurb, {
+        .text(x, cardTop + 42, c.blurb, {
           fontFamily: 'system-ui',
           fontSize: '9px',
           color: '#94a3b8',
           align: 'center',
-          wordWrap: { width: cardW - 20 },
+          wordWrap: { width: cardW - 16 },
         })
         .setOrigin(0.5, 0);
 
-      const bonusLine = formatBonuses(c.bonuses);
       this.add
-        .text(x, y + cardH / 2 - 14, bonusLine, {
+        .text(x, cardTop + cardH - 10, bonusLine, {
           fontFamily: 'system-ui',
-          fontSize: '10px',
+          fontSize: '9px',
           fontStyle: 'bold',
           color: on ? '#fde68a' : '#64748b',
           align: 'center',
-          wordWrap: { width: cardW - 16 },
+          wordWrap: { width: cardW - 12 },
         })
-        .setOrigin(0.5, 0.5);
+        .setOrigin(0.5, 1);
 
       bg.on('pointerup', () => {
         this.selected = c.id;
