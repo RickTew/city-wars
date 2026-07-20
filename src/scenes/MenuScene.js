@@ -10,7 +10,6 @@ export class MenuScene extends Phaser.Scene {
   }
 
   create() {
-    // Default day length
     if (!this.registry.get('dayLength')) {
       this.registry.set('dayLength', 'medium');
     }
@@ -25,27 +24,52 @@ export class MenuScene extends Phaser.Scene {
     const dayKey = this.registry.get('dayLength') || 'medium';
     const hasSave = SaveSystem.hasSave();
     const peek = hasSave ? SaveSystem.peek() : null;
+    const narrow = w < 520;
 
     this.add.rectangle(w / 2, h / 2, w, h, 0x070b12);
 
+    const skylineY = h * 0.64;
     const g = this.add.graphics();
     for (let i = 0; i < Math.ceil(w / 50) + 2; i++) {
       const bx = i * 52;
       const bh = 50 + (i * 41) % 120;
       g.fillStyle(0x111827, 1);
-      g.fillRect(bx, h * 0.55 - bh, 44, bh + 100);
-      g.fillStyle(0xfbbf24, 0.3);
-      for (let y = h * 0.55 - bh + 12; y < h - 30; y += 16) {
+      g.fillRect(bx, skylineY - bh, 44, bh + h - skylineY + 40);
+      g.fillStyle(0xfbbf24, 0.22);
+      for (let y = skylineY - bh + 12; y < h - 24; y += 18) {
         if ((i + y) % 3) g.fillRect(bx + 10, y, 5, 5);
       }
     }
 
-    const titleY = h * 0.11;
-    const titleSize = Math.round(Math.min(76, Math.max(44, w * 0.11, h * 0.052)));
+    const titleSize = Math.round(Math.min(76, Math.max(44, w * 0.11, h * 0.048)));
+    const tagSize = Math.min(18, Math.max(13, w * 0.034));
+    const btnW = Math.min(108, Math.max(96, (w - 56) / 3 - 10));
+    const dayBtnH = 58;
+    const startH = 60;
+    const contH = hasSave ? 50 : 0;
+    const helpH = 56;
+    const gap = narrow ? 18 : 22;
 
-    // Soft glow behind title
+    const blockH =
+      titleSize * 1.1 +
+      tagSize +
+      14 +
+      16 +
+      gap +
+      18 +
+      gap +
+      dayBtnH +
+      gap +
+      startH +
+      (hasSave ? gap + contH : 0) +
+      gap +
+      helpH;
+
+    let y = Math.max(48, (skylineY - blockH) / 2 + titleSize * 0.5);
+
+    // Title glow + main
     this.add
-      .text(w / 2, titleY, 'CITY WARS', {
+      .text(w / 2, y, 'CITY WARS', {
         fontFamily: HUD_FONT,
         fontSize: titleSize + 'px',
         fontStyle: 'bold',
@@ -56,7 +80,7 @@ export class MenuScene extends Phaser.Scene {
       .setScale(1.06);
 
     this.add
-      .text(w / 2, titleY, 'CITY WARS', {
+      .text(w / 2, y, 'CITY WARS', {
         fontFamily: HUD_FONT,
         fontSize: titleSize + 'px',
         fontStyle: 'bold',
@@ -67,60 +91,73 @@ export class MenuScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
 
+    y += titleSize * 0.55 + gap * 0.5;
+
     this.add
-      .text(w / 2, titleY + titleSize * 0.62, 'ESCAPE FROM THE GRID', {
+      .text(w / 2, y, 'ESCAPE FROM THE GRID', {
         fontFamily: HUD_FONT,
-        fontSize: Math.min(20, Math.max(14, w * 0.038)) + 'px',
+        fontSize: tagSize + 'px',
         color: '#38bdf8',
         letterSpacing: 2,
       })
       .setOrigin(0.5);
 
+    y += tagSize + 14;
+
     const legacy = RunLegacy.summaryLine();
     this.add
-      .text(w / 2, titleY + titleSize * 0.62 + 28, legacy, {
+      .text(w / 2, y, legacy, {
         fontFamily: 'system-ui',
-        fontSize: '13px',
+        fontSize: '12px',
         color: '#64748b',
       })
       .setOrigin(0.5);
 
+    y += 16 + gap;
+
     this.add
-      .text(w / 2, titleY + titleSize * 0.62 + 48, 'Day length (how fast night comes)', {
+      .text(w / 2, y, 'Day length', {
         fontFamily: 'system-ui',
-        fontSize: '15px',
+        fontSize: narrow ? '13px' : '15px',
         color: '#94a3b8',
       })
       .setOrigin(0.5);
+    this.add
+      .text(w / 2, y + (narrow ? 14 : 16), 'How fast night comes', {
+        fontFamily: 'system-ui',
+        fontSize: '11px',
+        color: '#475569',
+      })
+      .setOrigin(0.5);
+
+    y += (narrow ? 28 : 32) + gap;
 
     const opts = [
-      { key: 'short', label: 'SHORT', sub: '~8 min cycle' },
-      { key: 'medium', label: 'MEDIUM', sub: '~15 min cycle' },
-      { key: 'long', label: 'LONG', sub: '~25 min cycle' },
+      { key: 'short', label: 'SHORT', sub: '~8m' },
+      { key: 'medium', label: 'MEDIUM', sub: '~15m' },
+      { key: 'long', label: 'LONG', sub: '~25m' },
     ];
-    const btnW = Math.min(120, Math.max(88, (w - 48) / 3 - 8));
-    const gap = btnW + 12;
-    const startX = w / 2 - gap;
-    const by = titleY + titleSize * 0.62 + 88;
+    const dayGap = btnW + (narrow ? 10 : 14);
+    const dayStartX = w / 2 - dayGap;
     opts.forEach((o, i) => {
       const selected = dayKey === o.key;
-      const bx = startX + i * gap;
+      const bx = dayStartX + i * dayGap;
       const bg = this.add
-        .rectangle(bx, by, btnW, 56, selected ? 0x0ea5e9 : 0x1e293b, 1)
+        .rectangle(bx, y, btnW, dayBtnH, selected ? 0x0ea5e9 : 0x1e293b, 1)
         .setStrokeStyle(2, selected ? 0x7dd3fc : 0x475569)
         .setInteractive({ useHandCursor: true });
       this.add
-        .text(bx, by - 8, o.label, {
+        .text(bx, y - 10, o.label, {
           fontFamily: 'system-ui',
-          fontSize: '16px',
+          fontSize: narrow ? '14px' : '15px',
           fontStyle: 'bold',
           color: selected ? '#0b1220' : '#e2e8f0',
         })
         .setOrigin(0.5);
       this.add
-        .text(bx, by + 14, o.sub, {
+        .text(bx, y + 12, o.sub, {
           fontFamily: 'system-ui',
-          fontSize: '11px',
+          fontSize: '10px',
           color: selected ? '#0f172a' : '#64748b',
         })
         .setOrigin(0.5);
@@ -130,15 +167,17 @@ export class MenuScene extends Phaser.Scene {
       });
     });
 
-    const startY = hasSave ? by + 88 : by + 72;
+    y += dayBtnH / 2 + gap + startH / 2;
+
+    const startW = Math.min(280, w - 48);
     const start = this.add
-      .rectangle(w / 2, startY, Math.min(300, w - 40), 64, 0x0ea5e9)
+      .rectangle(w / 2, y, startW, startH, 0x0ea5e9, 1)
       .setStrokeStyle(3, 0x7dd3fc)
       .setInteractive({ useHandCursor: true });
     this.add
-      .text(w / 2, startY, 'START RUN', {
+      .text(w / 2, y, 'START RUN', {
         fontFamily: 'system-ui',
-        fontSize: '26px',
+        fontSize: narrow ? '22px' : '26px',
         fontStyle: 'bold',
         color: '#0b1220',
       })
@@ -149,15 +188,16 @@ export class MenuScene extends Phaser.Scene {
     });
 
     if (hasSave) {
+      y += startH / 2 + gap + contH / 2;
       const cont = this.add
-        .rectangle(w / 2, startY + 72, Math.min(300, w - 40), 52, 0x14532d)
+        .rectangle(w / 2, y, startW, contH, 0x14532d, 1)
         .setStrokeStyle(2, 0x4ade80)
         .setInteractive({ useHandCursor: true });
       const when = peek?.savedAt ? new Date(peek.savedAt).toLocaleString() : '';
       this.add
-        .text(w / 2, startY + 72, `CONTINUE${when ? `  ·  ${when}` : ''}`, {
+        .text(w / 2, y, when ? `CONTINUE · ${when}` : 'CONTINUE', {
           fontFamily: 'system-ui',
-          fontSize: '18px',
+          fontSize: narrow ? '15px' : '17px',
           fontStyle: 'bold',
           color: '#ecfdf5',
         })
@@ -170,29 +210,32 @@ export class MenuScene extends Phaser.Scene {
       });
     }
 
-    const helpY = hasSave ? startY + 148 : startY + 96;
-    const helpBg = this.add
-      .rectangle(w / 2, helpY, Math.min(340, w - 24), 52, 0x0f172a, 0.92)
+    y += (hasSave ? contH / 2 : startH / 2) + gap + helpH / 2;
+    const helpW = Math.min(320, w - 32);
+    this.add
+      .rectangle(w / 2, y, helpW, helpH, 0x0f172a, 0.94)
       .setStrokeStyle(1, 0x334155);
     this.add
-      .text(
-        w / 2,
-        helpY,
-        'Tap map to walk · loot / bench / enemy\nCombat: SPEC or long-press · two-row bar on phone',
-        {
-          fontFamily: 'system-ui',
-          fontSize: '12px',
-          color: '#94a3b8',
-          align: 'center',
-          lineSpacing: 4,
-        }
-      )
+      .text(w / 2, y - 8, 'Tap map to walk · loot / bench / fight', {
+        fontFamily: 'system-ui',
+        fontSize: '11px',
+        color: '#94a3b8',
+        align: 'center',
+      })
+      .setOrigin(0.5);
+    this.add
+      .text(w / 2, y + 10, 'Combat: SPEC or long-press map', {
+        fontFamily: 'system-ui',
+        fontSize: '11px',
+        color: '#64748b',
+        align: 'center',
+      })
       .setOrigin(0.5);
 
     this.add
-      .text(w / 2, h - 20, `Day cycle: ~${Math.round(DAY_LENGTH[dayKey] / 60)} min  ·  Phaser 4  ·  Grok`, {
+      .text(w / 2, h - 16, `~${Math.round(DAY_LENGTH[dayKey] / 60)} min cycle  ·  Phaser 4`, {
         fontFamily: 'system-ui',
-        fontSize: '12px',
+        fontSize: '11px',
         color: '#475569',
       })
       .setOrigin(0.5);

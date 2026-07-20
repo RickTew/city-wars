@@ -71,7 +71,8 @@ async function main() {
     const vp = page.viewport();
     const mw = vp?.width || 1280;
     const mh = vp?.height || 720;
-    await page.mouse.click(mw / 2, mh * 0.4);
+    // START RUN sits ~48% down on the centered menu block
+    await page.mouse.click(mw / 2, mh * 0.48);
     await sleep(500);
     // Character select: ENTER THE GRID
     await page.mouse.click(mw / 2, mh - 40);
