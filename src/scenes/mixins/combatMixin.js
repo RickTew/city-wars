@@ -338,6 +338,7 @@ export const combatMixin = {
         /* already gone */
       }
       this.enemies = this.enemies.filter((e) => e !== def && e.alive);
+      if (att.isPlayer) this.runStats.kills = (this.runStats?.kills || 0) + 1;
       if (Math.random() < 0.6) {
         this.inv.addMat('scrap', 1 + ((Math.random() * 2) | 0));
         this.combatLog('Looted scrap.');
@@ -426,6 +427,7 @@ export const combatMixin = {
     this.closeMoreMenu?.();
     this.clearMousePath();
     this.alert.clearCombat();
+    if (won) this.heat?.onCombatWon();
     this.combatLog(won ? ' -  fight over  - ' : ' - ');
     this.logText.setText(won ? 'Fight over. CLEAR  -  for now.' : '…');
     if (this.combatHud) this.combatHud.setVisible(false);

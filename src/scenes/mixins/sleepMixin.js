@@ -28,6 +28,14 @@ export const sleepMixin = {
     const night = this.dayNight.isNight;
     const kits = this.countBedrolls();
 
+    if (atHome && this.heat?.blocksHomeSleep?.()) {
+      this.showPopup(
+        'PATROLS ON YOUR BLOCK',
+        'Grid heat is too high to sleep at HQ.\n\nPush into the sprawl and let it cool, or stay awake and fight.'
+      );
+      return;
+    }
+
     if (!atHome) {
       if (kits <= 0) {
         this.showPopup(

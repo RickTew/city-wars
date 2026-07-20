@@ -70,6 +70,15 @@ export class SaveSystem {
         _guideDogDead: !!scene._guideDogDead,
         _guideSlept: !!scene._guideSlept,
       },
+      escape: {
+        quest: scene.escape?.quest ?? 0,
+        done: !!scene.escape?.done,
+        flags: { ...(scene.escape?.flags || {}) },
+        started: !!scene.escape?._started,
+      },
+      heat: scene.heat?.serialize?.() || null,
+      runStats: scene.runStats || { kills: 0, maxHeat: 0 },
+      firstLootDone: !!scene._firstLootDone,
       story: {
         guideDone: !!scene.story?.guideDone,
         seen: [...(scene.story?.seen || [])],
@@ -147,6 +156,15 @@ export class SaveSystem {
         scene._guideDogDead = !!data.guide._guideDogDead;
         scene._guideSlept = !!data.guide._guideSlept;
       }
+      if (scene.escape && data.escape) {
+        scene.escape.quest = data.escape.quest ?? 0;
+        scene.escape.done = !!data.escape.done;
+        Object.assign(scene.escape.flags, data.escape.flags || {});
+        scene.escape._started = !!data.escape.started;
+      }
+      if (scene.heat && data.heat) scene.heat.load(data.heat);
+      if (data.runStats) scene.runStats = { ...data.runStats };
+      scene._firstLootDone = !!data.firstLootDone;
       if (scene.story && data.story) {
         scene.story.guideDone = !!data.story.guideDone;
         scene.story.seen = new Set(data.story.seen || []);

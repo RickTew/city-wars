@@ -32,6 +32,8 @@ import { ZoneManager } from '../systems/ZoneManager.js';
 import { getCharacter } from '../config/characters.js';
 import { StoryDirector } from '../systems/StoryDirector.js';
 import { GuideDirector } from '../systems/GuideDirector.js';
+import { EscapeDirector } from '../systems/EscapeDirector.js';
+import { HeatSystem } from '../systems/HeatSystem.js';
 import { EquipUI } from '../systems/EquipUI.js';
 import { VFX } from '../systems/VFX.js';
 import { combatMixin } from './mixins/combatMixin.js';
@@ -115,6 +117,10 @@ export class GameScene extends Phaser.Scene {
 
     this.story = new StoryDirector(this.registry);
     this.guide = new GuideDirector(this);
+    this.escape = new EscapeDirector(this);
+    this.heat = new HeatSystem();
+    this.runStats = { kills: 0, maxHeat: 0 };
+    this._firstLootDone = false;
     this._guideLooted = false;
     this._guideDogDead = false;
     this._guideSlept = false;
@@ -148,6 +154,7 @@ export class GameScene extends Phaser.Scene {
     this.dayNight.on((ev) => {
       if (ev === 'night') {
         this.audio.night();
+        this.heat?.onNight();
         this.log('Night crawls in. Something howls like a broken siren.');
         this.refreshNightSpawns(true);
         const card = this.story.onNight();
@@ -195,8 +202,7 @@ export class GameScene extends Phaser.Scene {
 
   /** One intro modal for a new run. Unlocks story + nudges camera to the gold target. */
   showTutorialBoot() {
-    const compact = this.scale.width < 520 || this.scale.height < 700;
-    const intro = this.story.introCard(this.char, { compact });
+    const intro = this.story.introCard(this.char, { compact: true });
     this.showPopup(intro.title, intro.body, () => {
       this._storyQuiet = false;
       this.updateObjective();
@@ -205,13 +211,28 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
+  /** Advance escape arc after tutorial. */
+  checkEscape() {
+    if (!this.escape?.active()) return;
+    const next = this.escape.tick();
+    this.updateObjective();
+    this.refreshHud();
+    if (!next) return;
+    this.time.delayedCall(120, () => {
+      this.showPopup(next.title, next.body, () => this.nudgeCameraTowardGuide());
+    });
+  }
+
   /**
    * Briefly free-look toward the current guide target so the gold pulse is on-screen.
    * Relocks after a short peek.
    */
   nudgeCameraTowardGuide() {
-    if (!this.guide || this.guide.done || !this.player) return;
-    const t = this.guide.resolveTarget();
+    if (!this.player) return;
+    let t = null;
+    if (this.guide && !this.guide.done) t = this.guide.resolveTarget();
+    else if (this.escape?.active()) t = this.escape.resolveTarget();
+    if (!t) return;
     if (!t || t.ui) return;
     const ox = t.tx ?? t.x;
     const oy = t.ty ?? t.y;
@@ -370,7 +391,10 @@ export class GameScene extends Phaser.Scene {
 
     // Full quest banners still use a modal
     this.time.delayedCall(120, () => {
-      this.showPopup(next.title, next.body, () => this.nudgeCameraTowardGuide());
+      this.showPopup(next.title, next.body, () => {
+        this.nudgeCameraTowardGuide();
+        if (next.id === 'done') this.time.delayedCall(200, () => this.checkEscape());
+      });
     });
   }
 
@@ -703,6 +727,24 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  /** Heat spike spawns a patrol enforcer near the player. */
+  spawnHeatPatrol() {
+    if (this.mode === 'combat' || this.ended) return;
+    for (let i = 0; i < 30; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const d = 10 + Math.random() * 8;
+      const x = (this.player.tx + Math.cos(a) * d) | 0;
+      const y = (this.player.ty + Math.sin(a) * d) | 0;
+      if (!this.walkable(x, y) || this.actorAt(x, y)) continue;
+      const e = makeEnemy(this, x, y, ENEMY.enforcer, 'enforcer');
+      e._heatPatrol = true;
+      this.enemies.push(e);
+      this.log('Grid patrol inbound. Enforcer on your vector.');
+      this.vfx?.burst(x * TILE + 16, y * TILE + 16, 0xef4444, 8);
+      return;
+    }
+  }
+
   // ─── CAMERA methods in cameraMixin ───
 
   setupHud() {
@@ -757,6 +799,17 @@ export class GameScene extends Phaser.Scene {
         fontSize: '10px',
         fontStyle: 'bold',
         color: '#0f172a',
+      })
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(d + 3);
+
+    this.heatText = this.add
+      .text(w / 2, 54, 'HEAT 0', {
+        fontFamily: 'system-ui',
+        fontSize: '9px',
+        fontStyle: 'bold',
+        color: '#64748b',
       })
       .setOrigin(0.5)
       .setScrollFactor(0)
@@ -1327,6 +1380,12 @@ export class GameScene extends Phaser.Scene {
       this.btnSleep.label.setText(kits > 0 ? `SLEEP×${kits}` : 'SLEEP');
     }
     this.updateDayBar();
+    if (this.heat && this.heatText) {
+      const h = Math.round(this.heat.level);
+      this.heatText.setText(`GRID HEAT ${h}`);
+      this.heatText.setColor(this.heat.color);
+      this.runStats.maxHeat = Math.max(this.runStats.maxHeat || 0, h);
+    }
     this.updateCombatHud();
     this.updateHomeArrow();
     this.updateSneakRing();
@@ -1449,10 +1508,12 @@ export class GameScene extends Phaser.Scene {
     const ui = this.questPulseUi;
     world?.clear();
     ui?.clear();
-    if (!this.guide || this.guide.done || this.mode === 'combat') return;
+    if (this.mode === 'combat') return;
     if (this.bagOpen || this.craftOpen || this.menuOpen || this.legendOpen) return;
 
-    const target = this.guide.resolveTarget();
+    let target = null;
+    if (this.guide && !this.guide.done) target = this.guide.resolveTarget();
+    else if (this.escape?.active()) target = this.escape.resolveTarget();
     if (!target) return;
 
     const phase = (Math.sin(this._pulseT * 5.5) + 1) / 2;
@@ -1796,21 +1857,24 @@ export class GameScene extends Phaser.Scene {
   showBlueprintPopup(bpId) {
     const bp = BLUEPRINTS[bpId];
     if (!bp) return;
+    const storyCard = this.story.onBlueprint(bpId, bp.name);
     const needs = Object.entries(bp.needs)
       .map(([m, n]) => `${MAT[m]?.name || m} ×${n}`)
       .join('\n');
-    const body =
-      `You found the blueprint: ${bp.name}.\n\n` +
-      `Needs:\n${needs}\n\n` +
-      `Craft at a purple Street Rig when you have the parts.\n` +
-      `(Time is paused while this is open.)`;
+    const body = storyCard
+      ? `${storyCard.body}\n\nNeeds:\n${needs}\n\nCraft at a purple Street Rig when ready.`
+      : `You found the blueprint: ${bp.name}.\n\n` +
+        `Needs:\n${needs}\n\n` +
+        `Craft at a purple Street Rig when you have the parts.\n` +
+        `(Time is paused while this is open.)`;
 
-    this.showPopup('BLUEPRINT', body, null, {
+    this.showPopup(storyCard?.title || 'BLUEPRINT', body, null, {
       checkboxLabel: 'Track materials (show hunt list on screen)',
       checkboxDefault: false,
       onConfirm: (checked) => {
         if (checked) this.addHunt(bpId);
         else this.log(`Learned ${bp.name}. Open CRAFT at a purple bench when ready.`);
+        this.checkEscape();
       },
     });
   }
@@ -1914,6 +1978,12 @@ export class GameScene extends Phaser.Scene {
       const gObj = this.guide.objectiveText();
       if (gObj) this.objective = gObj;
       this.objTarget = this.guide.resolveTarget();
+      return;
+    }
+    if (this.escape?.active()) {
+      const eObj = this.escape.objectiveText();
+      if (eObj) this.objective = `OBJECTIVE: ${eObj.replace(/^→\s*/, '')}`;
+      this.objTarget = this.escape.resolveTarget();
       return;
     }
     if (!this.inv.hasBlueprint('breach')) {
@@ -2426,6 +2496,7 @@ export class GameScene extends Phaser.Scene {
     this.dayNight.update(dt);
     this.nightVeil.setAlpha(this.dayNight.isNight ? 0.45 : 0.05);
     this.alert.update(dt, this.hiding);
+    this.heat?.update(dt, this);
     if (this.alert.state === ALERT.RED && this.mode !== 'combat') {
       const near = this.enemies.find(
         (e) => e.alive && !e._dormant && Math.abs(e.tx - this.player.tx) + Math.abs(e.ty - this.player.ty) <= 8
@@ -2553,6 +2624,7 @@ export class GameScene extends Phaser.Scene {
       this.enemies.filter((e) => e.alive && !e._dormant)
     );
     if (res.result === 'yellow') {
+      this.heat?.onNoise();
       this.audio.yellow();
       this.help.once(
         'yellow',
@@ -2560,6 +2632,7 @@ export class GameScene extends Phaser.Scene {
       );
       this.log('Footsteps echo. Yellow alert  -  click HIDE or stay quiet.');
     } else if (res.result === 'spotted') {
+      this.heat?.onSpotted();
       this.audio.red();
       this.log('Spotted! The street just became a war crime.');
       const near = res.hearers?.[0];
@@ -2602,10 +2675,14 @@ export class GameScene extends Phaser.Scene {
       this.ground[this.player.ty][this.player.tx] = T.ALLEY;
       this.gLayer.putTileAt(T.ALLEY, this.player.tx, this.player.ty);
       this.showBlueprintPopup(bp.id);
-      this.time.delayedCall(50, () => this.checkGuide());
+      this.time.delayedCall(50, () => {
+        this.checkGuide();
+        this.checkEscape();
+      });
     }
 
     if (g === T.ESCAPE) this.tryEscape();
+    this.checkEscape();
   }
 
   useTile() {
@@ -2675,10 +2752,16 @@ export class GameScene extends Phaser.Scene {
     }
     this.audio.scavenge();
     this.alert.makeNoise(0.35, tx, ty, this.enemies.filter((e) => e.alive && !e._dormant));
+    if (!isGuideCrate && !this._firstLootDone) {
+      this._firstLootDone = true;
+      const card = this.story.onLoot(true);
+      if (card) this.time.delayedCall(200, () => this.showPopup(card.title, card.body));
+    }
     this.updateObjective();
     this.refreshHuntHud();
     this.log(`Scavenged: ${got.join(', ')}.`);
     this.checkGuide();
+    this.checkEscape();
   }
 
   updateHomeArrow() {
@@ -2936,6 +3019,7 @@ export class GameScene extends Phaser.Scene {
     this.updateObjective();
     this.refreshHud();
     this.checkGuide();
+    this.checkEscape();
     const card = this.story.onCraft(gear.id, gear.name);
     // Prefer guide card over story craft card during tutorial
     if (this.guide && !this.guide.done) {
@@ -2976,6 +3060,7 @@ export class GameScene extends Phaser.Scene {
           this.syncMoveModeButtons();
           this.updateSneakRing();
           this.alert.spot();
+          this.heat?.onSpotted();
           this.audio.red();
           this.log(`${e.name} locks eyes. Sneak broken. HOSTILE.`);
           this.startCombat(e, false);
@@ -3109,8 +3194,26 @@ export class GameScene extends Phaser.Scene {
       this.help.once('escape_need', 'WHAT: Escape pads need a Breach Kit in your pack.');
       return;
     }
-    this.inv.takeBreach();
-    this.win();
+    if (this._escaping) return;
+    this._escaping = true;
+    this.clearMousePath();
+    const pad = this.escapePads?.[0];
+    if (pad) {
+      const wx = pad.x * TILE + TILE / 2;
+      const wy = pad.y * TILE + TILE / 2;
+      this.beginFreeCam?.();
+      this.cameras.main.centerOn(wx, wy);
+      this.clampCamScroll?.();
+    }
+    this.showPopup(
+      'BREACH ARMED',
+      'Kit sparks alive. Wall sensors stutter.\n\nOne step onto the pad and you are out.\nThe grid will not forget you.',
+      () => {
+        this.inv.takeBreach();
+        this.escape?.markEscaped?.();
+        this.win();
+      }
+    );
   }
 
   win() {
@@ -3127,12 +3230,21 @@ export class GameScene extends Phaser.Scene {
   }
 
   showEnd(won, msg) {
+    const w = this.scale.width;
+    const h = this.scale.height;
+    const days = this.dayNight?.day || 1;
+    const kills = this.runStats?.kills || 0;
+    const heat = Math.round(this.runStats?.maxHeat || this.heat?.maxSeen || 0);
+    const lvl = this.progression?.level || 1;
+    const stats =
+      `Days survived: ${days}\nKills: ${kills}  ·  Level: ${lvl}\nPeak grid heat: ${heat}`;
+
     this.add
-      .rectangle(this.scale.width / 2, this.scale.height / 2, this.scale.width, this.scale.height, 0x020617, 0.82)
+      .rectangle(w / 2, h / 2, w, h, 0x020617, 0.82)
       .setScrollFactor(0)
       .setDepth(200);
     this.add
-      .text(this.scale.width / 2, this.scale.height * 0.35, won ? 'YOU ESCAPED' : 'KIA', {
+      .text(w / 2, h * 0.28, won ? 'YOU ESCAPED' : 'KIA', {
         fontFamily: 'system-ui',
         fontSize: '48px',
         fontStyle: 'bold',
@@ -3142,7 +3254,7 @@ export class GameScene extends Phaser.Scene {
       .setScrollFactor(0)
       .setDepth(201);
     this.add
-      .text(this.scale.width / 2, this.scale.height * 0.48, msg, {
+      .text(w / 2, h * 0.42, msg, {
         fontFamily: 'system-ui',
         fontSize: '16px',
         color: '#cbd5e1',
@@ -3151,22 +3263,41 @@ export class GameScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setScrollFactor(0)
       .setDepth(201);
-    const btn = this.add
-      .rectangle(this.scale.width / 2, this.scale.height * 0.62, 220, 56, won ? 0x0ea5e9 : 0xe11d48)
-      .setScrollFactor(0)
-      .setDepth(201)
-      .setInteractive({ useHandCursor: true });
     this.add
-      .text(this.scale.width / 2, this.scale.height * 0.62, 'NEW RUN', {
+      .text(w / 2, h * 0.52, stats, {
         fontFamily: 'system-ui',
-        fontSize: '22px',
-        fontStyle: 'bold',
-        color: '#fff',
+        fontSize: '13px',
+        color: '#94a3b8',
+        align: 'center',
       })
       .setOrigin(0.5)
       .setScrollFactor(0)
-      .setDepth(202);
-    btn.on('pointerup', () => this.scene.restart());
+      .setDepth(201);
+
+    const mkBtn = (y, label, color, fn) => {
+      const btn = this.add
+        .rectangle(w / 2, y, 220, 48, color)
+        .setScrollFactor(0)
+        .setDepth(201)
+        .setInteractive({ useHandCursor: true });
+      this.add
+        .text(w / 2, y, label, {
+          fontFamily: 'system-ui',
+          fontSize: '18px',
+          fontStyle: 'bold',
+          color: '#fff',
+        })
+        .setOrigin(0.5)
+        .setScrollFactor(0)
+        .setDepth(202);
+      btn.on('pointerup', fn);
+    };
+
+    mkBtn(h * 0.64, 'NEW RUN', won ? 0x0ea5e9 : 0xe11d48, () => this.scene.restart());
+    mkBtn(h * 0.74, 'MAIN MENU', 0x334155, () => {
+      SaveSystem.clear();
+      this.scene.start('Menu');
+    });
   }
 }
 
