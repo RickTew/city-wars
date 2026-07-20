@@ -56,7 +56,9 @@ export class HeatSystem {
     }
     if (this.level >= 75 && !this._warned75) {
       this._warned75 = true;
-      scene.log('Patrol frequency up. Stay off main arteries.');
+      scene.log('GRID SWEEP active. Patrol inbound. Stay off main arteries.');
+      scene.audio?.patrol?.();
+      scene.vfx?.heatSweepFlash?.();
       if (!this._patrolSpawned) {
         this._patrolSpawned = true;
         scene.spawnHeatPatrol?.();

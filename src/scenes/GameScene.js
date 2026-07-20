@@ -141,6 +141,8 @@ export class GameScene extends Phaser.Scene {
     this.setupSneakRing();
     this.equipUI = new EquipUI(this);
     this.craftPanel = new CraftPanel(this);
+    this._benchAutoCraft = false;
+    this._benchCraftDismissed = false;
     this.minimap = new Minimap(this);
     this.minimap.create();
     this.questPulseWorld = this.add.graphics().setDepth(27);
@@ -321,10 +323,17 @@ export class GameScene extends Phaser.Scene {
       xp: this.progression?.xp ?? 0,
       mats: { ...(this.inv?.mats || {}) },
       items: (this.inv?.items || []).map((i) => i.id),
+      itemQty: ['bandage', 'stim', 'mre', 'charge', 'bedroll'].reduce((acc, id) => {
+        const n = this.inv?.countItem?.(id) || 0;
+        if (n > 0) acc[id] = n;
+        return acc;
+      }, {}),
       equip: Object.fromEntries(
         Object.entries(this.inv?.equip || {}).map(([k, v]) => [k, v?.id || null])
       ),
       blueprints: [...(this.inv?.blueprints || [])],
+      heat: Math.round(this.heat?.level || 0),
+      healLabel: this.healButtonLabel?.() || 'HEAL',
       guide: {
         quest: this.guide?.quest ?? null,
         done: !!this.guide?.done,
@@ -761,6 +770,7 @@ export class GameScene extends Phaser.Scene {
       e._heatPatrol = true;
       this.enemies.push(e);
       this.log('Grid patrol inbound. Enforcer on your vector.');
+      this.audio.patrol?.();
       this.vfx?.burst(x * TILE + 16, y * TILE + 16, 0xef4444, 8);
       return;
     }
@@ -850,6 +860,8 @@ export class GameScene extends Phaser.Scene {
       .setOrigin(0, 0.5)
       .setScrollFactor(0)
       .setDepth(d + 3);
+
+    this.heatVignette = this.add.graphics().setScrollFactor(0).setDepth(d + 8).setAlpha(0);
 
     // RIGHT: inventory only (no second status word overlapping)
     this.invText = this.add
@@ -1414,6 +1426,9 @@ export class GameScene extends Phaser.Scene {
     if (this.btnSleep) {
       const kits = this.countBedrolls();
       this.btnSleep.label.setText(kits > 0 ? `SLEEP×${kits}` : 'SLEEP');
+    }
+    if (this.btnHeal) {
+      this.btnHeal.label.setText(this.healButtonLabel());
     }
     this.updateDayBar();
     if (this.heat && this.heatText) {
@@ -2385,6 +2400,17 @@ export class GameScene extends Phaser.Scene {
   }
 
   /** HEAL button: bandages / stim / MRE, or Street Charge in combat. */
+  healButtonLabel() {
+    const heals =
+      this.inv.countItem('bandage') + this.inv.countItem('stim') + this.inv.countItem('mre');
+    if (heals > 1) return `HEAL×${heals}`;
+    if (heals === 1) return 'HEAL';
+    const charges = this.inv.countItem('charge');
+    if (charges > 1) return `CHRG×${charges}`;
+    if (charges === 1) return 'CHRG';
+    return 'HEAL';
+  }
+
   useQuickKit() {
     if (this.useBandage()) return;
     if (this.useStreetCharge()) return;
@@ -2581,6 +2607,7 @@ export class GameScene extends Phaser.Scene {
 
     this.updateZoneAtmosphere(dt);
     this.updateWallBeacon(dt);
+    this.updateHeatVignette(dt);
 
     if (Phaser.Input.Keyboard.JustDown(this.keys.e)) this.useTile();
     if (Phaser.Input.Keyboard.JustDown(this.keys.c)) this.toggleCraft();
@@ -2733,6 +2760,37 @@ export class GameScene extends Phaser.Scene {
 
     if (g === T.ESCAPE) this.tryEscape();
     this.checkEscape();
+    this.syncBenchCraftPanel();
+  }
+
+  /** Auto-open craft panel at bench; close when walking away. */
+  syncBenchCraftPanel() {
+    if (this.mode === 'combat' || this.bagOpen || this.popupOpen || this.ended) return;
+    const near = this.isNearBench();
+    if (!near) {
+      this._benchCraftDismissed = false;
+      if (this._benchAutoCraft && this.craftOpen) {
+        this._benchAutoCraft = false;
+        this.craftPanel.toggle(false);
+      }
+      return;
+    }
+    if (this._benchCraftDismissed || this.craftOpen) return;
+    this._benchAutoCraft = true;
+    this.craftPanel.toggle(true);
+  }
+
+  updateHeatVignette(dt) {
+    void dt;
+    if (!this.heatVignette || this.mode === 'combat') return;
+    const level = this.heat?.level || 0;
+    if (level < 60) {
+      this.heatVignette.clear();
+      this.heatVignette.setAlpha(0);
+      return;
+    }
+    const pulse = 0.65 + 0.35 * Math.sin(this.time.now / 1000 * 4);
+    this.vfx?.heatVignette?.(level, pulse);
   }
 
   useTile() {
@@ -2782,11 +2840,18 @@ export class GameScene extends Phaser.Scene {
     const rolls = 2 + (z === ZONE.OUTER || z === ZONE.WALL ? 1 : 0) + (this.player.scavengeBonus || 0);
     const got = [];
     const isGuideCrate = !!spot?.guide;
+    const isEscapeCache = !!spot?.escapeCache;
     if (isGuideCrate) {
       this.inv.addMat('cloth', 2);
       this.inv.addMat('scrap', 1);
       got.push(MAT.cloth.name, MAT.cloth.name, MAT.scrap.name);
       this._guideLooted = true;
+    } else if (isEscapeCache) {
+      this.inv.addMat('scrap', 4);
+      this.inv.addMat('wire', 2);
+      this.inv.addMat('battery', 1);
+      got.push(MAT.scrap.name, MAT.scrap.name, MAT.scrap.name, MAT.scrap.name, MAT.wire.name, MAT.wire.name, MAT.battery.name);
+      this.log('Wall cache cracked. Half a Breach Kit worth of parts.');
     } else {
       for (let i = 0; i < rolls; i++) {
         let id = table[(Math.random() * table.length) | 0];
@@ -2892,6 +2957,11 @@ export class GameScene extends Phaser.Scene {
     }
     const gear = result.gear;
     this.audio.craft();
+    if (id === 'breach') {
+      this.heat?.add(14, 'breach_craft');
+      this.log('Grid scan spikes. They felt that weld.');
+      this.vfx?.heatSweepFlash?.();
+    }
     let msg = `Crafted ${gear.name}. ${gear.desc}`;
     if (result.refunded) {
       msg += ` (${this.char?.name || 'You'} salvaged 1 ${MAT[result.refunded]?.name || result.refunded}.)`;

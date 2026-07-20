@@ -100,4 +100,35 @@ export class VFX {
     this.burst(x, y, 0xfbbf24, 10);
     this.screenShake(0.012, 280);
   }
+
+  /** Pulsing screen-edge tint when grid heat is high. */
+  heatVignette(level, pulse = 1) {
+    const g = this.scene.heatVignette;
+    if (!g) return;
+    if (level < 60) {
+      g.clear();
+      g.setAlpha(0);
+      return;
+    }
+    const w = this.scene.scale.width;
+    const h = this.scene.scale.height;
+    const border = level >= 85 ? 18 : level >= 75 ? 14 : 10;
+    const base = level >= 85 ? 0.28 : level >= 75 ? 0.2 : 0.1;
+    const alpha = base * pulse;
+    const col = level >= 85 ? 0xef4444 : 0xf97316;
+    g.clear();
+    g.fillStyle(col, alpha);
+    g.fillRect(0, 0, w, border);
+    g.fillRect(0, h - border, w, border);
+    g.fillRect(0, 0, border, h);
+    g.fillRect(w - border, 0, border, h);
+    g.setAlpha(1);
+  }
+
+  heatSweepFlash() {
+    this.screenShake(0.006, 140);
+    const cx = this.scene.scale.width / 2;
+    const cy = this.scene.scale.height / 2 - 40;
+    this.floatText(cx, cy, 'GRID SWEEP', '#f97316', 22);
+  }
 }

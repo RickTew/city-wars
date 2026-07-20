@@ -166,6 +166,38 @@ async function main() {
       if (st.guide.flags.bandage !== true && !st.items.includes('bandage')) fail('Bandage not crafted');
     }
 
+    st = await step('Auto-open craft panel at bench', async () => {
+      await page.evaluate(() => {
+        const g = window.__CITY_WARS__;
+        const b = g.benches[0];
+        g.craftPanel.close();
+        g._benchCraftDismissed = false;
+        g._benchAutoCraft = false;
+        g.debugWarp(b.x, b.y);
+      });
+    });
+    if (!st.craftOpen) fail('Craft panel should auto-open at bench');
+    else log('  craft panel auto-open');
+
+    st = await step('Stack bandages via hotkey craft', async () => {
+      await page.evaluate(() => {
+        const g = window.__CITY_WARS__;
+        const b = g.benches[0];
+        g.debugWarp(b.x, b.y);
+        if (g.inv.count('cloth') < 4) g.inv.addMat('cloth', 4);
+        g.inv.learnBlueprint('bandage');
+        g.tryCraftId('bandage');
+        g.tryCraftKey(0);
+      });
+    });
+    const stackN = await page.evaluate(() => window.__CITY_WARS__.inv.countItem('bandage'));
+    if (stackN < 2) fail(`Expected stacked bandages >= 2, got ${stackN}`);
+    else log(`  bandage stack = ${stackN}`);
+
+    const healLbl = await page.evaluate(() => window.__CITY_WARS__.healButtonLabel());
+    if (stackN > 1 && !healLbl.includes('×')) fail(`HEAL label should show stack count, got ${healLbl}`);
+    else log(`  heal label = ${healLbl}`);
+
     st = await step('Fight guide dog', async () => {
       await page.evaluate(() => {
         const g = window.__CITY_WARS__;

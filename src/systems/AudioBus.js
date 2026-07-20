@@ -45,6 +45,10 @@ export class AudioBus {
   red() {
     this.tone(100, 0.2, 'sawtooth', 0.06, -40);
   }
+  patrol() {
+    this.tone(70, 0.35, 'sawtooth', 0.05, -25);
+    setTimeout(() => this.tone(55, 0.25, 'square', 0.04), 120);
+  }
   hit() {
     this.tone(130, 0.09, 'sawtooth', 0.05, -30);
   }

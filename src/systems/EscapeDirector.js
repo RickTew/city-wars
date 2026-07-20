@@ -19,7 +19,7 @@ export const ESCAPE_QUESTS = [
   {
     id: 'e2',
     title: 'BUILD THE KEY',
-    body: 'Scavenge gold crates. Purple bench. Craft the Breach Kit.\nHeat rises while you work.',
+    body: 'Scavenge gold crates. Purple bench. Craft the Breach Kit.\nHeat rises while you work. Gold cache sits east of the Wall schematic.',
     objective: 'Craft BREACH KIT at purple bench',
   },
   {
@@ -58,7 +58,7 @@ export class EscapeDirector {
     if (this.quest === 1 && !f.breachBp) return '→ Find BREACH blueprint (pink, north Wall)';
     if (this.quest === 2 && !f.breachCrafted) {
       const miss = this.scene.inv.missingFor('breach').join(', ');
-      if (miss) return `→ Scavenge for Breach Kit (${miss})`;
+      if (miss) return `→ Scavenge for Breach Kit (${miss}) · check Wall cache east`;
       return '→ Craft BREACH KIT at purple bench';
     }
     if (this.quest === 3) return '→ Gold ESCAPE pad on map edge';
@@ -76,6 +76,8 @@ export class EscapeDirector {
     }
     if (this.quest === 2 && !f.breachCrafted) {
       if (!g.inv.canCraft('breach') && !g.inv.hasBreach()) {
+        const cache = g.lootSpots?.find((l) => l.escapeCache && !l.taken);
+        if (cache) return cache;
         return g.nearestLoot() || g.nearestBench();
       }
       return g.nearestBench() || { ui: 'craft' };

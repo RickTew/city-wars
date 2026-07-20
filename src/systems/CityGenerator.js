@@ -111,6 +111,13 @@ export class CityGenerator {
       this.blueprints.push({ x, y, id: b.id, taken: false });
     }
 
+    // Escape cache near north Wall — guaranteed partial Breach Kit parts
+    const cacheX = CENTER_X + 10;
+    const cacheY = 10;
+    w[cacheY][cacheX] = 0;
+    g[cacheY][cacheX] = T.LOOT;
+    this.loot.push({ x: cacheX, y: cacheY, taken: false, escapeCache: true });
+
     // Escape pads on edges
     const pads = [
       [CENTER_X, 2],

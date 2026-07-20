@@ -39,6 +39,8 @@ export class CraftPanel {
     this.nodes = [];
     this.open = false;
     this.scene.craftOpen = false;
+    this.scene._benchAutoCraft = false;
+    this.scene._benchCraftDismissed = true;
     this.scene.clearMousePath?.();
     this.scene.uiBlockClick = true;
     this.scene.time?.delayedCall(80, () => {
