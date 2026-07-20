@@ -378,6 +378,28 @@ async function main() {
     if (st.hp <= 20) fail(`MRE heal failed, hp=${st.hp}`);
     else log(`  HP after MRE = ${st.hp}`);
 
+    st = await step('Mobile two-row HUD layout', async () => {
+      await page.setViewport({ width: 390, height: 844 });
+      await sleep(250);
+    });
+    const mobile = await page.evaluate(() => {
+      const g = window.__CITY_WARS__;
+      const m = g.barMetrics();
+      return {
+        twoRow: m.twoRow,
+        healOnBar: !!g.btnHeal,
+        moreHidden: !g.btnMore,
+        healLabel: g.healButtonLabel(),
+      };
+    });
+    if (!mobile.twoRow) fail('Expected two-row bar on phone viewport');
+    if (!mobile.healOnBar) fail('HEAL should be visible on mobile bar');
+    if (!mobile.moreHidden) fail('MORE should be hidden on two-row mobile');
+    else log(`  two-row bar · heal=${mobile.healLabel}`);
+
+    await page.setViewport({ width: 1280, height: 720 });
+    await sleep(150);
+
     if (errors.length) {
       console.warn('Page errors:', errors.slice(0, 5));
     }

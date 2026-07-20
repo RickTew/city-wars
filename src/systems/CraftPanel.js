@@ -67,7 +67,7 @@ export class CraftPanel {
     const maxRows = 5;
     const panelW = Math.min(400, w - 20);
     const panelH = Math.min(28 + maxRows * rowH + 36, h * 0.34);
-    const barY = h - 58;
+    const barY = s.scale.height - (s.barMetrics?.().hudBottom ?? 58) + 6;
     const cx = w / 2;
     const cy = barY - panelH / 2 - 6;
 

@@ -62,7 +62,7 @@ export const cameraMixin = {
 
     const m = this.edgePan.margin;
     const topHud = 56;
-    const botHud = 90;
+    const botHud = this.barMetrics?.().hudBottom ?? 90;
     let dx = 0;
     let dy = 0;
     // Only pan when pointer is over the game canvas

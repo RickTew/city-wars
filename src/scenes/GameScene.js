@@ -334,6 +334,8 @@ export class GameScene extends Phaser.Scene {
       blueprints: [...(this.inv?.blueprints || [])],
       heat: Math.round(this.heat?.level || 0),
       healLabel: this.healButtonLabel?.() || 'HEAL',
+      mobileHud: this.isMobileHud(),
+      twoRowBar: this.barMetrics().twoRow,
       guide: {
         quest: this.guide?.quest ?? null,
         done: !!this.guide?.done,
@@ -415,6 +417,7 @@ export class GameScene extends Phaser.Scene {
   onResize(gameSize) {
     const w = gameSize.width;
     const h = gameSize.height;
+    const m = this.barMetrics(w, h);
     this.cameras.main.setSize(w, h);
     this.cameras.main.setZoom(1);
     this.cameras.main.setDeadzone(w * 0.2, h * 0.18);
@@ -434,19 +437,19 @@ export class GameScene extends Phaser.Scene {
     if (this.heatText) this.heatText.setPosition(w / 2, 54);
     if (this.heatBarBg) this.heatBarBg.setPosition(w / 2, 62);
     if (this.heatBarFill) this.heatBarFill.setPosition(w / 2 - 50, 62);
-    if (this.logText) this.logText.setPosition(w / 2, h - 100);
+    if (this.logText) this.logText.setPosition(w / 2, m.logY);
     if (this.combatHud?.visible) this.combatHud.setPosition(12, 64);
     if (this.bottomBar) {
-      this.bottomBar.setPosition(w / 2, h - 58);
-      this.bottomBar.setSize(w, 52);
+      this.bottomBar.setPosition(w / 2, m.bottomY);
+      this.bottomBar.setSize(w, m.barH);
     }
     // Rebuild bar so MORE / SPEC slots match new width + combat state
     if (this.actionButtons) this.rebuildActionBar();
     if (this.moreOpen) {
       this.closeMoreMenu();
     }
-    if (this.homeArrow) this.homeArrow.setPosition(36, h - 96);
-    if (this.homeArrowLabel) this.homeArrowLabel.setPosition(36, h - 74);
+    if (this.homeArrow) this.homeArrow.setPosition(36, m.homeY);
+    if (this.homeArrowLabel) this.homeArrowLabel.setPosition(36, m.homeY + 22);
     this.minimap?.onResize?.();
     this.craftPanel?.refresh?.();
   }
@@ -455,23 +458,66 @@ export class GameScene extends Phaser.Scene {
     return this.craftPanel?.isNearBench?.() ?? false;
   }
 
+  /** Phone / short viewport — two-row bottom bar. */
+  isMobileHud(w = this.scale.width, h = this.scale.height) {
+    return w < 520 || h < 700;
+  }
+
   /** True when the bottom bar should collapse secondary actions into MORE. */
   isNarrowBar(w = this.scale.width) {
     return w < 700;
   }
 
-  /** Fit visible action buttons into any width. */
-  layoutActionBar(w = this.scale.width, h = this.scale.height, n = 0) {
-    const count = n || this.actionButtons?.length || 8;
+  /** Shared layout numbers for bottom HUD, craft panel, and input hit zones. */
+  barMetrics(w = this.scale.width, h = this.scale.height) {
+    const mobile = this.isMobileHud(w, h);
     const narrow = this.isNarrowBar(w);
-    const pad = narrow ? 8 : 48;
+    const twoRow = mobile;
+    const rowH = mobile ? 34 : narrow ? 36 : 40;
+    const rowGap = mobile ? 4 : 0;
+    const padBot = mobile ? 10 : 8;
+    const barH = twoRow ? rowH * 2 + rowGap + 8 : 52;
+    const bottomY = h - padBot - barH / 2;
+    const primaryY = twoRow ? h - padBot - rowH / 2 : h - 58;
+    const secondaryY = twoRow ? h - padBot - rowH - rowGap - rowH / 2 : null;
+    const hudBottom = padBot + barH + 4;
+    const logY = h - hudBottom - 6;
+    const homeY = h - hudBottom - 28;
+    return { mobile, narrow, twoRow, rowH, rowGap, barH, bottomY, primaryY, secondaryY, hudBottom, logY, homeY };
+  }
+
+  /** Pointer is over top or bottom HUD strips (not the map). */
+  hudPointerZone(p) {
+    const m = this.barMetrics();
+    return p.y < 56 || p.y > this.scale.height - m.hudBottom;
+  }
+
+  isTouchInput() {
+    return !!this.sys.game.device.input.touch;
+  }
+
+  /** Fit visible action buttons into one bar row. */
+  layoutActionBarRow(w, rowY, n, narrow) {
+    const mobile = this.isMobileHud(w);
+    const pad = mobile ? 6 : narrow ? 8 : 48;
     const usable = Math.max(160, w - pad * 2);
-    const gap = usable / count;
-    const btnW = Math.min(80, Math.max(narrow ? 34 : 48, gap - (narrow ? 2 : 6)));
-    const btnH = narrow ? 36 : 40;
-    const fontSize = narrow ? (btnW < 42 ? '9px' : '11px') : '13px';
-    const startX = w / 2 - ((count - 1) * gap) / 2;
-    return { n: count, pad, usable, gap, btnW, btnH, fontSize, startX, y: h - 58 };
+    const gap = usable / Math.max(1, n);
+    const btnW = Math.min(
+      mobile ? 72 : 80,
+      Math.max(mobile ? 34 : narrow ? 34 : 48, gap - (mobile ? 2 : narrow ? 2 : 6))
+    );
+    const btnH = mobile ? 34 : narrow ? 36 : 40;
+    const fontSize = mobile
+      ? btnW < 42
+        ? '9px'
+        : '10px'
+      : narrow
+        ? btnW < 42
+          ? '9px'
+          : '11px'
+        : '13px';
+    const startX = w / 2 - ((n - 1) * gap) / 2;
+    return { gap, btnW, btnH, fontSize, startX, y: rowY };
   }
 
   /** Catalog of bottom-bar actions. */
@@ -545,8 +591,35 @@ export class GameScene extends Phaser.Scene {
   }
 
   /**
+   * Bottom-bar rows for current width + combat mode.
+   * Mobile uses two rows so HEAL / SNEAK / MAP stay visible without MORE.
+   */
+  getVisibleBarRows() {
+    const combat = this.mode === 'combat';
+    if (!this.isMobileHud()) {
+      return { twoRow: false, rows: [this.getVisibleBarIds()] };
+    }
+    if (combat) {
+      return {
+        twoRow: true,
+        rows: [
+          ['sneak', 'walk', 'heal', 'specials'],
+          ['use', 'sleep', 'hide', 'craft', 'bag', 'menu'],
+        ],
+      };
+    }
+    return {
+      twoRow: true,
+      rows: [
+        ['sneak', 'walk', 'heal', 'map'],
+        ['use', 'sleep', 'hide', 'craft', 'bag', 'menu'],
+      ],
+    };
+  }
+
+  /**
    * Visible bottom-bar slots for current width + combat mode.
-   * Narrow phones: primary + MORE. Combat always exposes SPEC.
+   * Tablet-narrow keeps MORE; phones use {@link getVisibleBarRows} instead.
    */
   getVisibleBarIds() {
     const combat = this.mode === 'combat';
@@ -563,8 +636,9 @@ export class GameScene extends Phaser.Scene {
     return ['use', 'sleep', 'hide', 'sneak', 'craft', 'bag', 'map', 'more'];
   }
 
-  /** Secondary actions shown inside the MORE sheet. */
+  /** Secondary actions shown inside the MORE sheet (tablet-narrow only). */
   getMoreMenuIds() {
+    if (this.isMobileHud()) return [];
     if (this.isNarrowBar() && this.mode !== 'combat') {
       return ['walk', 'heal', 'menu'];
     }
@@ -609,28 +683,34 @@ export class GameScene extends Phaser.Scene {
 
     this.clearActionButtons();
     const catalog = this.barActionCatalog();
-    const ids = this.getVisibleBarIds();
-    const layout = this.layoutActionBar(w, h, ids.length);
+    const metrics = this.barMetrics(w, h);
+    this.bottomBar.setSize(w, metrics.barH);
+    this.bottomBar.setPosition(w / 2, metrics.bottomY);
 
-    ids.forEach((id, i) => {
-      const def = catalog[id];
-      if (!def) return;
-      const x = layout.startX + i * layout.gap;
-      const b = this.makeUiButton(x, layout.y, layout.btnW, layout.btnH, def.label, def.color, def.fn, d + 1);
-      if (b.label?.setFontSize) b.label.setFontSize(layout.fontSize);
-      this.actionButtons.push(b);
-      if (id === 'use') this.btnUse = b;
-      if (id === 'sleep') this.btnSleep = b;
-      if (id === 'hide') this.btnHide = b;
-      if (id === 'sneak') this.btnSneak = b;
-      if (id === 'craft') this.btnCraft = b;
-      if (id === 'walk') this.btnRun = b;
-      if (id === 'heal') this.btnHeal = b;
-      if (id === 'menu') this.btnMenu = b;
-      if (id === 'bag') this.btnBag = b;
-      if (id === 'map') this.btnLegend = b;
-      if (id === 'specials') this.btnSpecials = b;
-      if (id === 'more') this.btnMore = b;
+    const { rows, twoRow } = this.getVisibleBarRows();
+    rows.forEach((ids, rowIdx) => {
+      const rowY = twoRow ? (rowIdx === 0 ? metrics.secondaryY : metrics.primaryY) : metrics.primaryY;
+      const layout = this.layoutActionBarRow(w, rowY, ids.length, metrics.narrow);
+      ids.forEach((id, i) => {
+        const def = catalog[id];
+        if (!def) return;
+        const x = layout.startX + i * layout.gap;
+        const b = this.makeUiButton(x, layout.y, layout.btnW, layout.btnH, def.label, def.color, def.fn, d + 1);
+        if (b.label?.setFontSize) b.label.setFontSize(layout.fontSize);
+        this.actionButtons.push(b);
+        if (id === 'use') this.btnUse = b;
+        if (id === 'sleep') this.btnSleep = b;
+        if (id === 'hide') this.btnHide = b;
+        if (id === 'sneak') this.btnSneak = b;
+        if (id === 'craft') this.btnCraft = b;
+        if (id === 'walk') this.btnRun = b;
+        if (id === 'heal') this.btnHeal = b;
+        if (id === 'menu') this.btnMenu = b;
+        if (id === 'bag') this.btnBag = b;
+        if (id === 'map') this.btnLegend = b;
+        if (id === 'specials') this.btnSpecials = b;
+        if (id === 'more') this.btnMore = b;
+      });
     });
     this.syncMoveModeButtons();
     // Refresh sleep kit count label if present
@@ -880,8 +960,9 @@ export class GameScene extends Phaser.Scene {
     this.timeText = this.add.text(0, 0, '').setVisible(false);
 
     // Bottom toast (short)  -  combat uses dedicated log panel
+    const hud = this.barMetrics(w, h);
     this.logText = this.add
-      .text(w / 2, h - 100, '', {
+      .text(w / 2, hud.logY, '', {
         fontFamily: 'system-ui',
         fontSize: '13px',
         color: '#e2e8f0',
@@ -956,9 +1037,9 @@ export class GameScene extends Phaser.Scene {
     const d = 120;
     const w = this.scale.width;
     const h = this.scale.height;
-    const barY = h - 58;
+    const m = this.barMetrics(w, h);
     this.bottomBar = this.add
-      .rectangle(w / 2, barY, w, 52, 0x020617, 0.94)
+      .rectangle(w / 2, m.bottomY, w, m.barH, 0x020617, 0.94)
       .setScrollFactor(0)
       .setDepth(d)
       .setStrokeStyle(1, 0x334155);
@@ -968,10 +1049,10 @@ export class GameScene extends Phaser.Scene {
 
     // Home compass  -  graphics chevron pointing +X; rotation = atan2 toward HQ
     this.homeArrow = this.add.graphics().setScrollFactor(0).setDepth(d + 2);
-    this.homeArrow.setPosition(36, h - 96);
+    this.homeArrow.setPosition(36, m.homeY);
     this.drawHomeChevron();
     this.homeArrowLabel = this.add
-      .text(36, h - 74, 'HQ', {
+      .text(36, m.homeY + 22, 'HQ', {
         fontFamily: 'system-ui',
         fontSize: '11px',
         fontStyle: 'bold',
@@ -1002,7 +1083,8 @@ export class GameScene extends Phaser.Scene {
     const panelH = 56 + ids.length * rowH + 16;
     const panelW = Math.min(300, w - 32);
     const cx = w / 2;
-    const cy = h - 58 - panelH / 2 - 12;
+    const m = this.barMetrics();
+    const cy = h - m.hudBottom - panelH / 2 - 12;
 
     this.moreUi = [];
     const dim = this.add
@@ -1345,8 +1427,9 @@ export class GameScene extends Phaser.Scene {
       .setStrokeStyle(2, 0xf8fafc, 0.4)
       .setScrollFactor(0)
       .setDepth(depth);
-    // Extra hit padding so finger slides still count (fatter for large modal buttons)
-    const pad = w >= 160 ? 14 : w < 48 ? 6 : 4;
+    // Extra hit padding so finger slides still count (fatter on mobile)
+    const mobile = this.isMobileHud?.() ?? false;
+    const pad = w >= 160 ? 14 : w < 48 ? (mobile ? 10 : 6) : mobile ? 6 : 4;
     bg.setInteractive({
       useHandCursor: true,
       hitArea: new Phaser.Geom.Rectangle(-w / 2 - pad, -h / 2 - pad, w + pad * 2, h + pad * 2),
@@ -1415,9 +1498,17 @@ export class GameScene extends Phaser.Scene {
     }
 
     const prog = this.progression?.summary?.() || '';
-    this.statText.setText(
-      `HP ${p.hp}/${p.maxHp}  ATK ${atk}  DEF ${def}  ·  ${prog}  ·  ${zone}${this.hiding ? '  · HIDING' : ''}`
-    );
+    if (this.isMobileHud()) {
+      this.statText.setFontSize('10px');
+      this.statText.setText(
+        `HP ${p.hp}/${p.maxHp}  ATK ${atk}  DEF ${def}  ·  ${zone}${this.hiding ? '  · HIDING' : ''}`
+      );
+    } else {
+      this.statText.setFontSize('12px');
+      this.statText.setText(
+        `HP ${p.hp}/${p.maxHp}  ATK ${atk}  DEF ${def}  ·  ${prog}  ·  ${zone}${this.hiding ? '  · HIDING' : ''}`
+      );
+    }
 
     const s = this.inv.summary();
     this.invText.setText(`${s.mats}\n${s.gear}\nBP ${[...this.inv.blueprints].length}`);
@@ -2110,9 +2201,11 @@ export class GameScene extends Phaser.Scene {
     });
 
     this.input.on('pointerup', (p) => {
-      // End middle-mouse free pan
-      if (p.button === 1 || this._midDrag) {
+      // End middle-mouse / touch free-pan
+      if (p.button === 1 || this._midDrag || this._touchDrag) {
         this._midDrag = null;
+        this._touchDrag = null;
+        this._pinchStart = null;
         this._edgePanIdle = 0;
         this.cancelLongPress();
         return;
@@ -2141,7 +2234,7 @@ export class GameScene extends Phaser.Scene {
       if (this.isPaused()) return;
 
       // Ignore top HUD / bottom action bar
-      if (p.y < 56 || p.y > this.scale.height - 90) return;
+      if (this.hudPointerZone(p)) return;
 
       const wpt = this.cameras.main.getWorldPoint(p.x, p.y);
       const tx = (wpt.x / TILE) | 0;
@@ -2167,7 +2260,7 @@ export class GameScene extends Phaser.Scene {
       // Primary press: arm long-press for combat specials (touch + mouse hold)
       if (p.button !== 0 && p.button != null) return;
       if (this.ended || this.uiBlockClick || this.isPaused()) return;
-      if (p.y < 56 || p.y > this.scale.height - 90) return;
+      if (this.hudPointerZone(p)) return;
 
       this.cancelLongPress();
       this._longPress = {
@@ -2183,11 +2276,67 @@ export class GameScene extends Phaser.Scene {
     });
 
     this.input.on('pointermove', (p) => {
-      // Cancel long-press if finger/mouse slides too far
-      if (this._longPress && !this._longPress.fired) {
+      // Pinch zoom (two fingers on touch devices)
+      if (this.isTouchInput() && this.mode !== 'combat' && !this.isPaused()) {
+        const p1 = this.input.pointer1;
+        const p2 = this.input.pointer2;
+        if (p1?.isDown && p2?.isDown) {
+          const dist = Phaser.Math.Distance.Between(p1.x, p1.y, p2.x, p2.y);
+          if (!this._pinchStart) {
+            this._pinchStart = { dist, zoom: this.cameras.main.zoom };
+            this._touchDrag = null;
+            this.cancelLongPress();
+            this.beginFreeCam();
+          } else if (dist > 0) {
+            const cam = this.cameras.main;
+            const z = Phaser.Math.Clamp(
+              this._pinchStart.zoom * (dist / this._pinchStart.dist),
+              0.68,
+              1.45
+            );
+            cam.setZoom(z);
+            this.clampCamScroll();
+          }
+          this._edgePanIdle = 0;
+          return;
+        }
+        if (this._pinchStart && (!p1?.isDown || !p2?.isDown)) {
+          this._pinchStart = null;
+        }
+      }
+
+      // Cancel long-press if finger/mouse slides too far; start touch drag on phones
+      if (this._longPress && !this._longPress.fired && p.isDown) {
         const dx = p.x - this._longPress.x;
         const dy = p.y - this._longPress.y;
-        if (dx * dx + dy * dy > 22 * 22) this.cancelLongPress();
+        if (dx * dx + dy * dy > 18 * 18) {
+          if (
+            this.isTouchInput() &&
+            !this.hudPointerZone(p) &&
+            this.mode !== 'combat' &&
+            !this.isPaused()
+          ) {
+            this.cancelLongPress();
+            this.beginFreeCam();
+            this._touchDrag = {
+              x: p.x,
+              y: p.y,
+              scrollX: this.cameras.main.scrollX,
+              scrollY: this.cameras.main.scrollY,
+            };
+          } else {
+            this.cancelLongPress();
+          }
+        }
+      }
+
+      if (this._touchDrag && p.isDown && !this._pinchStart) {
+        const cam = this.cameras.main;
+        cam.scrollX = this._touchDrag.scrollX - (p.x - this._touchDrag.x) / cam.zoom;
+        cam.scrollY = this._touchDrag.scrollY - (p.y - this._touchDrag.y) / cam.zoom;
+        this.clampCamScroll();
+        this._edgePanIdle = 0;
+        return;
       }
 
       if (!this._midDrag || !p.isDown) return;
