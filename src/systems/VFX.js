@@ -64,4 +64,40 @@ export class VFX {
       onComplete: () => c.destroy(),
     });
   }
+
+  screenShake(intensity = 0.006, duration = 120) {
+    this.scene.cameras?.main?.shake(duration, intensity);
+  }
+
+  /** Horizontal scan across the north Wall district. */
+  wallScan(yWorld, color = 0x38bdf8) {
+    const g = this.scene.add.graphics().setDepth(90);
+    const w = this.scene.scale.width * 2;
+    g.fillStyle(color, 0.35);
+    g.fillRect(0, yWorld - 2, w, 4);
+    g.fillStyle(color, 0.12);
+    g.fillRect(0, yWorld - 12, w, 24);
+    this.scene.tweens.add({
+      targets: g,
+      alpha: 0,
+      duration: 900,
+      ease: 'Cubic.easeOut',
+      onComplete: () => g.destroy(),
+    });
+  }
+
+  escapeFlash(x, y) {
+    const ring = this.scene.add.circle(x, y, 6, 0xfbbf24, 0).setStrokeStyle(4, 0xfbbf24, 1).setDepth(95);
+    this.scene.tweens.add({
+      targets: ring,
+      scale: 12,
+      alpha: 0,
+      duration: 1100,
+      ease: 'Cubic.easeOut',
+      onComplete: () => ring.destroy(),
+    });
+    this.burst(x, y, 0x38bdf8, 16);
+    this.burst(x, y, 0xfbbf24, 10);
+    this.screenShake(0.012, 280);
+  }
 }

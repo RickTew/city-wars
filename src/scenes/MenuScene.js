@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { DAY_LENGTH } from '../config/constants.js';
 import { SaveSystem } from '../systems/SaveSystem.js';
+import { RunLegacy } from '../systems/RunLegacy.js';
 
 export class MenuScene extends Phaser.Scene {
   constructor() {
@@ -54,6 +55,15 @@ export class MenuScene extends Phaser.Scene {
         fontFamily: 'system-ui',
         fontSize: '18px',
         color: '#38bdf8',
+      })
+      .setOrigin(0.5);
+
+    const legacy = RunLegacy.summaryLine();
+    this.add
+      .text(w / 2, h * 0.27, legacy, {
+        fontFamily: 'system-ui',
+        fontSize: '13px',
+        color: '#64748b',
       })
       .setOrigin(0.5);
 

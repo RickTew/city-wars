@@ -310,6 +310,8 @@ export const combatMixin = {
       def.root.setAlpha(0.4);
     }
     this.audio.hit();
+    if (def.isPlayer && dmg >= 4) this.vfx?.screenShake(0.005 + dmg * 0.0008, 90);
+    else if (killed && att.isPlayer) this.vfx?.screenShake(0.008, 110);
     const verb = ranged
       ? att.kind === 'drone'
         ? 'zaps'
