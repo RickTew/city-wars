@@ -124,6 +124,8 @@ export class CityGenerator {
       this.escapePads.push({ x, y });
     }
 
+    this._stampNorthWall(g, w);
+
     return {
       ground: g,
       walls: w,
@@ -134,6 +136,17 @@ export class CityGenerator {
       gearDrops: this.gearDrops,
       escapePads: this.escapePads,
     };
+  }
+
+  /** Visible Wall band across the north — impassable barricade strip. */
+  _stampNorthWall(g, w) {
+    for (let x = 2; x < MAP_W - 2; x++) {
+      for (let y = 2; y < 8; y++) {
+        if (this.zones.getZone(x, y) !== ZONE.WALL) continue;
+        w[y][x] = T.BARRICADE;
+        g[y][x] = y <= 4 ? T.GATE : T.RUIN;
+      }
+    }
   }
 }
 

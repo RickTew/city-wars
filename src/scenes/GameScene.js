@@ -43,6 +43,7 @@ import { Progression } from '../systems/Progression.js';
 import { SaveSystem } from '../systems/SaveSystem.js';
 import { Minimap } from '../systems/Minimap.js';
 import { RunLegacy } from '../systems/RunLegacy.js';
+import { HUD_FONT, ZONE_TINT } from '../config/art.js';
 
 export class GameScene extends Phaser.Scene {
   constructor() {
@@ -773,7 +774,12 @@ export class GameScene extends Phaser.Scene {
 
     // LEFT: status + HP only
     this.alertText = this.add
-      .text(14, 8, 'CLEAR', { fontFamily: 'system-ui', fontSize: '18px', fontStyle: 'bold', color: '#22c55e' })
+      .text(14, 8, 'CLEAR', {
+        fontFamily: HUD_FONT,
+        fontSize: '18px',
+        fontStyle: 'bold',
+        color: '#22c55e',
+      })
       .setScrollFactor(0)
       .setDepth(d + 1);
     this.statText = this.add
@@ -784,7 +790,7 @@ export class GameScene extends Phaser.Scene {
     // CENTER: objective + day bar
     this.objText = this.add
       .text(w / 2, 6, '', {
-        fontFamily: 'system-ui',
+        fontFamily: HUD_FONT,
         fontSize: '13px',
         fontStyle: 'bold',
         color: '#fbbf24',
@@ -2893,7 +2899,7 @@ export class GameScene extends Phaser.Scene {
     });
 
     // Panel (does not close when clicked  -  stopPropagation via uiBlock)
-    const list = [...this.inv.blueprints];
+    const list = this.inv.sortedBlueprints();
     const rowH = list.length > 8 ? 40 : list.length > 6 ? 44 : 50;
     const panelH = Math.min(this.scale.height - 40, Math.max(460, 160 + list.length * rowH + 80));
 
@@ -3227,13 +3233,7 @@ export class GameScene extends Phaser.Scene {
   updateZoneAtmosphere(dt) {
     if (!this.zoneVeil) return;
     const z = this.zones.getZone(this.player.tx, this.player.ty);
-    const targets = {
-      [ZONE.SAFE]: { c: 0x000000, a: 0 },
-      [ZONE.MID]: { c: 0x0ea5e9, a: 0.04 },
-      [ZONE.OUTER]: { c: 0xf97316, a: 0.06 },
-      [ZONE.WALL]: { c: 0xef4444, a: 0.08 },
-    };
-    const t = targets[z] || targets[ZONE.SAFE];
+    const t = ZONE_TINT[z] || ZONE_TINT.safe;
     if (!this._zoneTint) this._zoneTint = { a: 0, c: 0 };
     this._zoneTint.a += (t.a - this._zoneTint.a) * Math.min(1, dt * 2.2);
     this.zoneVeil.setFillStyle(t.c, this._zoneTint.a);

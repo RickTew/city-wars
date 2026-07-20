@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { DAY_LENGTH } from '../config/constants.js';
+import { HUD_FONT } from '../config/art.js';
 import { SaveSystem } from '../systems/SaveSystem.js';
 import { RunLegacy } from '../systems/RunLegacy.js';
 
@@ -41,7 +42,7 @@ export class MenuScene extends Phaser.Scene {
 
     this.add
       .text(w / 2, h * 0.12, 'CITY WARS', {
-        fontFamily: 'system-ui',
+        fontFamily: HUD_FONT,
         fontSize: Math.min(64, w * 0.055) + 'px',
         fontStyle: 'bold',
         color: '#f8fafc',

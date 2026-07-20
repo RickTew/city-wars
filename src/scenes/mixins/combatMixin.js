@@ -1,4 +1,12 @@
 /** Combat methods extracted from GameScene (mixin). */
+import {
+  coverBonus,
+  enemyAttackMultiplier,
+  markedBonus,
+  onEnemyHitPlayer,
+  tickPlayerStatuses,
+} from '../../systems/combatRules.js';
+
 export const combatMixin = {
   startCombat(enemy, playerInitiated) {
     if (this.ended) return;
@@ -20,6 +28,10 @@ export const combatMixin = {
     this.combatFocus = enemy;
     this.combatTurn = 'player';
     this.combatLogLines = [];
+    this._combatRound = 0;
+    this._bleed = 0;
+    this._marked = 0;
+    this._suppressed = 0;
     this.audio.red();
     this.cameras.main.flash(120, 180, 40, 40);
     // Show SPEC on the bottom bar (touch-friendly)
@@ -37,6 +49,13 @@ export const combatMixin = {
           : `${enemy.name} engages!`
       );
       this.combatLog(rangeHint);
+      const intro = {
+        dog: 'Fast. Bites. Hates your face.',
+        enforcer: 'Heavy armor. CRUSH every third swing.',
+        drone: 'Marks you for the next shot.',
+        thug: 'Cheap shots. May leave you bleeding.',
+      }[enemy.kind];
+      if (intro) this.combatLog(intro);
       this.combatLog('Your turn  -  tap enemy. SPEC / long-press for specials.');
       this.logText.setText('Combat: tap foe. SPEC or long-press for specials.');
       this.refreshHud();
@@ -277,9 +296,24 @@ export const combatMixin = {
     let armorDef = def.def || 0;
     if (def.isPlayer) {
       armorDef = this.inv.totalDef(def.baseDef || 0);
+      armorDef += coverBonus(this, def.tx, def.ty);
+    } else if (!att.isPlayer) {
+      armorDef += coverBonus(this, def.tx, def.ty);
     }
     let raw = att.baseAtk + ((Math.random() * 3) | 0);
     let dmg = Math.max(1, raw + atkBonus - armorDef);
+
+    if (!att.isPlayer && def.isPlayer) {
+      const round = (this._combatRound || 0) + 1;
+      const { mult, tag } = enemyAttackMultiplier(att, round);
+      if (tag) this.combatLog(`${att.name}: ${tag}!`);
+      dmg = Math.max(1, Math.ceil(dmg * mult));
+      dmg += markedBonus(this);
+    }
+
+    if (att.isPlayer && this._suppressed > 0) {
+      dmg = Math.max(1, dmg - 1);
+    }
     // Power strike special (player only, one hit)
     if (att.isPlayer && this._powerNext) {
       dmg = Math.max(1, Math.ceil(dmg * 1.5));
@@ -328,6 +362,10 @@ export const combatMixin = {
       this.combatLog('You drop. Run over.');
       this.lose();
       return;
+    }
+    if (!killed && !att.isPlayer && def.isPlayer) {
+      const fx = onEnemyHitPlayer(att, this);
+      if (fx.length) this.combatLog(fx.join(' · '));
     }
     if (killed && !def.isPlayer) {
       if (this.combatFocus === def) this.combatFocus = null;
@@ -388,6 +426,8 @@ export const combatMixin = {
           return;
         }
         this.combatTurn = 'player';
+        const status = tickPlayerStatuses(this);
+        if (status.length) this.combatLog(status.join(' · '));
         this.combatLog(' -  your turn  - ');
         this.logText.setText('Your move  -  click the enemy to attack.');
         this.refreshHud();
@@ -403,6 +443,7 @@ export const combatMixin = {
 
   enemyCombatAct(e) {
     if (!e.alive) return;
+    this._combatRound = (this._combatRound || 0) + 1;
     const p = this.player;
     const d = Math.abs(e.tx - p.tx) + Math.abs(e.ty - p.ty);
     const range = e.ranged ? e.range || 4 : 1;
@@ -413,6 +454,10 @@ export const combatMixin = {
     const ox = e.tx;
     const oy = e.ty;
     this.stepEnemyToward(e, p.tx, p.ty);
+    if (e.kind === 'dog' && (e.tx !== ox || e.ty !== oy)) {
+      const d2 = Math.abs(e.tx - p.tx) + Math.abs(e.ty - p.ty);
+      if (d2 > range) this.stepEnemyToward(e, p.tx, p.ty);
+    }
     if (e.tx !== ox || e.ty !== oy) {
       this.combatLog(`${e.name} moves closer…`);
     } else {
@@ -425,6 +470,10 @@ export const combatMixin = {
     this.combatTurn = 'player';
     this.combatFocus = null;
     this._powerNext = false;
+    this._bleed = 0;
+    this._marked = 0;
+    this._suppressed = 0;
+    this._combatRound = 0;
     this.closeCombatSpecials?.();
     this.closeMoreMenu?.();
     this.clearMousePath();

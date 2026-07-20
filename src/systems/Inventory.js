@@ -277,4 +277,29 @@ export class Inventory {
       .join(' · ');
     return { mats: mats || 'no scrap', gear: gear || 'fists' };
   }
+
+  /** Ready recipes first; Breach Kit pinned near top. */
+  sortedBlueprints() {
+    return [...this.blueprints].sort((a, b) => {
+      const ra = this.canCraft(a) ? 0 : 1;
+      const rb = this.canCraft(b) ? 0 : 1;
+      if (ra !== rb) return ra - rb;
+      if (a === 'breach') return -1;
+      if (b === 'breach') return 1;
+      return (BLUEPRINTS[a]?.name || a).localeCompare(BLUEPRINTS[b]?.name || b);
+    });
+  }
+
+  /** Per-material progress for a blueprint (craft UI + hunt panel). */
+  matProgress(bpId) {
+    const bp = BLUEPRINTS[bpId];
+    if (!bp) return [];
+    return Object.entries(bp.needs).map(([m, need]) => ({
+      id: m,
+      name: MAT[m]?.name || m,
+      have: this.count(m),
+      need,
+      color: MAT[m]?.color || 0x94a3b8,
+    }));
+  }
 }

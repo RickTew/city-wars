@@ -27,6 +27,9 @@ export class Actor {
     // Use a single parent container; never leave orphan graphics
     this.root = scene.add.container(px, py).setDepth(this.isPlayer ? 25 : 22);
 
+    this.shadow = scene.add.ellipse(0, 12, this.isPlayer ? 18 : 14, 6, 0x000000, 0.35);
+    this.root.add(this.shadow);
+
     if (this.isPlayer) {
       this.buildPlayerLook(scene, opts);
     } else if (this.kind === 'dog') {

@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
-import { SLOT } from '../config/constants.js';
+import { BLUEPRINTS, MAT, SLOT } from '../config/constants.js';
+import { HUD_FONT } from '../config/art.js';
 
 /**
  * Bag + paper-doll loadout. Time paused while open (bagOpen).
@@ -12,6 +13,8 @@ export class EquipUI {
     this.open = false;
     this.nodes = [];
     this.drag = null;
+    this.tab = 'gear';
+    this._bagScroll = 0;
   }
 
   isOpen() {
@@ -128,6 +131,40 @@ export class EquipUI {
 
     this.nodes.push(dim, panel, topBar, title, stats);
 
+    const tabY = panelTop + topH + 14;
+    const tabs = [
+      { id: 'gear', label: 'GEAR' },
+      { id: 'mats', label: 'MATS' },
+      { id: 'craft', label: 'CRAFT' },
+    ];
+    const tabW = narrow ? 72 : 88;
+    tabs.forEach((t, i) => {
+      const tx = cx - tabW + i * (tabW + 6);
+      const active = this.tab === t.id;
+      const bg = s.add
+        .rectangle(tx, tabY, tabW, 28, active ? 0x0ea5e9 : 0x1e293b, 1)
+        .setStrokeStyle(1, active ? 0x7dd3fc : 0x334155)
+        .setScrollFactor(0)
+        .setDepth(d + 4)
+        .setInteractive({ useHandCursor: true });
+      bg.on('pointerup', () => {
+        this.tab = t.id;
+        this._bagScroll = 0;
+        this.show();
+      });
+      const lab = s.add
+        .text(tx, tabY, t.label, {
+          fontFamily: HUD_FONT,
+          fontSize: '10px',
+          fontStyle: 'bold',
+          color: active ? '#0b1220' : '#94a3b8',
+        })
+        .setOrigin(0.5)
+        .setScrollFactor(0)
+        .setDepth(d + 5);
+      this.nodes.push(bg, lab);
+    });
+
     const col = {
       head: 0xc026d3,
       body: 0x64748b,
@@ -138,9 +175,20 @@ export class EquipUI {
     };
 
     const footerH = narrow ? 72 : 78;
-    const contentTop = panelTop + topH + 8;
+    const contentTop = panelTop + topH + 36;
     const contentBot = cy + panelH / 2 - footerH;
     const contentH = contentBot - contentTop;
+
+    if (this.tab === 'mats') {
+      this._drawMatsPanel(s, cx, contentTop, contentH, panelW - 24, d, narrow);
+      this._drawFooter(s, cx, cy, panelW, panelH, footerH, inv, d, narrow, blockMap);
+      return;
+    }
+    if (this.tab === 'craft') {
+      this._drawCraftPanel(s, cx, contentTop, contentH, panelW - 24, d, narrow);
+      this._drawFooter(s, cx, cy, panelW, panelH, footerH, inv, d, narrow, blockMap);
+      return;
+    }
 
     let slotDefs;
     let bagArea; // { x, y, w, h } center + size
@@ -313,15 +361,50 @@ export class EquipUI {
     const chipH = narrow ? 44 : 50;
     const gridTop = bagTitleY + (narrow ? 28 : 36);
     const startX = bagArea.x - bagArea.w / 2 + padX + chipW / 2;
+    const maxRows = Math.max(1, Math.floor((bagArea.h - 40) / (chipH + chipGap)));
+    const maxVisible = maxRows * cols;
+    const scrollMax = Math.max(0, Math.ceil(bagItems.length / cols) - maxRows);
+    this._bagScroll = Phaser.Math.Clamp(this._bagScroll || 0, 0, scrollMax);
+
+    if (scrollMax > 0) {
+      const up = s.add
+        .text(bagArea.x + bagArea.w / 2 - 20, bagArea.y - bagArea.h / 2 + 8, '▲', {
+          fontFamily: HUD_FONT,
+          fontSize: '14px',
+          color: '#94a3b8',
+        })
+        .setOrigin(0.5)
+        .setScrollFactor(0)
+        .setDepth(d + 4)
+        .setInteractive({ useHandCursor: true });
+      up.on('pointerup', () => {
+        this._bagScroll = Math.max(0, this._bagScroll - 1);
+        this.show();
+      });
+      const dn = s.add
+        .text(bagArea.x + bagArea.w / 2 + 20, bagArea.y - bagArea.h / 2 + 8, '▼', {
+          fontFamily: HUD_FONT,
+          fontSize: '14px',
+          color: '#94a3b8',
+        })
+        .setOrigin(0.5)
+        .setScrollFactor(0)
+        .setDepth(d + 4)
+        .setInteractive({ useHandCursor: true });
+      dn.on('pointerup', () => {
+        this._bagScroll = Math.min(scrollMax, this._bagScroll + 1);
+        this.show();
+      });
+      this.nodes.push(up, dn);
+    }
 
     bagItems.forEach((item, i) => {
       const colN = i % cols;
       const row = (i / cols) | 0;
+      const visRow = row - this._bagScroll;
+      if (visRow < 0 || visRow >= maxRows) return;
       const ix = startX + colN * (chipW + chipGap);
-      const iy = gridTop + row * (chipH + chipGap) + chipH / 2;
-
-      // Clip items that would spill under footer (simple hard limit)
-      if (iy + chipH / 2 > bagArea.y + bagArea.h / 2 - 6) return;
+      const iy = gridTop + visRow * (chipH + chipGap) + chipH / 2;
 
       const border =
         item.slot === SLOT.WEAPON
@@ -456,12 +539,15 @@ export class EquipUI {
       this.nodes.push(empty);
     }
 
-    // Materials + close footer
+    this._drawFooter(s, cx, cy, panelW, panelH, footerH, inv, d, narrow, blockMap);
+  }
+
+  _drawFooter(s, cx, cy, panelW, panelH, footerH, inv, d, narrow, blockMap) {
+    const matY = cy + panelH / 2 - footerH + 16;
     const mats = inv.matList();
     const matLine = mats.length
       ? mats.map((m) => `${m.name}×${m.n}`).join('  ·  ')
       : 'No materials yet';
-    const matY = cy + panelH / 2 - footerH + 16;
     const matBg = s.add
       .rectangle(cx, matY, panelW - 28, 26, 0x0f172a, 1)
       .setStrokeStyle(1, 0x1e293b)
@@ -469,8 +555,8 @@ export class EquipUI {
       .setDepth(d + 2);
     const matText = s.add
       .text(cx, matY, matLine, {
-        fontFamily: 'system-ui',
-        fontSize: narrow ? '11px' : '12px',
+        fontFamily: HUD_FONT,
+        fontSize: narrow ? '10px' : '11px',
         color: '#a8a29e',
         wordWrap: { width: panelW - 48 },
         align: 'center',
@@ -492,8 +578,8 @@ export class EquipUI {
       });
     const closeT = s.add
       .text(cx, closeY, 'CLOSE', {
-        fontFamily: 'system-ui',
-        fontSize: '15px',
+        fontFamily: HUD_FONT,
+        fontSize: '14px',
         fontStyle: 'bold',
         color: '#0b1220',
       })
@@ -501,15 +587,168 @@ export class EquipUI {
       .setScrollFactor(0)
       .setDepth(d + 6);
 
-    close.on('pointerdown', (pointer) => {
-      blockMap(pointer);
+    close.on('pointerdown', blockMap);
+    close.on('pointerup', () => this.close());
+    this.nodes.push(matBg, matText, close, closeT);
+  }
+
+  _drawMatsPanel(s, cx, top, h, w, d, narrow) {
+    const inv = s.inv;
+    const mats = inv.matList();
+    const frame = s.add
+      .rectangle(cx, top + h / 2, w, h, 0x111827, 1)
+      .setStrokeStyle(1, 0x334155)
+      .setScrollFactor(0)
+      .setDepth(d + 2);
+    this.nodes.push(frame);
+    if (!mats.length) {
+      const t = s.add
+        .text(cx, top + h / 2, 'No materials.\nScavenge gold crates.', {
+          fontFamily: HUD_FONT,
+          fontSize: '13px',
+          color: '#64748b',
+          align: 'center',
+        })
+        .setOrigin(0.5)
+        .setScrollFactor(0)
+        .setDepth(d + 3);
+      this.nodes.push(t);
+      return;
+    }
+    const cols = narrow ? 2 : 3;
+    const chipW = Math.floor((w - 24) / cols) - 8;
+    mats.forEach((m, i) => {
+      const col = i % cols;
+      const row = (i / cols) | 0;
+      const x = cx - w / 2 + 16 + col * (chipW + 12) + chipW / 2;
+      const y = top + 24 + row * 52;
+      const color = MAT[m.id]?.color || 0x94a3b8;
+      const chip = s.add
+        .rectangle(x, y, chipW, 44, 0x1e293b, 1)
+        .setStrokeStyle(2, color)
+        .setScrollFactor(0)
+        .setDepth(d + 3);
+      const dot = s.add.circle(x - chipW / 2 + 10, y, 5, color).setScrollFactor(0).setDepth(d + 4);
+      const lab = s.add
+        .text(x + 4, y - 6, m.name, {
+          fontFamily: HUD_FONT,
+          fontSize: '11px',
+          color: '#f8fafc',
+        })
+        .setOrigin(0.5)
+        .setScrollFactor(0)
+        .setDepth(d + 4);
+      const cnt = s.add
+        .text(x + 4, y + 10, `×${m.n}`, {
+          fontFamily: HUD_FONT,
+          fontSize: '12px',
+          fontStyle: 'bold',
+          color: '#7dd3fc',
+        })
+        .setOrigin(0.5)
+        .setScrollFactor(0)
+        .setDepth(d + 4);
+      this.nodes.push(chip, dot, lab, cnt);
     });
-    close.on('pointerup', (pointer) => {
-      blockMap(pointer);
-      this.close();
+  }
+
+  _drawCraftPanel(s, cx, top, h, w, d, narrow) {
+    const inv = s.inv;
+    const frame = s.add
+      .rectangle(cx, top + h / 2, w, h, 0x111827, 1)
+      .setStrokeStyle(1, 0xa855f7)
+      .setScrollFactor(0)
+      .setDepth(d + 2);
+    this.nodes.push(frame);
+
+    const bps = inv.sortedBlueprints();
+    if (!bps.length) {
+      const t = s.add
+        .text(cx, top + h / 2, 'No blueprints.\nFind pink landmarks.', {
+          fontFamily: HUD_FONT,
+          fontSize: '13px',
+          color: '#64748b',
+          align: 'center',
+        })
+        .setOrigin(0.5)
+        .setScrollFactor(0)
+        .setDepth(d + 3);
+      this.nodes.push(t);
+      return;
+    }
+
+    let y = top + 20;
+    bps.slice(0, narrow ? 5 : 7).forEach((bpId) => {
+      const bp = BLUEPRINTS[bpId];
+      if (!bp) return;
+      const ready = inv.canCraft(bpId);
+      const row = s.add
+        .rectangle(cx, y, w - 16, narrow ? 52 : 58, ready ? 0x14532d : 0x1e293b, 1)
+        .setStrokeStyle(1, ready ? 0x4ade80 : 0x475569)
+        .setScrollFactor(0)
+        .setDepth(d + 3);
+      const title = s.add
+        .text(cx - w / 2 + 20, y - (narrow ? 10 : 12), bp.name, {
+          fontFamily: HUD_FONT,
+          fontSize: '12px',
+          fontStyle: 'bold',
+          color: ready ? '#86efac' : '#e2e8f0',
+        })
+        .setOrigin(0, 0.5)
+        .setScrollFactor(0)
+        .setDepth(d + 4);
+
+      const parts = inv.matProgress(bpId);
+      parts.forEach((p, pi) => {
+        const pct = Math.min(1, p.have / p.need);
+        const bx = cx - w / 2 + 20 + pi * (narrow ? 88 : 96);
+        const by = y + (narrow ? 12 : 14);
+        if (bx > cx + w / 2 - 40) return;
+        s.add
+          .rectangle(bx, by, 72, 6, 0x0f172a, 1)
+          .setOrigin(0, 0.5)
+          .setScrollFactor(0)
+          .setDepth(d + 4);
+        const fill = s.add
+          .rectangle(bx, by, 72 * pct, 5, p.color, 1)
+          .setOrigin(0, 0.5)
+          .setScrollFactor(0)
+          .setDepth(d + 5);
+        const lbl = s.add
+          .text(bx, by + 10, `${p.name} ${p.have}/${p.need}`, {
+            fontFamily: HUD_FONT,
+            fontSize: '8px',
+            color: '#94a3b8',
+          })
+          .setOrigin(0, 0.5)
+          .setScrollFactor(0)
+          .setDepth(d + 5);
+        this.nodes.push(fill, lbl);
+      });
+
+      if (ready) {
+        row.setInteractive({ useHandCursor: true });
+        row.on('pointerup', () => {
+          s.toggleCraft(true);
+          s.tryCraftId(bpId);
+          this.show();
+        });
+      }
+
+      this.nodes.push(row, title);
+      y += narrow ? 58 : 64;
     });
 
-    this.nodes.push(matBg, matText, close, closeT);
+    const hint = s.add
+      .text(cx, top + h - 16, 'Green = ready at purple bench. Open CRAFT on bar.', {
+        fontFamily: HUD_FONT,
+        fontSize: '9px',
+        color: '#64748b',
+      })
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(d + 3);
+    this.nodes.push(hint);
   }
 
   _drawDoll(s, x, y, d, char, inv, scale = 1) {
