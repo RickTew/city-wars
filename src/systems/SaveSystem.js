@@ -221,7 +221,7 @@ export class SaveSystem {
         }
       }
 
-      scene.relockCameraToPlayer?.();
+      scene.snapCameraToPlayer?.();
       scene.updateObjective?.();
       scene.updateFow?.();
       scene.refreshHud?.();

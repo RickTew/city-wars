@@ -130,7 +130,7 @@ export class MenuScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
 
-    y += (narrow ? 28 : 32) + gap;
+    y += (narrow ? 32 : 36) + gap + 8;
 
     const opts = [
       { key: 'short', label: 'SHORT', sub: '~8m' },

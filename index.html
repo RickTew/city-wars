@@ -36,18 +36,20 @@
         width: 100%;
         height: 100%;
         overflow: hidden;
+        overscroll-behavior: none;
+        position: fixed;
         background: #0b1220;
         touch-action: none;
         font-family: 'Share Tech Mono', 'Courier New', monospace;
-        /* Safe areas for notched phones when installed as PWA */
-        padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
-          env(safe-area-inset-left);
       }
       #game-container {
         width: 100%;
         height: 100%;
         position: fixed;
         inset: 0;
+        box-sizing: border-box;
+        padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px)
+          env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
       }
       #game-container canvas {
         display: block;

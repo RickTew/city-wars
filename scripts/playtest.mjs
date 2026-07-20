@@ -75,7 +75,7 @@ async function main() {
     await page.mouse.click(mw / 2, mh * 0.48);
     await sleep(500);
     // Character select: ENTER THE GRID
-    await page.mouse.click(mw / 2, mh - 40);
+    await page.mouse.click(mw / 2, mh - 36);
     await sleep(900);
 
     // Wait for game scene debug API

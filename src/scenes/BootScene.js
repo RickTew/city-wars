@@ -8,6 +8,9 @@ export class BootScene extends Phaser.Scene {
 
   create() {
     TileArt.generate(this);
+    if (typeof document !== 'undefined') {
+      document.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
+    }
     this.scene.start('Menu');
   }
 }

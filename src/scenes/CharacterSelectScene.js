@@ -19,12 +19,14 @@ export class CharacterSelectScene extends Phaser.Scene {
     this.children.removeAll(true);
     const w = this.scale.width;
     const h = this.scale.height;
+    const narrow = w < 520;
 
     this.add.rectangle(w / 2, h / 2, w, h, 0x070b12);
 
-    const titleSize = Math.min(30, Math.max(22, w * 0.065));
+    const titleSize = Math.min(28, Math.max(20, w * 0.058));
+    const headerH = titleSize + 36;
     this.add
-      .text(w / 2, Math.max(20, h * 0.04), 'CHOOSE YOUR RUNNER', {
+      .text(w / 2, Math.max(16, h * 0.03), 'CHOOSE YOUR RUNNER', {
         fontFamily: HUD_FONT,
         fontSize: titleSize + 'px',
         fontStyle: 'bold',
@@ -35,27 +37,24 @@ export class CharacterSelectScene extends Phaser.Scene {
       .setOrigin(0.5, 0);
 
     this.add
-      .text(w / 2, Math.max(48, h * 0.04 + titleSize + 6), '9 runners. Pick your scar.', {
+      .text(w / 2, Math.max(16, h * 0.03) + titleSize + 4, '9 runners. Pick your scar.', {
         fontFamily: 'system-ui',
-        fontSize: '13px',
+        fontSize: '12px',
         color: '#94a3b8',
       })
       .setOrigin(0.5, 0);
 
-    // Tight fixed grid, centered (not stretched to screen edges)
     const cols = 3;
     const rows = 3;
-    const gapX = 10;
-    const gapY = 10;
-    const topLimit = Math.max(80, h * 0.04 + titleSize + 32);
-    const bottomLimit = h - 100;
-    const cardW = Math.min(220, Math.floor((w - 32 - gapX * (cols - 1)) / cols));
-    const cardH = Math.min(148, Math.floor((bottomLimit - topLimit - gapY * (rows - 1)) / rows));
+    const gapX = narrow ? 8 : 10;
+    const gapY = narrow ? 8 : 10;
+    const topLimit = Math.max(72, h * 0.03 + headerH);
+    const bottomLimit = h - 96;
+    const cardW = Math.floor((w - 24 - gapX * (cols - 1)) / cols);
+    const cardH = Math.min(152, Math.floor((bottomLimit - topLimit - gapY * (rows - 1)) / rows));
     const gridW = cols * cardW + (cols - 1) * gapX;
-    const gridH = rows * cardH + (rows - 1) * gapY;
     const startX = w / 2 - gridW / 2 + cardW / 2;
-    const midY = (topLimit + bottomLimit) / 2;
-    const startY = midY - gridH / 2 + cardH / 2;
+    const startY = topLimit + cardH / 2;
 
     CHARACTERS.forEach((c, i) => {
       const col = i % cols;
@@ -63,52 +62,54 @@ export class CharacterSelectScene extends Phaser.Scene {
       const x = startX + col * (cardW + gapX);
       const y = startY + row * (cardH + gapY);
       const on = this.selected === c.id;
+      const left = x - cardW / 2 + 8;
 
       const bg = this.add
         .rectangle(x, y, cardW, cardH, on ? 0x0c4a6e : 0x1e293b, 1)
         .setStrokeStyle(3, on ? c.color : 0x475569)
         .setInteractive({ useHandCursor: true });
 
-      const cardTop = y - cardH / 2;
-
-      this.add.circle(x - cardW * 0.34, cardTop + 22, 12, c.color);
-      this.add.circle(x - cardW * 0.34, cardTop + 14, 6, c.hair || 0xfde68a);
+      this.add.circle(left + 10, y - cardH / 2 + 22, 10, c.color);
+      this.add.circle(left + 10, y - cardH / 2 + 16, 5, c.hair || 0xfde68a);
 
       this.add
-        .text(x + 8, cardTop + 10, c.name, {
+        .text(left + 24, y - cardH / 2 + 10, c.name, {
           fontFamily: 'system-ui',
-          fontSize: '13px',
+          fontSize: narrow ? '11px' : '12px',
           fontStyle: 'bold',
           color: '#f8fafc',
         })
         .setOrigin(0, 0);
       this.add
-        .text(x + 8, cardTop + 26, c.title, {
+        .text(left + 24, y - cardH / 2 + 24, c.title, {
           fontFamily: 'system-ui',
-          fontSize: '10px',
+          fontSize: '9px',
           color: '#7dd3fc',
         })
         .setOrigin(0, 0);
 
       const bonusLine = formatBonuses(c.bonuses);
-      this.add
-        .text(x, cardTop + 42, c.blurb, {
-          fontFamily: 'system-ui',
-          fontSize: '9px',
-          color: '#94a3b8',
-          align: 'center',
-          wordWrap: { width: cardW - 16 },
-        })
-        .setOrigin(0.5, 0);
+      const showBlurb = cardH >= 118;
+      if (showBlurb) {
+        this.add
+          .text(x, y - cardH / 2 + 44, c.blurb, {
+            fontFamily: 'system-ui',
+            fontSize: '8px',
+            color: '#94a3b8',
+            align: 'center',
+            wordWrap: { width: cardW - 12 },
+          })
+          .setOrigin(0.5, 0);
+      }
 
       this.add
-        .text(x, cardTop + cardH - 10, bonusLine, {
+        .text(x, y + cardH / 2 - 8, bonusLine, {
           fontFamily: 'system-ui',
-          fontSize: '9px',
+          fontSize: '8px',
           fontStyle: 'bold',
           color: on ? '#fde68a' : '#64748b',
           align: 'center',
-          wordWrap: { width: cardW - 12 },
+          wordWrap: { width: cardW - 10 },
         })
         .setOrigin(0.5, 1);
 
@@ -120,13 +121,13 @@ export class CharacterSelectScene extends Phaser.Scene {
     });
 
     const narr = this.registry.get('narratorOn') !== false;
-    const ny = h - 88;
+    const ny = h - 72;
     const box = this.add
-      .rectangle(w / 2 - 200, ny, 20, 20, narr ? 0x0ea5e9 : 0x1e293b)
+      .rectangle(w / 2 - (narrow ? 150 : 200), ny, 20, 20, narr ? 0x0ea5e9 : 0x1e293b)
       .setStrokeStyle(2, 0x94a3b8)
       .setInteractive({ useHandCursor: true });
     this.add
-      .text(w / 2 - 200, ny, narr ? 'Y' : '', {
+      .text(w / 2 - (narrow ? 150 : 200), ny, narr ? 'Y' : '', {
         fontFamily: 'system-ui',
         fontSize: '12px',
         fontStyle: 'bold',
@@ -134,9 +135,9 @@ export class CharacterSelectScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
     const nlab = this.add
-      .text(w / 2 - 182, ny, 'Keep story cards after the tutorial', {
+      .text(w / 2 - (narrow ? 132 : 182), ny, 'Keep story cards after the tutorial', {
         fontFamily: 'system-ui',
-        fontSize: '13px',
+        fontSize: narrow ? '11px' : '13px',
         color: '#e2e8f0',
       })
       .setOrigin(0, 0.5)
@@ -149,13 +150,13 @@ export class CharacterSelectScene extends Phaser.Scene {
     nlab.on('pointerup', toggleN);
 
     const go = this.add
-      .rectangle(w / 2, h - 40, 260, 48, 0x0ea5e9)
+      .rectangle(w / 2, h - 36, Math.min(260, w - 32), 46, 0x0ea5e9)
       .setStrokeStyle(2, 0x7dd3fc)
       .setInteractive({ useHandCursor: true });
     this.add
-      .text(w / 2, h - 40, 'ENTER THE GRID', {
+      .text(w / 2, h - 36, 'ENTER THE GRID', {
         fontFamily: 'system-ui',
-        fontSize: '18px',
+        fontSize: '17px',
         fontStyle: 'bold',
         color: '#0b1220',
       })
@@ -174,13 +175,13 @@ function formatBonuses(b = {}) {
   if (b.def) parts.push(`DEF+${b.def}`);
   if (b.maxHp) parts.push(`HP${b.maxHp > 0 ? '+' : ''}${b.maxHp}`);
   if (b.moveBonus) parts.push(b.moveBonus > 0 ? 'FAST' : 'SLOW');
-  if (b.sneakBonus) parts.push(b.sneakBonus > 0 ? `SNEAK+${b.sneakBonus}` : 'LOUD');
-  if (b.visionDay) parts.push(`VISION+${b.visionDay}`);
+  if (b.sneakBonus) parts.push(b.sneakBonus > 0 ? `SNK+${b.sneakBonus}` : 'LOUD');
+  if (b.visionDay) parts.push(`VIS+${b.visionDay}`);
   if (b.scavengeBonus) parts.push(`LOOT+${b.scavengeBonus}`);
   if (b.healBonus) parts.push(`HEAL+${b.healBonus}`);
   if (b.batBonus) parts.push(`CLUB+${b.batBonus}`);
   if (b.rangedBonus) parts.push(`GUN+${b.rangedBonus}`);
-  if (b.craftBonus) parts.push(`CRAFT+${b.craftBonus}`);
+  if (b.craftBonus) parts.push(`CRF+${b.craftBonus}`);
   if (b.explosiveBonus) parts.push(`BOOM+${b.explosiveBonus}`);
   return parts.length ? parts.join(' · ') : 'balanced';
 }

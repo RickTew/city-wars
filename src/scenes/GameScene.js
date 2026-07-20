@@ -261,7 +261,7 @@ export class GameScene extends Phaser.Scene {
     // Longer peek on small screens
     const peekMs = this.scale.width < 600 ? 2200 : 1600;
     this.time.delayedCall(peekMs, () => {
-      if (!this.ended) this.relockCameraToPlayer?.();
+      /* camera stays put — no auto re-center after popup nudge */
     });
   }
 
@@ -354,7 +354,7 @@ export class GameScene extends Phaser.Scene {
     if (!this.walkable(tx, ty) && !this.isInteractiveTile(tx, ty)) return false;
     this.clearMousePath();
     this.player.setTile(tx, ty, false);
-    this.relockCameraToPlayer();
+    this.snapCameraToPlayer();
     this.onStepTile();
     this.updateFow();
     this.refreshHud();
@@ -417,28 +417,32 @@ export class GameScene extends Phaser.Scene {
   /** Position top HUD elements — avoids objective overlapping stats on phones. */
   layoutTopHud(w = this.scale.width, h = this.scale.height) {
     const mobile = this.isMobileHud(w, h);
+    const topH = mobile ? 84 : 56;
+    if (this.topBar) {
+      this.topBar.setSize(w, topH);
+    }
     if (this.alertText) {
-      this.alertText.setPosition(10, mobile ? 6 : 8);
-      this.alertText.setFontSize(mobile ? '15px' : '18px');
+      this.alertText.setPosition(10, mobile ? 8 : 8);
+      this.alertText.setFontSize(mobile ? '14px' : '18px');
     }
     if (this.statText) {
-      this.statText.setPosition(10, mobile ? 24 : 32);
+      this.statText.setPosition(10, mobile ? 26 : 32);
     }
     if (this.invText) {
       this.invText.setVisible(!mobile);
       if (!mobile) this.invText.setPosition(w - 14, 10);
     }
-    if (this.dayBarBg) this.dayBarBg.setPosition(w / 2, mobile ? 38 : 42);
-    if (this.dayBarFill) this.dayBarFill.setPosition(w / 2 - 100, mobile ? 38 : 42);
-    if (this.dayBarLabel) this.dayBarLabel.setPosition(w / 2, mobile ? 38 : 42);
-    if (this.heatText) this.heatText.setPosition(w / 2, mobile ? 50 : 54);
-    if (this.heatBarBg) this.heatBarBg.setPosition(w / 2, mobile ? 58 : 62);
-    if (this.heatBarFill) this.heatBarFill.setPosition(w / 2 - 50, mobile ? 58 : 62);
+    if (this.dayBarBg) this.dayBarBg.setPosition(w / 2, mobile ? 42 : 42);
+    if (this.dayBarFill) this.dayBarFill.setPosition(w / 2 - 100, mobile ? 42 : 42);
+    if (this.dayBarLabel) this.dayBarLabel.setPosition(w / 2, mobile ? 42 : 42);
+    if (this.heatText) this.heatText.setPosition(w / 2, mobile ? 54 : 54);
+    if (this.heatBarBg) this.heatBarBg.setPosition(w / 2, mobile ? 62 : 62);
+    if (this.heatBarFill) this.heatBarFill.setPosition(w / 2 - 50, mobile ? 62 : 62);
     if (this.objText) {
       if (mobile) {
-        this.objText.setPosition(w / 2, 64);
-        this.objText.setWordWrapWidth?.(w - 24);
-        this.objText.setFontSize('11px');
+        this.objText.setPosition(w / 2, 70);
+        this.objText.setWordWrapWidth?.(w - 28);
+        this.objText.setFontSize('10px');
       } else {
         this.objText.setPosition(w / 2, 6);
         this.objText.setWordWrapWidth?.(Math.min(420, w * 0.42));
@@ -456,7 +460,7 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.setDeadzone(w * 0.2, h * 0.18);
 
     if (this.topBar) {
-      const topH = this.isMobileHud(w, h) ? 78 : 56;
+      const topH = this.isMobileHud(w, h) ? 84 : 56;
       this.topBar.setSize(w, topH);
       this.topBar.setPosition(0, 0);
     }
@@ -492,14 +496,24 @@ export class GameScene extends Phaser.Scene {
     return w < 700;
   }
 
+  /** Bottom inset from iOS home bar / notch (CSS safe-area). */
+  safeAreaBottom() {
+    if (typeof document === 'undefined') return 0;
+    const el = document.getElementById('game-container');
+    if (!el) return 0;
+    const pad = parseFloat(getComputedStyle(el).paddingBottom) || 0;
+    return Math.max(0, pad);
+  }
+
   /** Shared layout numbers for bottom HUD, craft panel, and input hit zones. */
   barMetrics(w = this.scale.width, h = this.scale.height) {
     const mobile = this.isMobileHud(w, h);
     const narrow = this.isNarrowBar(w);
     const twoRow = mobile;
-    const rowH = mobile ? 34 : narrow ? 36 : 40;
-    const rowGap = mobile ? 4 : 0;
-    const padBot = mobile ? 10 : 8;
+    const rowH = mobile ? 36 : narrow ? 36 : 40;
+    const rowGap = mobile ? 6 : 0;
+    const safeBot = this.safeAreaBottom();
+    const padBot = (mobile ? 18 : 10) + safeBot;
     const barH = twoRow ? rowH * 2 + rowGap + 8 : 52;
     const bottomY = h - padBot - barH / 2;
     const primaryY = twoRow ? h - padBot - rowH / 2 : h - 58;
@@ -513,7 +527,7 @@ export class GameScene extends Phaser.Scene {
   /** Pointer is over top or bottom HUD strips (not the map). */
   hudPointerZone(p) {
     const m = this.barMetrics();
-    const topHud = this.isMobileHud() ? 78 : 56;
+    const topHud = this.isMobileHud() ? 84 : 56;
     return p.y < topHud || p.y > this.scale.height - m.hudBottom;
   }
 
@@ -900,7 +914,7 @@ export class GameScene extends Phaser.Scene {
     const h = this.scale.height;
 
     // Top bar  -  three clean columns, no stacked text
-    const topH = this.isMobileHud(w, h) ? 78 : 56;
+    const topH = this.isMobileHud(w, h) ? 84 : 56;
     this.topBar = this.add
       .rectangle(0, 0, w, topH, 0x020617, 0.92)
       .setOrigin(0)
@@ -1494,12 +1508,15 @@ export class GameScene extends Phaser.Scene {
       pressed = false;
     });
     bg.on('pointerdown', (pointer) => {
+      pointer.event?.preventDefault?.();
+      pointer.event?.stopPropagation?.();
       if (pointer.event?.stopPropagation) pointer.event.stopPropagation();
       pressed = true;
       this.uiBlockClick = true;
     });
     bg.on('pointerup', (pointer) => {
-      if (pointer.event?.stopPropagation) pointer.event.stopPropagation();
+      pointer.event?.preventDefault?.();
+      pointer.event?.stopPropagation?.();
       if (!pressed) {
         // Still accept if released on button (mobile often skips clean down/up pairing)
       }
@@ -2867,7 +2884,6 @@ export class GameScene extends Phaser.Scene {
     if (!this.walkable(nx, ny)) return false;
 
     this.player.setTile(nx, ny, true);
-    this.relockCameraToPlayer();
     this.audio.move();
     this.hiding = false;
     const isRun = (this.running || shiftRun) && !this.sneaking;
