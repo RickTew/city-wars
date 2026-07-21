@@ -46,9 +46,13 @@ export class TileArt {
       if (i === T.ROAD) {
         g.fillStyle(0x18181b, 1);
         g.fillRect(x, 0, TILE, TILE);
-        g.lineStyle(1, 0x52525b, 0.35);
-        g.lineBetween(x + 2, 16, x + 30, 16);
-        g.lineStyle(1, NEON.cyan, 0.12);
+        // Lane paint  -  reads better on 2-wide avenues
+        g.lineStyle(1, 0x52525b, 0.45);
+        g.lineBetween(x + 2, 16, x + 14, 16);
+        g.lineBetween(x + 18, 16, x + 30, 16);
+        g.fillStyle(0xfbbf24, 0.35);
+        g.fillRect(x + 14, 15, 4, 2);
+        g.lineStyle(1, NEON.cyan, 0.1);
         g.lineBetween(x + 4, 22, x + 28, 20);
       }
       if (i === T.SIDEWALK) {

@@ -23,7 +23,9 @@ export class Minimap {
     // On narrow screens, shrink minimap so it does not own the top-right
     this.size = w < 520 ? 88 : 118;
     const x = w - this.pad - this.size / 2;
-    const y = 78 + this.size / 2;
+    // Sit below mobile objective banner (top ~102) so MAP does not cover QUEST text
+    const yTop = s.isMobileHud?.() ? 108 : 78;
+    const y = yTop + this.size / 2;
 
     this.frame = s.add
       .rectangle(x, y, this.size + 6, this.size + 6, 0x0f172a, 0.92)
@@ -61,10 +63,13 @@ export class Minimap {
 
   onResize() {
     if (!this.frame) return;
-    const w = this.scene.scale.width;
+    const s = this.scene;
+    const w = s.scale.width;
     this.size = w < 520 ? 88 : 118;
     const x = w - this.pad - this.size / 2;
-    const y = 78 + this.size / 2;
+    // Sit below mobile objective banner (top ~102) so MAP does not cover QUEST text
+    const yTop = s.isMobileHud?.() ? 108 : 78;
+    const y = yTop + this.size / 2;
     this._cx = x;
     this._cy = y;
     this.frame.setPosition(x, y);
@@ -157,7 +162,7 @@ export class Minimap {
 
     // Mid-left under top bar (HQ arrow is bottom-left)
     const bx = 40;
-    const by = Math.min(108, 64 + (s.scale.height < 700 ? 8 : 20));
+    const by = Math.min(120, (s.isMobileHud?.() ? 118 : 64) + (s.scale.height < 700 ? 8 : 20));
 
     if (t.ui) {
       const name = String(t.ui).toUpperCase();

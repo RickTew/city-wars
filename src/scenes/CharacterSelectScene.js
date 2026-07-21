@@ -1,6 +1,8 @@
 import Phaser from 'phaser';
 import { CHARACTERS } from '../config/characters.js';
 import { HUD_FONT } from '../config/art.js';
+import { drawMenuBackdrop } from '../systems/MenuBackdrop.js';
+import { AudioBus } from '../systems/AudioBus.js';
 
 export class CharacterSelectScene extends Phaser.Scene {
   constructor() {
@@ -11,17 +13,25 @@ export class CharacterSelectScene extends Phaser.Scene {
     if (!this.registry.get('dayLength')) this.registry.set('dayLength', 'medium');
     if (this.registry.get('narratorOn') === undefined) this.registry.set('narratorOn', true);
     this.selected = this.registry.get('characterId') || CHARACTERS[0].id;
+    this.audio = this.registry.get('audio') || new AudioBus();
+    this.registry.set('audio', this.audio);
+    this._backdrop = null;
     this.draw();
     this.scale.on('resize', () => this.draw());
   }
 
+  update(_t, dtMs) {
+    this._backdrop?.tick?.((dtMs || 16) / 1000);
+  }
+
   draw() {
     this.children.removeAll(true);
+    this._backdrop = null;
     const w = this.scale.width;
     const h = this.scale.height;
     const narrow = w < 520;
 
-    this.add.rectangle(w / 2, h / 2, w, h, 0x070b12);
+    this._backdrop = drawMenuBackdrop(this, w, h);
 
     const titleSize = Math.min(28, Math.max(20, w * 0.058));
     const headerH = titleSize + 36;
@@ -31,7 +41,7 @@ export class CharacterSelectScene extends Phaser.Scene {
         fontSize: titleSize + 'px',
         fontStyle: 'bold',
         color: '#f8fafc',
-        stroke: '#0ea5e9',
+        stroke: '#f97316',
         strokeThickness: 2,
       })
       .setOrigin(0.5, 0);
@@ -40,7 +50,7 @@ export class CharacterSelectScene extends Phaser.Scene {
       .text(w / 2, Math.max(16, h * 0.03) + titleSize + 4, '9 runners. Pick your scar.', {
         fontFamily: 'system-ui',
         fontSize: '12px',
-        color: '#94a3b8',
+        color: '#fdba74',
       })
       .setOrigin(0.5, 0);
 
@@ -150,8 +160,8 @@ export class CharacterSelectScene extends Phaser.Scene {
     nlab.on('pointerup', toggleN);
 
     const go = this.add
-      .rectangle(w / 2, h - 36, Math.min(260, w - 32), 46, 0x0ea5e9)
-      .setStrokeStyle(2, 0x7dd3fc)
+      .rectangle(w / 2, h - 36, Math.min(260, w - 32), 46, 0xea580c)
+      .setStrokeStyle(2, 0xfbbf24)
       .setInteractive({ useHandCursor: true });
     this.add
       .text(w / 2, h - 36, 'ENTER THE GRID', {
@@ -162,6 +172,8 @@ export class CharacterSelectScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
     go.on('pointerup', () => {
+      this.audio?.uiClick?.();
+      this.audio?.stopMenu?.();
       this.registry.set('characterId', this.selected);
       this.scene.start('Game');
     });

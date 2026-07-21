@@ -59,8 +59,12 @@ export class GameScene extends Phaser.Scene {
     this.alert = new AlertSystem();
     this.inv = new Inventory();
     this.help = new HelpDirector(HELP_DEFAULT);
-    this.audio = new AudioBus();
+    this.audio = this.registry.get('audio') || new AudioBus();
+    this.registry.set('audio', this.audio);
+    this.audio.loadMute();
     this.audio.ensure();
+    this.audio.stopMenu?.();
+    this._guideCamSoftFollow = false;
 
     this.enemies = [];
     this.mode = 'explore'; // explore | combat
@@ -189,6 +193,16 @@ export class GameScene extends Phaser.Scene {
         // Resume mid-run: allow story cards again
         this._storyQuiet = false;
         this._lastStoryZone = this.zones.getZone(this.player.tx, this.player.ty);
+        // Mid-tutorial save: re-surface gold pulse so phones do not feel "no tutorial"
+        if (this.guide && !this.guide.done) {
+          this.time.delayedCall(500, () => {
+            this.updateObjective();
+            this.refreshHud();
+            this.log(this.guide.objectiveText() || 'Follow the gold pulse.');
+            this.nudgeCameraTowardGuide();
+            this._guideCamSoftFollow = this.isMobileHud();
+          });
+        }
       } else {
         this.time.delayedCall(400, () => this.showTutorialBoot());
       }
@@ -209,12 +223,17 @@ export class GameScene extends Phaser.Scene {
 
   /** One intro modal for a new run. Unlocks story + nudges camera to the gold target. */
   showTutorialBoot() {
+    const mobile = this.isMobileHud();
     const intro = this.story.introCard(this.char, { compact: true });
+    this.audio?.popup?.();
     this.showPopup(intro.title, intro.body, () => {
       this._storyQuiet = false;
       this.updateObjective();
       this.refreshHud();
       this.nudgeCameraTowardGuide();
+      // Soft-hold cam on first hike so free-look does not lose the crate on phones
+      this._guideCamSoftFollow = mobile;
+      this.log(this.guide?.objectiveText() || 'Follow the gold pulse.');
     });
   }
 
@@ -232,7 +251,7 @@ export class GameScene extends Phaser.Scene {
 
   /**
    * Briefly free-look toward the current guide target so the gold pulse is on-screen.
-   * Relocks after a short peek.
+   * On phones, soft-follow keeps the hike target framed until first loot / UI step.
    */
   nudgeCameraTowardGuide() {
     if (!this.player) return;
@@ -250,19 +269,53 @@ export class GameScene extends Phaser.Scene {
     const py = this.player.y;
     const tx = ox * TILE + TILE / 2;
     const ty = oy * TILE + TILE / 2;
-    // Blend player + target so both stay in frame when possible
-    const cx = px * 0.45 + tx * 0.55;
-    const cy = py * 0.45 + ty * 0.55;
+    // Bias toward target on phones so the gold crate is not under the HUD
+    const mobile = this.isMobileHud();
+    const blend = mobile ? 0.32 : 0.45;
+    const cx = px * blend + tx * (1 - blend);
+    const cy = py * blend + ty * (1 - blend);
 
     this.beginFreeCam?.();
     cam.centerOn(cx, cy);
     this.clampCamScroll?.();
     this._edgePanIdle = 0;
-    // Longer peek on small screens
-    const peekMs = this.scale.width < 600 ? 2200 : 1600;
-    this.time.delayedCall(peekMs, () => {
-      /* camera stays put — no auto re-center after popup nudge */
-    });
+    this.audio?.pulse?.();
+  }
+
+  /** Soft camera assist during early tutorial on phones (not full auto-follow). */
+  updateGuideCamSoftFollow(dt) {
+    if (!this._guideCamSoftFollow || !this.player || this.popupOpen) return;
+    if (this._midDrag || this._touchDrag) return;
+    if (!this.guide || this.guide.done) {
+      this._guideCamSoftFollow = false;
+      return;
+    }
+    // Stop after first loot, or when target becomes a UI button
+    if (this.guide.flags?.looted || this._guideLooted) {
+      this._guideCamSoftFollow = false;
+      return;
+    }
+    const t = this.guide.resolveTarget();
+    if (!t || t.ui) {
+      this._guideCamSoftFollow = false;
+      return;
+    }
+    const ox = t.tx ?? t.x;
+    const oy = t.ty ?? t.y;
+    if (ox == null || oy == null) return;
+
+    const cam = this.cameras.main;
+    const px = this.player.x;
+    const py = this.player.y;
+    const tx = ox * TILE + TILE / 2;
+    const ty = oy * TILE + TILE / 2;
+    const wantX = px * 0.35 + tx * 0.65;
+    const wantY = py * 0.35 + ty * 0.65;
+    const curX = cam.scrollX + cam.width / 2;
+    const curY = cam.scrollY + cam.height / 2;
+    const k = Math.min(1, (dt || 0.016) * 2.2);
+    cam.centerOn(curX + (wantX - curX) * k, curY + (wantY - curY) * k);
+    this.clampCamScroll?.();
   }
 
   /** Dismiss current modal if open (playtest helper + keyboard escape path). */
@@ -417,9 +470,17 @@ export class GameScene extends Phaser.Scene {
   /** Position top HUD elements — avoids objective overlapping stats on phones. */
   layoutTopHud(w = this.scale.width, h = this.scale.height) {
     const mobile = this.isMobileHud(w, h);
-    const topH = mobile ? 84 : 56;
+    // Extra strip on phones for the gold objective (was crushed under heat + minimap)
+    const topH = mobile ? 102 : 56;
     if (this.topBar) {
       this.topBar.setSize(w, topH);
+    }
+    if (this.objBanner) {
+      this.objBanner.setVisible(mobile);
+      if (mobile) {
+        this.objBanner.setPosition(w / 2, 86);
+        this.objBanner.setSize(Math.min(w - 12, 420), 28);
+      }
     }
     if (this.alertText) {
       this.alertText.setPosition(10, mobile ? 8 : 8);
@@ -440,13 +501,15 @@ export class GameScene extends Phaser.Scene {
     if (this.heatBarFill) this.heatBarFill.setPosition(w / 2 - 50, mobile ? 62 : 62);
     if (this.objText) {
       if (mobile) {
-        this.objText.setPosition(w / 2, 70);
-        this.objText.setWordWrapWidth?.(w - 28);
-        this.objText.setFontSize('10px');
+        this.objText.setPosition(w / 2, 86);
+        this.objText.setWordWrapWidth?.(w - 40);
+        this.objText.setFontSize('12px');
+        this.objText.setOrigin(0.5, 0.5);
       } else {
         this.objText.setPosition(w / 2, 6);
         this.objText.setWordWrapWidth?.(Math.min(420, w * 0.42));
         this.objText.setFontSize('13px');
+        this.objText.setOrigin(0.5, 0);
       }
     }
   }
@@ -527,7 +590,7 @@ export class GameScene extends Phaser.Scene {
   /** Pointer is over top or bottom HUD strips (not the map). */
   hudPointerZone(p) {
     const m = this.barMetrics();
-    const topHud = this.isMobileHud() ? 84 : 56;
+    const topHud = this.isMobileHud() ? 102 : 56;
     return p.y < topHud || p.y > this.scale.height - m.hudBottom;
   }
 
@@ -914,7 +977,7 @@ export class GameScene extends Phaser.Scene {
     const h = this.scale.height;
 
     // Top bar  -  three clean columns, no stacked text
-    const topH = this.isMobileHud(w, h) ? 84 : 56;
+    const topH = this.isMobileHud(w, h) ? 102 : 56;
     this.topBar = this.add
       .rectangle(0, 0, w, topH, 0x020617, 0.92)
       .setOrigin(0)
@@ -936,6 +999,14 @@ export class GameScene extends Phaser.Scene {
       .setScrollFactor(0)
       .setDepth(d + 1);
 
+    // Mobile objective banner (dedicated strip so quest text is not buried)
+    this.objBanner = this.add
+      .rectangle(w / 2, 86, Math.min(w - 12, 420), 28, 0x422006, 0.95)
+      .setStrokeStyle(1, 0xfbbf24)
+      .setScrollFactor(0)
+      .setDepth(d + 1)
+      .setVisible(this.isMobileHud(w, h));
+
     // CENTER: objective + day bar
     this.objText = this.add
       .text(w / 2, 6, '', {
@@ -948,7 +1019,7 @@ export class GameScene extends Phaser.Scene {
       })
       .setOrigin(0.5, 0)
       .setScrollFactor(0)
-      .setDepth(d + 1);
+      .setDepth(d + 2);
 
     this.dayBarBg = this.add
       .rectangle(w / 2, 42, 200, 12, 0x1e293b, 1)
@@ -1325,7 +1396,9 @@ export class GameScene extends Phaser.Scene {
     };
 
     mk(cy + 20, soundOn ? 'SOUND: ON' : 'SOUND: OFF', soundOn ? 0x22c55e : 0x64748b, () => {
-      this.audio.on = !this.audio.on;
+      const next = !this.audio.on;
+      if (this.audio.setMuted) this.audio.setMuted(!next);
+      else this.audio.on = next;
       this.closeRunMenu();
       this.openRunMenu();
       this.log(this.audio.on ? 'Sound ON.' : 'Sound muted.');
@@ -1698,7 +1771,7 @@ export class GameScene extends Phaser.Scene {
         dog._isGuideDog = true; // survives dawn dog cull
         this.enemies.push(dog);
         this.guideDog = dog;
-        this.log('A Grid Dog pads in. Follow the pulse. Left-click it.');
+        this.log('A Grid Dog pads in. Follow the pulse. Tap it.');
         return;
       }
     }
@@ -1721,7 +1794,8 @@ export class GameScene extends Phaser.Scene {
 
     const phase = (Math.sin(this._pulseT * 5.5) + 1) / 2;
     const a = 0.45 + phase * 0.55;
-    const r = 14 + phase * 16;
+    const mobile = this.isMobileHud();
+    const r = (mobile ? 18 : 14) + phase * (mobile ? 20 : 16);
     // Sit above modal dimmer (500) so edge beacons stay visible while reading GOT IT
     if (ui) ui.setDepth(this.popupOpen ? 520 : 140);
 
@@ -1783,12 +1857,14 @@ export class GameScene extends Phaser.Scene {
     const cam = this.cameras.main;
     const sx = (worldX - cam.worldView.x) * cam.zoom;
     const sy = (worldY - cam.worldView.y) * cam.zoom;
+    const mobile = this.isMobileHud();
+    const m = this.barMetrics();
     // Keep clear of center modal + HUD when forced
     const margin = force ? 36 : 28;
     const left = margin;
     const right = cam.width - margin;
-    const top = force ? 72 : 64;
-    const bot = cam.height - (force ? 110 : 100);
+    const top = force ? (mobile ? 112 : 72) : mobile ? 108 : 64;
+    const bot = cam.height - Math.max(force ? 110 : 100, m.hudBottom + 8);
     const onScreen = sx >= left && sx <= right && sy >= top && sy <= bot;
     if (onScreen && !force) return;
 
@@ -1815,13 +1891,13 @@ export class GameScene extends Phaser.Scene {
     }
 
     const ang = Math.atan2(sy - cy, sx - cx) || Math.atan2(sy - cam.height / 2, sx - cam.width / 2);
-    const pulse = 10 + phase * 8;
+    const pulse = (mobile ? 14 : 10) + phase * (mobile ? 10 : 8);
 
-    ui.lineStyle(3, 0xfbbf24, a);
+    ui.lineStyle(mobile ? 4 : 3, 0xfbbf24, a);
     ui.strokeCircle(cx, cy, pulse);
     ui.fillStyle(0xfbbf24, 0.35 + phase * 0.25);
-    ui.fillCircle(cx, cy, 6 + phase * 2);
-    const len = 16;
+    ui.fillCircle(cx, cy, (mobile ? 8 : 6) + phase * 2);
+    const len = mobile ? 20 : 16;
     const ex = cx + Math.cos(ang) * len;
     const ey = cy + Math.sin(ang) * len;
     ui.lineStyle(3, 0xfef08a, a);
@@ -1876,8 +1952,9 @@ export class GameScene extends Phaser.Scene {
     const hasCheck = !!opts.checkboxLabel;
     const narrow = w < 520 || h < 700;
     // Keep clear of top status + bottom action bar / home indicator
-    const safeTop = narrow ? 52 : 24;
-    const safeBot = narrow ? 100 : 40;
+    const m = this.barMetrics(w, h);
+    const safeTop = narrow ? 56 : 24;
+    const safeBot = Math.max(narrow ? 110 : 40, m.hudBottom + 12);
     const maxPanelH = h - safeTop - safeBot;
     const panelW = Math.min(560, w - (narrow ? 20 : 48));
     const bodyFont = narrow ? '13px' : '15px';
@@ -2765,6 +2842,7 @@ export class GameScene extends Phaser.Scene {
 
     // Explore real-time
     this.updateCameraEdgePan(dt);
+    this.updateGuideCamSoftFollow(dt);
     this.dayNight.update(dt);
     this.nightVeil.setAlpha(this.dayNight.isNight ? 0.45 : 0.05);
     this.alert.update(dt, this.hiding);

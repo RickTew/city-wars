@@ -3,6 +3,8 @@ import { DAY_LENGTH } from '../config/constants.js';
 import { HUD_FONT } from '../config/art.js';
 import { SaveSystem } from '../systems/SaveSystem.js';
 import { RunLegacy } from '../systems/RunLegacy.js';
+import { drawMenuBackdrop } from '../systems/MenuBackdrop.js';
+import { AudioBus } from '../systems/AudioBus.js';
 
 export class MenuScene extends Phaser.Scene {
   constructor() {
@@ -13,12 +15,36 @@ export class MenuScene extends Phaser.Scene {
     if (!this.registry.get('dayLength')) {
       this.registry.set('dayLength', 'medium');
     }
+    this.audio = this.registry.get('audio') || new AudioBus();
+    this.registry.set('audio', this.audio);
+    this.audio.loadMute();
+
+    this._backdrop = null;
+    this._uiLock = false;
     this.draw();
     this.scale.on('resize', () => this.draw());
+
+    // Unlock audio + start intro on first tap (iOS), or after a short beat
+    this.input.once('pointerdown', () => this.startIntroAudio());
+    this.time.delayedCall(80, () => this.startIntroAudio());
+  }
+
+  startIntroAudio() {
+    if (this._introStarted) return;
+    this._introStarted = true;
+    this.audio.ensure();
+    this.audio.menuIntro();
+  }
+
+  update(_t, dtMs) {
+    const dt = (dtMs || 16) / 1000;
+    this._backdrop?.tick?.(dt);
   }
 
   draw() {
     this.children.removeAll(true);
+    this._backdrop = null;
+
     const w = this.scale.width;
     const h = this.scale.height;
     const dayKey = this.registry.get('dayLength') || 'medium';
@@ -26,20 +52,8 @@ export class MenuScene extends Phaser.Scene {
     const peek = hasSave ? SaveSystem.peek() : null;
     const narrow = w < 520;
 
-    this.add.rectangle(w / 2, h / 2, w, h, 0x070b12);
-
-    const skylineY = h * 0.64;
-    const g = this.add.graphics();
-    for (let i = 0; i < Math.ceil(w / 50) + 2; i++) {
-      const bx = i * 52;
-      const bh = 50 + (i * 41) % 120;
-      g.fillStyle(0x111827, 1);
-      g.fillRect(bx, skylineY - bh, 44, bh + h - skylineY + 40);
-      g.fillStyle(0xfbbf24, 0.22);
-      for (let y = skylineY - bh + 12; y < h - 24; y += 18) {
-        if ((i + y) % 3) g.fillRect(bx + 10, y, 5, 5);
-      }
-    }
+    this._backdrop = drawMenuBackdrop(this, w, h);
+    const skylineY = this._backdrop.skylineY;
 
     const titleSize = Math.round(Math.min(76, Math.max(44, w * 0.11, h * 0.048)));
     const tagSize = Math.min(18, Math.max(13, w * 0.034));
@@ -67,16 +81,16 @@ export class MenuScene extends Phaser.Scene {
 
     let y = Math.max(48, (skylineY - blockH) / 2 + titleSize * 0.5);
 
-    // Title glow + main
+    // Title: amber fire ghost + white stroke (ruin neon, not clean cyan)
     this.add
       .text(w / 2, y, 'CITY WARS', {
         fontFamily: HUD_FONT,
         fontSize: titleSize + 'px',
         fontStyle: 'bold',
-        color: '#0ea5e9',
+        color: '#ea580c',
       })
       .setOrigin(0.5)
-      .setAlpha(0.35)
+      .setAlpha(0.4)
       .setScale(1.06);
 
     this.add
@@ -85,20 +99,20 @@ export class MenuScene extends Phaser.Scene {
         fontSize: titleSize + 'px',
         fontStyle: 'bold',
         color: '#f8fafc',
-        stroke: '#0ea5e9',
+        stroke: '#f97316',
         strokeThickness: Math.max(3, Math.round(titleSize * 0.06)),
-        shadow: { offsetX: 0, offsetY: 0, color: '#38bdf8', blur: 16, fill: true },
+        shadow: { offsetX: 0, offsetY: 0, color: '#fbbf24', blur: 18, fill: true },
       })
       .setOrigin(0.5);
 
     y += titleSize * 0.55 + gap * 0.5;
 
     this.add
-      .text(w / 2, y, 'ESCAPE FROM THE GRID', {
+      .text(w / 2, y, 'THE CITY STILL BURNS. YOU SHOULD LEAVE.', {
         fontFamily: HUD_FONT,
         fontSize: tagSize + 'px',
-        color: '#38bdf8',
-        letterSpacing: 2,
+        color: '#fdba74',
+        letterSpacing: 1,
       })
       .setOrigin(0.5);
 
@@ -109,7 +123,7 @@ export class MenuScene extends Phaser.Scene {
       .text(w / 2, y, legacy, {
         fontFamily: 'system-ui',
         fontSize: '12px',
-        color: '#64748b',
+        color: '#94a3b8',
       })
       .setOrigin(0.5);
 
@@ -119,14 +133,14 @@ export class MenuScene extends Phaser.Scene {
       .text(w / 2, y, 'Day length', {
         fontFamily: 'system-ui',
         fontSize: narrow ? '13px' : '15px',
-        color: '#94a3b8',
+        color: '#cbd5e1',
       })
       .setOrigin(0.5);
     this.add
-      .text(w / 2, y + (narrow ? 14 : 16), 'How fast night comes', {
+      .text(w / 2, y + (narrow ? 14 : 16), 'How fast the jokes get darker', {
         fontFamily: 'system-ui',
         fontSize: '11px',
-        color: '#475569',
+        color: '#64748b',
       })
       .setOrigin(0.5);
 
@@ -143,8 +157,8 @@ export class MenuScene extends Phaser.Scene {
       const selected = dayKey === o.key;
       const bx = dayStartX + i * dayGap;
       const bg = this.add
-        .rectangle(bx, y, btnW, dayBtnH, selected ? 0x0ea5e9 : 0x1e293b, 1)
-        .setStrokeStyle(2, selected ? 0x7dd3fc : 0x475569)
+        .rectangle(bx, y, btnW, dayBtnH, selected ? 0xea580c : 0x1e293b, 1)
+        .setStrokeStyle(2, selected ? 0xfbbf24 : 0x475569)
         .setInteractive({ useHandCursor: true });
       this.add
         .text(bx, y - 10, o.label, {
@@ -162,6 +176,8 @@ export class MenuScene extends Phaser.Scene {
         })
         .setOrigin(0.5);
       bg.on('pointerup', () => {
+        this.startIntroAudio();
+        this.audio.uiClick();
         this.registry.set('dayLength', o.key);
         this.draw();
       });
@@ -171,8 +187,8 @@ export class MenuScene extends Phaser.Scene {
 
     const startW = Math.min(280, w - 48);
     const start = this.add
-      .rectangle(w / 2, y, startW, startH, 0x0ea5e9, 1)
-      .setStrokeStyle(3, 0x7dd3fc)
+      .rectangle(w / 2, y, startW, startH, 0xea580c, 1)
+      .setStrokeStyle(3, 0xfbbf24)
       .setInteractive({ useHandCursor: true });
     this.add
       .text(w / 2, y, 'START RUN', {
@@ -183,6 +199,9 @@ export class MenuScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
     start.on('pointerup', () => {
+      this.startIntroAudio();
+      this.audio.uiClick();
+      this.audio.stopMenu();
       this.registry.set('loadSave', false);
       this.scene.start('CharacterSelect');
     });
@@ -203,6 +222,9 @@ export class MenuScene extends Phaser.Scene {
         })
         .setOrigin(0.5);
       cont.on('pointerup', () => {
+        this.startIntroAudio();
+        this.audio.uiClick();
+        this.audio.stopMenu();
         this.registry.set('loadSave', true);
         if (peek?.dayLength) this.registry.set('dayLength', peek.dayLength);
         if (peek?.characterId) this.registry.set('characterId', peek.characterId);
@@ -213,21 +235,21 @@ export class MenuScene extends Phaser.Scene {
     y += (hasSave ? contH / 2 : startH / 2) + gap + helpH / 2;
     const helpW = Math.min(320, w - 32);
     this.add
-      .rectangle(w / 2, y, helpW, helpH, 0x0f172a, 0.94)
-      .setStrokeStyle(1, 0x334155);
+      .rectangle(w / 2, y, helpW, helpH, 0x0f172a, 0.88)
+      .setStrokeStyle(1, 0x475569);
     this.add
-      .text(w / 2, y - 8, 'Tap map to walk · loot / bench / fight', {
+      .text(w / 2, y - 8, 'Tap map to walk · loot · craft · fight', {
         fontFamily: 'system-ui',
         fontSize: '11px',
-        color: '#94a3b8',
+        color: '#cbd5e1',
         align: 'center',
       })
       .setOrigin(0.5);
     this.add
-      .text(w / 2, y + 10, 'Combat: SPEC or long-press map', {
+      .text(w / 2, y + 10, 'Follow the gold pulse. Try not to die funny.', {
         fontFamily: 'system-ui',
         fontSize: '11px',
-        color: '#64748b',
+        color: '#94a3b8',
         align: 'center',
       })
       .setOrigin(0.5);
@@ -236,7 +258,7 @@ export class MenuScene extends Phaser.Scene {
       .text(w / 2, h - 16, `~${Math.round(DAY_LENGTH[dayKey] / 60)} min cycle  ·  Phaser 4`, {
         fontFamily: 'system-ui',
         fontSize: '11px',
-        color: '#475569',
+        color: '#64748b',
       })
       .setOrigin(0.5);
   }

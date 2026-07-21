@@ -10,14 +10,14 @@ export const QUESTS = [
   {
     id: 'q1',
     title: 'QUEST 1',
-    body: 'Follow the gold pulse / arrow.\nClick the gold crate EAST of HQ.',
+    body: 'Follow the gold pulse / arrow.\nTap the gold crate EAST of HQ.',
     objective: 'Gold crate east (follow gold arrow)',
   },
   {
     id: 'q2',
     title: 'QUEST 2',
-    body: 'A dog is near. Follow the gold pulse.\nLeft-click it. Fight until it drops.',
-    objective: 'Left-click the pulsing dog',
+    body: 'A dog is near. Follow the gold pulse.\nTap it. Fight until it drops.',
+    objective: 'Tap the pulsing dog',
   },
   {
     id: 'q3',
@@ -48,7 +48,7 @@ const COACH = {
   },
   hat: {
     title: 'NEXT',
-    body: 'Open BAG (bottom bar, gold pulse). Click stick, then hat.',
+    body: 'Open BAG (bottom bar, gold pulse). Tap stick, then hat.',
   },
   equipped: {
     title: 'NEXT',
@@ -89,7 +89,7 @@ export class GuideDirector {
       if (!f.equippedStick || !f.equippedHat) return '→ Open BAG. Equip stick, then hat';
       if (!f.bandage) return '→ HQ purple rig. CRAFT Field Bandage';
     }
-    if (this.quest === 1) return '→ Left-click the pulsing dog';
+    if (this.quest === 1) return '→ Tap the pulsing dog';
     if (this.quest === 2) return '→ HQ. Press SLEEP';
     return QUESTS[this.quest]?.objective || '';
   }

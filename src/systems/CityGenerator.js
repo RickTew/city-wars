@@ -33,12 +33,18 @@ export class CityGenerator {
       }
     }
 
-    // Clear arteries
+    // Clear 2-wide HQ arteries (cross streets through center)
     for (let i = 0; i < MAP_W; i++) {
-      w[CENTER_Y][i] = 0;
-      w[i][CENTER_X] = 0;
-      g[CENTER_Y][i] = T.ROAD;
-      g[i][CENTER_X] = T.ROAD;
+      for (const cy of [CENTER_Y, CENTER_Y + 1]) {
+        if (cy >= MAP_H) continue;
+        w[cy][i] = 0;
+        g[cy][i] = T.ROAD;
+      }
+      for (const cx of [CENTER_X, CENTER_X + 1]) {
+        if (cx >= MAP_W) continue;
+        w[i][cx] = 0;
+        g[i][cx] = T.ROAD;
+      }
     }
 
     // HQ
@@ -158,14 +164,30 @@ export class CityGenerator {
 }
 
 function dens(z) {
-  return { [ZONE.SAFE]: 28, [ZONE.MID]: 38, [ZONE.OUTER]: 45, [ZONE.WALL]: 50 }[z] || 35;
+  // Slightly denser blocks so 2-wide roads still read as a packed city
+  return { [ZONE.SAFE]: 36, [ZONE.MID]: 46, [ZONE.OUTER]: 52, [ZONE.WALL]: 55 }[z] || 40;
 }
 
 function grid(w, h, v) {
   return Array.from({ length: h }, () => new Array(w).fill(v));
 }
+
+/** True on the 2-tile road band that starts every 6 tiles. */
+function roadLane(n) {
+  const m = ((n % 6) + 6) % 6;
+  return m === 0 || m === 1;
+}
+
+/** Streets are 2 tiles wide so the runner is not the width of the avenue. */
 function road(x, y) {
-  return x % 6 === 0 || y % 6 === 0 || x === CENTER_X || y === CENTER_Y;
+  return (
+    roadLane(x) ||
+    roadLane(y) ||
+    x === CENTER_X ||
+    x === CENTER_X + 1 ||
+    y === CENTER_Y ||
+    y === CENTER_Y + 1
+  );
 }
 function distRoad(x, y) {
   for (let d = 0; d < 5; d++) {
