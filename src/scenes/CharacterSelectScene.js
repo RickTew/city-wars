@@ -1,9 +1,12 @@
 import Phaser from 'phaser';
 import { CHARACTERS } from '../config/characters.js';
 import { HUD_FONT } from '../config/art.js';
-import { drawMenuBackdrop } from '../systems/MenuBackdrop.js';
 import { AudioBus } from '../systems/AudioBus.js';
 
+/**
+ * Runner pick. Solid dark panel. High-contrast cards.
+ * No busy skyline behind text (that caused text-on-text).
+ */
 export class CharacterSelectScene extends Phaser.Scene {
   constructor() {
     super('CharacterSelect');
@@ -15,53 +18,49 @@ export class CharacterSelectScene extends Phaser.Scene {
     this.selected = this.registry.get('characterId') || CHARACTERS[0].id;
     this.audio = this.registry.get('audio') || new AudioBus();
     this.registry.set('audio', this.audio);
-    this._backdrop = null;
     this.draw();
     this.scale.on('resize', () => this.draw());
   }
 
-  update(_t, dtMs) {
-    this._backdrop?.tick?.((dtMs || 16) / 1000);
-  }
-
   draw() {
     this.children.removeAll(true);
-    this._backdrop = null;
     const w = this.scale.width;
     const h = this.scale.height;
     const narrow = w < 520;
 
-    this._backdrop = drawMenuBackdrop(this, w, h);
+    // Solid readable base. No window-dot skyline behind cards.
+    this.add.rectangle(w / 2, h / 2, w, h, 0x0b1220, 1);
+    this.add.rectangle(w / 2, h * 0.72, w, h * 0.56, 0x020617, 1);
 
-    const titleSize = Math.min(28, Math.max(20, w * 0.058));
-    const headerH = titleSize + 36;
+    const titleSize = Math.min(30, Math.max(22, w * 0.06));
+    const headerY = Math.max(14, h * 0.02);
     this.add
-      .text(w / 2, Math.max(16, h * 0.03), 'CHOOSE YOUR RUNNER', {
+      .text(w / 2, headerY, 'CHOOSE YOUR RUNNER', {
         fontFamily: HUD_FONT,
         fontSize: titleSize + 'px',
         fontStyle: 'bold',
         color: '#f8fafc',
-        stroke: '#f97316',
-        strokeThickness: 2,
+        stroke: '#ea580c',
+        strokeThickness: 3,
       })
       .setOrigin(0.5, 0);
 
     this.add
-      .text(w / 2, Math.max(16, h * 0.03) + titleSize + 4, '9 runners. Pick your scar.', {
+      .text(w / 2, headerY + titleSize + 2, '9 runners. Pick your scar.', {
         fontFamily: 'system-ui',
-        fontSize: '12px',
+        fontSize: narrow ? '13px' : '14px',
         color: '#fdba74',
       })
       .setOrigin(0.5, 0);
 
     const cols = 3;
     const rows = 3;
-    const gapX = narrow ? 8 : 10;
+    const gapX = narrow ? 8 : 12;
     const gapY = narrow ? 8 : 10;
-    const topLimit = Math.max(72, h * 0.03 + headerH);
-    const bottomLimit = h - 96;
+    const topLimit = headerY + titleSize + 28;
+    const bottomLimit = h - 100;
     const cardW = Math.floor((w - 24 - gapX * (cols - 1)) / cols);
-    const cardH = Math.min(152, Math.floor((bottomLimit - topLimit - gapY * (rows - 1)) / rows));
+    const cardH = Math.min(148, Math.floor((bottomLimit - topLimit - gapY * (rows - 1)) / rows));
     const gridW = cols * cardW + (cols - 1) * gapX;
     const startX = w / 2 - gridW / 2 + cardW / 2;
     const startY = topLimit + cardH / 2;
@@ -74,72 +73,74 @@ export class CharacterSelectScene extends Phaser.Scene {
       const on = this.selected === c.id;
       const left = x - cardW / 2 + 8;
 
-      const bg = this.add
+      // Fully opaque card plate
+      this.add
         .rectangle(x, y, cardW, cardH, on ? 0x0c4a6e : 0x1e293b, 1)
-        .setStrokeStyle(3, on ? c.color : 0x475569)
-        .setInteractive({ useHandCursor: true });
+        .setStrokeStyle(3, on ? c.color : 0x64748b)
+        .setInteractive({ useHandCursor: true })
+        .on('pointerup', () => {
+          this.selected = c.id;
+          this.registry.set('characterId', c.id);
+          this.draw();
+        });
 
-      this.add.circle(left + 10, y - cardH / 2 + 22, 10, c.color);
-      this.add.circle(left + 10, y - cardH / 2 + 16, 5, c.hair || 0xfde68a);
+      this.add.circle(left + 10, y - cardH / 2 + 20, 9, c.color);
+      this.add.circle(left + 10, y - cardH / 2 + 15, 4, c.hair || 0xfde68a);
 
       this.add
-        .text(left + 24, y - cardH / 2 + 10, c.name, {
+        .text(left + 24, y - cardH / 2 + 8, c.name, {
           fontFamily: 'system-ui',
-          fontSize: narrow ? '11px' : '12px',
+          fontSize: narrow ? '13px' : '14px',
           fontStyle: 'bold',
           color: '#f8fafc',
         })
         .setOrigin(0, 0);
+
       this.add
-        .text(left + 24, y - cardH / 2 + 24, c.title, {
+        .text(left + 24, y - cardH / 2 + 26, c.title, {
           fontFamily: 'system-ui',
-          fontSize: '9px',
+          fontSize: narrow ? '11px' : '12px',
           color: '#7dd3fc',
         })
         .setOrigin(0, 0);
 
-      const bonusLine = formatBonuses(c.bonuses);
-      const showBlurb = cardH >= 118;
-      if (showBlurb) {
+      if (cardH >= 110) {
         this.add
-          .text(x, y - cardH / 2 + 44, c.blurb, {
+          .text(x, y - cardH / 2 + 46, c.blurb, {
             fontFamily: 'system-ui',
-            fontSize: '8px',
-            color: '#94a3b8',
+            fontSize: narrow ? '11px' : '12px',
+            color: '#e2e8f0',
             align: 'center',
-            wordWrap: { width: cardW - 12 },
+            wordWrap: { width: cardW - 14 },
           })
           .setOrigin(0.5, 0);
       }
 
       this.add
-        .text(x, y + cardH / 2 - 8, bonusLine, {
+        .text(x, y + cardH / 2 - 10, formatBonuses(c.bonuses), {
           fontFamily: 'system-ui',
-          fontSize: '8px',
+          fontSize: narrow ? '11px' : '12px',
           fontStyle: 'bold',
-          color: on ? '#fde68a' : '#64748b',
+          color: on ? '#fde68a' : '#cbd5e1',
           align: 'center',
-          wordWrap: { width: cardW - 10 },
+          wordWrap: { width: cardW - 12 },
         })
         .setOrigin(0.5, 1);
-
-      bg.on('pointerup', () => {
-        this.selected = c.id;
-        this.registry.set('characterId', c.id);
-        this.draw();
-      });
     });
+
+    // Solid footer strip so checkbox + CTA never sit on skyline noise
+    this.add.rectangle(w / 2, h - 50, w, 100, 0x020617, 1);
 
     const narr = this.registry.get('narratorOn') !== false;
     const ny = h - 72;
     const box = this.add
-      .rectangle(w / 2 - (narrow ? 150 : 200), ny, 20, 20, narr ? 0x0ea5e9 : 0x1e293b)
-      .setStrokeStyle(2, 0x94a3b8)
+      .rectangle(w / 2 - (narrow ? 150 : 200), ny, 22, 22, narr ? 0x0ea5e9 : 0x334155, 1)
+      .setStrokeStyle(2, 0xe2e8f0)
       .setInteractive({ useHandCursor: true });
     this.add
       .text(w / 2 - (narrow ? 150 : 200), ny, narr ? 'Y' : '', {
         fontFamily: 'system-ui',
-        fontSize: '12px',
+        fontSize: '13px',
         fontStyle: 'bold',
         color: '#0b1220',
       })
@@ -147,8 +148,8 @@ export class CharacterSelectScene extends Phaser.Scene {
     const nlab = this.add
       .text(w / 2 - (narrow ? 132 : 182), ny, 'Keep story cards after the tutorial', {
         fontFamily: 'system-ui',
-        fontSize: narrow ? '11px' : '13px',
-        color: '#e2e8f0',
+        fontSize: narrow ? '13px' : '14px',
+        color: '#f1f5f9',
       })
       .setOrigin(0, 0.5)
       .setInteractive({ useHandCursor: true });
@@ -160,13 +161,13 @@ export class CharacterSelectScene extends Phaser.Scene {
     nlab.on('pointerup', toggleN);
 
     const go = this.add
-      .rectangle(w / 2, h - 36, Math.min(260, w - 32), 46, 0xea580c)
+      .rectangle(w / 2, h - 32, Math.min(280, w - 32), 48, 0xea580c, 1)
       .setStrokeStyle(2, 0xfbbf24)
       .setInteractive({ useHandCursor: true });
     this.add
-      .text(w / 2, h - 36, 'ENTER THE GRID', {
+      .text(w / 2, h - 32, 'ENTER THE GRID', {
         fontFamily: 'system-ui',
-        fontSize: '17px',
+        fontSize: '18px',
         fontStyle: 'bold',
         color: '#0b1220',
       })
@@ -180,7 +181,6 @@ export class CharacterSelectScene extends Phaser.Scene {
   }
 }
 
-/** Short mechanical summary for runner cards */
 function formatBonuses(b = {}) {
   const parts = [];
   if (b.atk) parts.push(`ATK${b.atk > 0 ? '+' : ''}${b.atk}`);

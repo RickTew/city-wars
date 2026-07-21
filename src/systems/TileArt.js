@@ -44,21 +44,32 @@ export class TileArt {
       g.strokeRect(x + 0.5, 0.5, TILE - 1, TILE - 1);
 
       if (i === T.ROAD) {
-        g.fillStyle(0x18181b, 1);
+        // Asphalt avenue (reads as road on 1-wide and 2-wide)
+        g.fillStyle(0x3f3f46, 1);
         g.fillRect(x, 0, TILE, TILE);
-        // Lane paint  -  reads better on 2-wide avenues
-        g.lineStyle(1, 0x52525b, 0.45);
-        g.lineBetween(x + 2, 16, x + 14, 16);
-        g.lineBetween(x + 18, 16, x + 30, 16);
-        g.fillStyle(0xfbbf24, 0.35);
-        g.fillRect(x + 14, 15, 4, 2);
-        g.lineStyle(1, NEON.cyan, 0.1);
-        g.lineBetween(x + 4, 22, x + 28, 20);
+        g.fillStyle(0x27272a, 1);
+        g.fillRect(x + 2, 2, TILE - 4, TILE - 4);
+        // Curb lips
+        g.fillStyle(0x71717a, 0.55);
+        g.fillRect(x, 0, TILE, 2);
+        g.fillRect(x, TILE - 2, TILE, 2);
+        g.fillRect(x, 0, 2, TILE);
+        g.fillRect(x + TILE - 2, 0, 2, TILE);
+        // Center lane dashes
+        g.fillStyle(0xfbbf24, 0.85);
+        g.fillRect(x + 11, 14, 10, 3);
+        g.fillStyle(0xa1a1aa, 0.35);
+        g.fillRect(x + 4, 24, 8, 2);
+        g.fillRect(x + 20, 8, 8, 2);
       }
       if (i === T.SIDEWALK) {
-        g.fillStyle(0x52525b, 0.25);
-        g.fillRect(x + 4, 20, 8, 3);
-        g.fillRect(x + 18, 8, 10, 3);
+        g.fillStyle(0x52525b, 1);
+        g.fillRect(x, 0, TILE, TILE);
+        g.fillStyle(0x737373, 0.35);
+        g.fillRect(x + 2, 2, 12, 12);
+        g.fillRect(x + 16, 16, 12, 12);
+        g.lineStyle(1, 0x27272a, 0.5);
+        g.strokeRect(x + 1, 1, TILE - 2, TILE - 2);
       }
       if (i === T.ALLEY) {
         g.fillStyle(0x1c1917, 0.6);

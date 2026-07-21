@@ -231,9 +231,11 @@ export class GameScene extends Phaser.Scene {
       this.updateObjective();
       this.refreshHud();
       this.nudgeCameraTowardGuide();
-      // Soft-hold cam on first hike so free-look does not lose the crate on phones
       this._guideCamSoftFollow = mobile;
-      this.log(this.guide?.objectiveText() || 'Follow the gold pulse.');
+      this.showGuideToast(
+        'QUEST 1',
+        'Follow the gold pulse / arrow. Tap the gold crate EAST of HQ.'
+      );
     });
   }
 
@@ -451,9 +453,9 @@ export class GameScene extends Phaser.Scene {
     this.refreshHud();
     if (!next) return;
 
-    // Micro-coach steps: toast only (no full modal stack)
+    // Micro-coach: readable banner above the bar (never buried under buttons)
     if (!next.id) {
-      this.log(String(next.body || '').replace(/\n/g, ' '));
+      this.showGuideToast(next.title || 'NEXT', next.body || '');
       this.time.delayedCall(80, () => this.nudgeCameraTowardGuide());
       return;
     }
@@ -464,6 +466,54 @@ export class GameScene extends Phaser.Scene {
         this.nudgeCameraTowardGuide();
         if (next.id === 'done') this.time.delayedCall(200, () => this.checkEscape());
       });
+    });
+  }
+
+  /**
+   * High-contrast tutorial step banner above the action bar.
+   * Depth above buttons so it cannot sit under USE/CRAFT/etc.
+   */
+  showGuideToast(title, body) {
+    const w = this.scale.width;
+    const m = this.barMetrics();
+    const cy = m.logY - 30;
+    const panelW = Math.min(560, w - 16);
+    const text = `${title}\n${String(body || '').replace(/\n/g, ' ')}`;
+
+    if (!this.guideToastBg) {
+      this.guideToastBg = this.add
+        .rectangle(w / 2, cy, panelW, 58, 0x0f172a, 0.96)
+        .setStrokeStyle(2, 0xfbbf24)
+        .setScrollFactor(0)
+        .setDepth(210);
+      this.guideToastText = this.add
+        .text(w / 2, cy, '', {
+          fontFamily: 'system-ui',
+          fontSize: '14px',
+          fontStyle: 'bold',
+          color: '#fde68a',
+          align: 'center',
+          wordWrap: { width: panelW - 24 },
+        })
+        .setOrigin(0.5)
+        .setScrollFactor(0)
+        .setDepth(211);
+    }
+
+    this.guideToastBg.setPosition(w / 2, cy).setSize(panelW, 58).setVisible(true);
+    this.guideToastText
+      .setPosition(w / 2, cy)
+      .setWordWrapWidth?.(panelW - 24)
+      .setText(text)
+      .setVisible(true);
+
+    // Also mirror into log for desktop players who glance at the strip
+    this.log(`${title}: ${String(body || '').replace(/\n/g, ' ')}`);
+
+    if (this._guideToastClear) this._guideToastClear.remove?.(false);
+    this._guideToastClear = this.time.delayedCall(5000, () => {
+      this.guideToastBg?.setVisible(false);
+      this.guideToastText?.setVisible(false);
     });
   }
 
@@ -523,12 +573,23 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.setDeadzone(w * 0.2, h * 0.18);
 
     if (this.topBar) {
-      const topH = this.isMobileHud(w, h) ? 84 : 56;
+      const topH = this.isMobileHud(w, h) ? 102 : 56;
       this.topBar.setSize(w, topH);
       this.topBar.setPosition(0, 0);
     }
     this.layoutTopHud(w, h);
-    if (this.logText) this.logText.setPosition(w / 2, m.logY);
+    if (this.logText) {
+      this.logText.setPosition(w / 2, m.logY);
+      this.logText.setWordWrapWidth?.(Math.min(520, w - 24));
+    }
+    if (this.guideToastBg) {
+      this.guideToastBg.setPosition(w / 2, m.logY - 28);
+      this.guideToastBg.setSize(Math.min(560, w - 16), 56);
+    }
+    if (this.guideToastText) {
+      this.guideToastText.setPosition(w / 2, m.logY - 28);
+      this.guideToastText.setWordWrapWidth?.(Math.min(520, w - 32));
+    }
     if (this.combatHud?.visible) this.combatHud.setPosition(12, 64);
     if (this.bottomBar) {
       this.bottomBar.setPosition(w / 2, m.bottomY);
@@ -582,8 +643,9 @@ export class GameScene extends Phaser.Scene {
     const primaryY = twoRow ? h - padBot - rowH / 2 : h - 58;
     const secondaryY = twoRow ? h - padBot - rowH - rowGap - rowH / 2 : null;
     const hudBottom = padBot + barH + 4;
-    const logY = h - hudBottom - 6;
-    const homeY = h - hudBottom - 28;
+    // Toast sits clearly ABOVE the action bar (not under buttons)
+    const logY = h - hudBottom - 22;
+    const homeY = h - hudBottom - 36;
     return { mobile, narrow, twoRow, rowH, rowGap, barH, bottomY, primaryY, secondaryY, hudBottom, logY, homeY };
   }
 
@@ -1034,9 +1096,11 @@ export class GameScene extends Phaser.Scene {
     this.dayBarLabel = this.add
       .text(w / 2, 42, 'DAY 1', {
         fontFamily: 'system-ui',
-        fontSize: '10px',
+        fontSize: '11px',
         fontStyle: 'bold',
-        color: '#0f172a',
+        color: '#f8fafc',
+        stroke: '#0f172a',
+        strokeThickness: 3,
       })
       .setOrigin(0.5)
       .setScrollFactor(0)
@@ -1081,19 +1145,22 @@ export class GameScene extends Phaser.Scene {
     this.modeText = this.add.text(0, 0, '').setVisible(false);
     this.timeText = this.add.text(0, 0, '').setVisible(false);
 
-    // Bottom toast (short)  -  combat uses dedicated log panel
+    // Bottom toast  -  ABOVE action bar, higher depth than buttons (bar is 120)
     const hud = this.barMetrics(w, h);
     this.logText = this.add
       .text(w / 2, hud.logY, '', {
         fontFamily: 'system-ui',
-        fontSize: '13px',
-        color: '#e2e8f0',
-        backgroundColor: '#020617ee',
-        padding: { x: 12, y: 5 },
+        fontSize: '14px',
+        fontStyle: 'bold',
+        color: '#f8fafc',
+        backgroundColor: '#020617',
+        padding: { x: 14, y: 8 },
+        align: 'center',
+        wordWrap: { width: Math.min(520, w - 24) },
       })
-      .setOrigin(0.5)
+      .setOrigin(0.5, 1)
       .setScrollFactor(0)
-      .setDepth(d + 1);
+      .setDepth(200);
 
     // Legacy help strip removed  -  use ? button instead
     this.helpText = this.add.text(0, 0, '').setVisible(false);
@@ -1924,7 +1991,7 @@ export class GameScene extends Phaser.Scene {
     this.dayBarFill.setFillStyle(col, 1);
     const phase = this.dayNight.isNight ? 'NIGHT' : fill > 0.85 ? 'DUSK' : 'DAY';
     this.dayBarLabel.setText(`Day ${this.dayNight.day} · ${phase}`);
-    this.dayBarLabel.setColor(this.dayNight.isNight ? '#e2e8f0' : '#0f172a');
+    this.dayBarLabel.setColor('#f8fafc');
   }
 
   /**
