@@ -21,6 +21,7 @@ npm run dev
 
 - **Tiles**: 32×32 px
 - **Map**: 96×96 tiles (see `MAP_W` / `MAP_H` in constants)
+- **Streets**: 2 tiles wide (avenues every 6 tiles)
 - **Zones**: concentric rings by Manhattan distance from HQ center
 - **Gameplay**: real-time explore (click path), turn combat, day/night, craft Breach Kit, escape
 - **Canonical rules**: `AGENTS.md` (Grok is primary)
