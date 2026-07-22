@@ -172,8 +172,8 @@ export class GameScene extends Phaser.Scene {
       if (this.ended || this.isPaused?.()) return;
       const cam = this.cameras.main;
       const oldZ = cam.zoom;
-      // dy > 0 = scroll down = zoom out
-      const next = Phaser.Math.Clamp(oldZ * (dy > 0 ? 0.9 : 1.11), 0.4, 1.75);
+      // dy > 0 = scroll down = zoom out (gentle steps)
+      const next = Phaser.Math.Clamp(oldZ * (dy > 0 ? 0.96 : 1.04), 0.4, 1.75);
       if (Math.abs(next - oldZ) < 0.001) return;
       // Keep world point under cursor stable
       const wx = cam.scrollX + pointer.x / oldZ;
@@ -494,26 +494,49 @@ export class GameScene extends Phaser.Scene {
   }
 
   /**
-   * Sticky mid-screen tutorial coach (DOM). Stays long enough to read.
+   * Compact coach card (one box only — no duplicate bottom toast).
+   * Dismiss with CLOSE or after a long timeout.
    */
   showGuideToast(title, body) {
     const bodyText = String(body || '').trim();
-    if (this.domGuideToast) {
-      this.domGuideToast.innerHTML = '';
-      const t = document.createElement('span');
-      t.className = 'guide-toast-title';
-      t.textContent = title || 'NEXT';
-      this.domGuideToast.appendChild(t);
-      this.domGuideToast.appendChild(document.createTextNode(bodyText));
-      this.domGuideToast.classList.remove('hidden');
-    }
-    this.log(`${title}: ${bodyText.replace(/\n/g, ' ')}`);
+    const el = this.domGuideToast;
+    if (!el) return;
 
-    // 16s — was 5s and too easy to miss under the bar toast
-    if (this._guideToastClear) this._guideToastClear.remove?.(false);
-    this._guideToastClear = this.time.delayedCall(16000, () => {
-      this.domGuideToast?.classList.add('hidden');
+    // Don't also paint the bottom log toast with the same line (that was the 2nd box)
+    el.innerHTML = '';
+    el.classList.remove('hidden');
+
+    const titleEl = document.createElement('div');
+    titleEl.className = 'guide-toast-title';
+    titleEl.textContent = title || 'NEXT';
+    el.appendChild(titleEl);
+
+    const bodyEl = document.createElement('div');
+    bodyEl.className = 'guide-toast-body';
+    bodyEl.textContent = bodyText;
+    el.appendChild(bodyEl);
+
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.className = 'hit guide-toast-close';
+    close.textContent = 'CLOSE';
+    close.addEventListener('pointerup', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      this.hideGuideToast();
     });
+    el.appendChild(close);
+
+    if (this._guideToastClear) this._guideToastClear.remove?.(false);
+    this._guideToastClear = this.time.delayedCall(20000, () => this.hideGuideToast());
+  }
+
+  hideGuideToast() {
+    this.domGuideToast?.classList.add('hidden');
+    if (this._guideToastClear) {
+      this._guideToastClear.remove?.(false);
+      this._guideToastClear = null;
+    }
   }
 
   /** Sync DOM HUD layout classes (mobile strip vs desktop). */
@@ -532,7 +555,7 @@ export class GameScene extends Phaser.Scene {
       this.domToast.style.bottom = `${m.hudBottom + 14}px`;
     }
     if (this.domGuideToast) {
-      this.domGuideToast.style.bottom = `${m.hudBottom + 42}px`;
+      this.domGuideToast.style.bottom = `${m.hudBottom + 18}px`;
     }
     if (this.domHomeLabel) {
       this.domHomeLabel.style.bottom = `${m.homeY - 22}px`;
@@ -1419,7 +1442,7 @@ export class GameScene extends Phaser.Scene {
     this.equipUI?.toggle();
     if (this.bagOpen) {
       // Coach banner done its job once BAG is open
-      this.domGuideToast?.classList.add('hidden');
+      this.hideGuideToast?.();
       this.log('BAG open. Tap an item to equip, or tap a slot to unequip.');
     }
   }

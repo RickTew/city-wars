@@ -839,35 +839,52 @@
       #dom-hud .hud-toast:empty {
         display: none;
       }
+      /* Compact coach — one card, fits content (not a giant empty panel) */
       #dom-hud .hud-guide-toast {
         position: absolute;
         left: 50%;
-        /* Mid-screen — not buried under bar toast */
-        top: 42%;
-        bottom: auto;
-        transform: translate(-50%, -50%);
-        width: min(520px, calc(100% - 24px));
-        max-width: min(520px, calc(100% - 24px));
-        padding: 16px 18px 14px;
+        bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+        top: auto;
+        transform: translateX(-50%);
+        width: auto;
+        max-width: min(420px, calc(100% - 24px));
+        padding: 12px 14px 10px;
         border-radius: 10px;
         background: rgba(15, 23, 42, 0.97);
-        border: 3px solid #fbbf24;
-        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55), 0 0 24px rgba(251, 191, 36, 0.25);
+        border: 2px solid #fbbf24;
+        box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5), 0 0 16px rgba(251, 191, 36, 0.2);
         color: #fde68a;
-        font-size: clamp(15px, 2vw, 17px);
+        font-size: clamp(14px, 1.55vw, 16px);
         font-weight: 700;
         text-align: center;
         line-height: 1.4;
         white-space: pre-line;
-        pointer-events: none;
+        pointer-events: auto;
         z-index: 8;
       }
       #dom-hud .hud-guide-toast .guide-toast-title {
         display: block;
-        font-size: clamp(13px, 1.6vw, 14px);
+        font-size: clamp(12px, 1.4vw, 13px);
         letter-spacing: 0.08em;
         color: #fbbf24;
-        margin-bottom: 6px;
+        margin-bottom: 4px;
+      }
+      #dom-hud .hud-guide-toast .guide-toast-body {
+        margin-bottom: 10px;
+      }
+      #dom-hud .hud-guide-toast .guide-toast-close {
+        display: inline-block;
+        padding: 8px 16px;
+        border-radius: 6px;
+        background: #fbbf24;
+        color: #0b1220;
+        font-weight: 800;
+        font-size: 13px;
+        border: none !important;
+        cursor: pointer;
+      }
+      #dom-hud .hud-guide-toast .guide-toast-close:hover {
+        filter: brightness(1.06);
       }
       #dom-hud .hud-guide-toast.hidden {
         display: none;
