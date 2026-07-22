@@ -10,8 +10,10 @@
 | **Play (prod)** | **https://city-wars-rho.vercel.app** (stable alias only) |
 | **Vercel project** | `ricktew/city-wars` · auto-deploys on push to `main` |
 
-**Version:** 3.9.x session (menu DOM, ambience samples, popup DOM) — **uncommitted local work as of wrap**  
-**Prior clean HEAD:** `8b59252` (2026-07-21)
+**Version:** 3.9.x (menu DOM, ambience samples, popup DOM)  
+**HEAD:** `b45cc21` on `main` (2026-07-22) · auto-deploys to Vercel  
+
+**Deploy preference (user):** after every major change/fix, **commit + push `main`** so testing is on **https://city-wars-rho.vercel.app** (not only localhost).
 
 ---
 
