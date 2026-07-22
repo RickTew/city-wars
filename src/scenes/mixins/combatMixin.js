@@ -6,6 +6,7 @@ import {
   onEnemyHitPlayer,
   tickPlayerStatuses,
 } from '../../systems/combatRules.js';
+import { DomUi } from '../../systems/DomUi.js';
 
 export const combatMixin = {
   startCombat(enemy, playerInitiated) {
@@ -86,54 +87,41 @@ export const combatMixin = {
     this.closeCombatSpecials();
     this.specialOpen = true;
     this.uiBlockClick = true;
-    const d = 420;
-    const cx = this.scale.width / 2;
-    const cy = this.scale.height / 2;
     this.specialUi = [];
 
-    const dim = this.add
-      .rectangle(cx, cy, this.scale.width, this.scale.height, 0x020617, 0.55)
-      .setScrollFactor(0)
-      .setDepth(d)
-      .setInteractive();
-    dim.on('pointerup', () => this.closeCombatSpecials());
+    DomUi.clearModal();
+    const root = DomUi.show('modal-ui', 'modal');
+    root.addEventListener('pointerup', (e) => {
+      if (e.target === root) this.closeCombatSpecials();
+    });
 
-    const panel = this.add
-      .rectangle(cx, cy, 280, 220, 0x0f172a, 0.98)
-      .setStrokeStyle(2, 0xf97316)
-      .setScrollFactor(0)
-      .setDepth(d + 1);
-
-    const title = this.add
-      .text(cx, cy - 88, 'SPECIALS', {
-        fontFamily: 'system-ui',
-        fontSize: '16px',
-        fontStyle: 'bold',
-        color: '#fdba74',
-      })
-      .setOrigin(0.5)
-      .setScrollFactor(0)
-      .setDepth(d + 2);
-
-    const mk = (y, label, color, fn) => {
-      const b = this.makeUiButton(cx, y, 220, 36, label, color, () => {
+    const sheet = DomUi.el('div', 'sheet sheet-narrow sheet-orange');
+    sheet.appendChild(DomUi.el('div', 'sheet-title', 'SPECIALS'));
+    const actions = DomUi.el('div', 'sheet-actions');
+    const mk = (label, color, fn) => {
+      const btn = DomUi.button('hit sheet-btn', label, () => {
         this.closeCombatSpecials();
         fn();
-      }, d + 3);
-      this.specialUi.push(b.bg, b.label);
+      });
+      btn.style.background = DomUi.hexCss(color);
+      actions.appendChild(btn);
     };
-
-    mk(cy - 40, 'POWER STRIKE (+50% dmg)', 0xea580c, () => {
+    mk('POWER STRIKE (+50% dmg)', 0xea580c, () => {
       this._powerNext = true;
       this.log('Power strike ready. Tap a foe.');
     });
-    mk(cy + 5, this.inv.countItem('charge') > 0 ? 'STREET CHARGE' : 'CHARGE (none)', 0xdc2626, () => {
-      if (!this.useStreetCharge()) this.log('No Street Charge equipped or in bag.');
-    });
-    mk(cy + 50, 'FLEE (60% clear)', 0x64748b, () => this.tryCombatFlee());
-    mk(cy + 95, 'CANCEL', 0x334155, () => {});
-
-    this.specialUi.push(dim, panel, title);
+    mk(
+      this.inv.countItem('charge') > 0 ? 'STREET CHARGE' : 'CHARGE (none)',
+      0xdc2626,
+      () => {
+        if (!this.useStreetCharge()) this.log('No Street Charge equipped or in bag.');
+      }
+    );
+    mk('FLEE (60% clear)', 0x64748b, () => this.tryCombatFlee());
+    mk('CANCEL', 0x334155, () => {});
+    sheet.appendChild(actions);
+    root.appendChild(sheet);
+    this.specialUi = [root];
     this.time.delayedCall(80, () => {
       if (this.specialOpen) this.uiBlockClick = false;
     });
@@ -141,7 +129,7 @@ export const combatMixin = {
 
   closeCombatSpecials() {
     this.specialOpen = false;
-    for (const o of this.specialUi || []) o?.destroy?.();
+    DomUi.clearModal();
     this.specialUi = [];
     this.uiBlockClick = true;
     this.time?.delayedCall(80, () => {

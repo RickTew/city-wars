@@ -44,7 +44,7 @@ export class MenuScene extends Phaser.Scene {
   }
 
   shutdown() {
-    DomUi.clear();
+    DomUi.clearAll();
   }
 
   draw() {
@@ -61,7 +61,7 @@ export class MenuScene extends Phaser.Scene {
     const legacy = RunLegacy.summaryLine();
     const mins = Math.round(DAY_LENGTH[dayKey] / 60);
 
-    DomUi.clear();
+    DomUi.clearAll();
     const root = DomUi.show('menu-ui');
     if (!root) return;
 

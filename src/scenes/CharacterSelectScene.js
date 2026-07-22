@@ -29,7 +29,7 @@ export class CharacterSelectScene extends Phaser.Scene {
   }
 
   shutdown() {
-    DomUi.clear();
+    DomUi.clearAll();
   }
 
   draw() {
@@ -39,7 +39,7 @@ export class CharacterSelectScene extends Phaser.Scene {
 
     this.add.rectangle(w / 2, h / 2, w, h, 0x0b1220, 1);
 
-    DomUi.clear();
+    DomUi.clearAll();
     const root = DomUi.show('char-ui');
     if (!root) return;
 

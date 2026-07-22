@@ -19,12 +19,12 @@
 
 ## ⛔ NEXT SESSION — DO THIS FIRST
 
-**User pain (repeated):** in-run text is still ugly (craft panel “STREET RIG”, objective, day bar, buttons).  
-They want the **ENTIRE game** to have **nice looking text**, not only menus.
+**Text migration (HUD + craft + bag + menus) shipped.**  
+Hard-refresh prod: **https://city-wars-rho.vercel.app** — if any *HUD* line is still chunky, it’s a regression.
 
 | Doc | Purpose |
 |-----|---------|
-| **`TEXT-STRATEGY.md`** | Locked text architecture + migration checklist |
+| **`TEXT-STRATEGY.md`** | Locked text architecture + layer map |
 | **`VISUAL-STYLE.md`** | Split-brain procedural + pixel + DOM text |
 | **`public/audio/CREDITS.md`** | Mixkit ambient samples |
 
@@ -32,10 +32,10 @@ They want the **ENTIRE game** to have **nice looking text**, not only menus.
 
 ```
 Continue City Wars in ~/Dev/City Wars per AGENTS.md + TEXT-STRATEGY.md.
-PRIORITY: migrate ALL remaining Phaser Text / makeUiButton labels to DomUi
-(craft panel, objective, day/heat, bottom bar, bag, combat, end screen).
-pixelArt:true stays for tiles. Do not "fix" text with antialias.
-Verify with screenshots: no chunky 1980-style UI type.
+Verify full DomUi HUD on https://city-wars-rho.vercel.app (hard refresh).
+Optional: Actor HP / VFX floatText stay Phaser (world floaters).
+Next product: 15-min loop feel / gameplay polish if text looks good.
+pixelArt:true stays. Do not "fix" text with antialias.
 ```
 
 ```bash
@@ -50,21 +50,20 @@ npm run dev   # http://localhost:5173/  — Cmd+Shift+R
 - **Procedural** board/skyline/chrome  
 - **Pixel** later for characters/crates (nearest)  
 - **All player-facing text = DOM** (`DomUi.js` + `index.html` CSS)  
+- Layers: `#dom-hud` · `#dom-ui` · `#dom-craft` · `#dom-modal`  
 - `pixelArt: true` **stays** — never use it as an excuse for bad UI type  
 - No orphan neon props / joke OPEN signs  
 
-### Migrated this session (crisp)
+### Migrated (crisp DOM)
 
-- Title menu (DOM)  
-- Character select + avatar chips (DOM)  
-- Story/tutorial popups `showPopup` (DOM)  
+- Title menu, character select, story popups  
+- In-run HUD (status, objective, day/heat, toast, action bar)  
+- Craft **STREET RIG**, bag/loadout, run menu, MORE, legend, specials  
+- Combat dock, minimap labels, end screen  
 
-### NOT migrated (still Phaser Text = still looks bad)
+### Optional Phaser (world floaters only)
 
-- CraftPanel **STREET RIG** / recipes  
-- Objective banner, day/heat HUD  
-- Bottom action bar (`makeUiButton`)  
-- EquipUI / bag, combat log, minimap labels, end screen  
+- Enemy HP digits (`Actor.js`), damage `floatText` (`VFX.js`)  
 
 ---
 
@@ -81,26 +80,25 @@ Samples: `public/audio/ambient/` (Mixkit free). Oscillators only for UI + light 
 
 ---
 
-## Session wrap (2026-07-22) — this session
+## Session wrap (2026-07-22) — DOM HUD migration
 
-**Status:** Local working tree has large uncommitted improvements. **Commit + push** when resuming if still dirty.
+**Status:** Full in-run DomUi migration. **Commit + push `main`** for Vercel.
 
-### Shipped locally (this session)
+### Shipped
 
 | Area | What |
 |------|------|
-| Title visuals | Dense skyline, building-anchored fires, centered DOM menu card |
-| Text architecture | DomUi; menus + runner select + showPopup on DOM |
-| Orphan props | Removed OPEN/RENT DUE and leftover neon lines |
-| Audio | Sample ambience (dogs/guns/howls/explosions/cyber); menu 2–10s; world zone density |
-| World copy | No siren lore |
+| DomUi layers | hud / ui / craft / modal |
+| CraftPanel | STREET RIG + recipes DOM |
+| GameScene HUD | objective, day/heat, bar buttons, toast, combat, end |
+| EquipUI | full bag/loadout DOM |
+| Minimap labels | MAP + compass DOM |
 
-### User still blocked on
+### Open after verify
 
-1. **In-game HUD text still Phaser / chunky** (screenshot: STREET RIG craft UI) — **#1 next**  
-2. Full DOM HUD migration per `TEXT-STRATEGY.md`  
-3. Gameplay / 15-min loop feel (older open question)  
-4. Commit/push this session’s work  
+1. Live screenshot pass on prod (hard refresh)  
+2. Gameplay / 15-min loop feel  
+3. Optional world floater DOM later  
 
 ### Rules that burned sessions (do not repeat)
 

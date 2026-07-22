@@ -1,5 +1,6 @@
 /**
  * Corner minimap + objective compass (active during tutorial too).
+ * Labels are DOM (scene.domCompassLabel / domMapLabel) for crisp type.
  */
 import { CENTER_X, CENTER_Y, MAP_H, MAP_W, T } from '../config/constants.js';
 
@@ -11,9 +12,7 @@ export class Minimap {
     this.nodes = [];
     this.gfx = null;
     this.frame = null;
-    this.label = null;
     this.compass = null;
-    this.compassLabel = null;
   }
 
   create() {
@@ -33,32 +32,24 @@ export class Minimap {
       .setScrollFactor(0)
       .setDepth(d);
     this.gfx = s.add.graphics().setScrollFactor(0).setDepth(d + 1);
-    this.label = s.add
-      .text(x, y + this.size / 2 + 10, 'MAP', {
-        fontFamily: 'system-ui',
-        fontSize: '10px',
-        fontStyle: 'bold',
-        color: '#64748b',
-      })
-      .setOrigin(0.5, 0)
-      .setScrollFactor(0)
-      .setDepth(d + 1);
-
     this.compass = s.add.graphics().setScrollFactor(0).setDepth(d + 2);
-    this.compassLabel = s.add
-      .text(40, 96, '', {
-        fontFamily: 'system-ui',
-        fontSize: '11px',
-        fontStyle: 'bold',
-        color: '#fbbf24',
-      })
-      .setOrigin(0.5)
-      .setScrollFactor(0)
-      .setDepth(d + 2);
 
     this._cx = x;
     this._cy = y;
-    this.nodes = [this.frame, this.gfx, this.label, this.compass, this.compassLabel];
+    this.nodes = [this.frame, this.gfx, this.compass];
+    this._layoutMapLabel();
+  }
+
+  _layoutMapLabel() {
+    const s = this.scene;
+    if (!s.domMapLabel) return;
+    const w = s.scale.width;
+    this.size = w < 520 ? 88 : 118;
+    const yTop = s.isMobileHud?.() ? 108 : 78;
+    s.domMapLabel.style.top = `${yTop + this.size + 4}px`;
+    s.domMapLabel.style.width = `${this.size}px`;
+    s.domMapLabel.style.right = `${this.pad}px`;
+    s.domMapLabel.textContent = 'MAP';
   }
 
   onResize() {
@@ -74,7 +65,7 @@ export class Minimap {
     this._cy = y;
     this.frame.setPosition(x, y);
     this.frame.setSize(this.size + 6, this.size + 6);
-    this.label.setPosition(x, y + this.size / 2 + 10);
+    this._layoutMapLabel();
   }
 
   update() {
@@ -150,52 +141,53 @@ export class Minimap {
   updateCompass() {
     const s = this.scene;
     const g = this.compass;
-    const lab = this.compassLabel;
-    if (!g || !lab) return;
+    const lab = s.domCompassLabel;
+    if (!g) return;
     g.clear();
 
     const t = s.objTarget;
     if (!t) {
-      lab.setText('');
+      if (lab) lab.textContent = '';
       return;
     }
 
     // Mid-left under top bar (HQ arrow is bottom-left)
     const bx = 40;
     const by = Math.min(120, (s.isMobileHud?.() ? 118 : 64) + (s.scale.height < 700 ? 8 : 20));
+    if (lab) {
+      lab.style.left = `${bx}px`;
+      lab.style.top = `${by}px`;
+    }
 
     if (t.ui) {
       const name = String(t.ui).toUpperCase();
-      lab.setPosition(bx, by);
-      lab.setColor('#fbbf24');
-      lab.setText(`→ ${name}`);
+      if (lab) {
+        lab.style.color = '#fbbf24';
+        lab.textContent = `→ ${name}`;
+      }
       return;
     }
 
     const ox = t.tx ?? t.x;
     const oy = t.ty ?? t.y;
     if (ox == null || oy == null) {
-      lab.setText('');
+      if (lab) lab.textContent = '';
       return;
     }
     const dx = ox - s.player.tx;
     const dy = oy - s.player.ty;
     const dist = Math.abs(dx) + Math.abs(dy);
     if (dist <= 2) {
-      lab.setPosition(bx, by);
-      lab.setColor('#4ade80');
-      lab.setText('OBJ HERE');
+      if (lab) {
+        lab.style.color = '#4ade80';
+        lab.textContent = 'OBJ HERE';
+      }
       return;
     }
-    if (dist <= 6) {
-      lab.setPosition(bx, by + 16);
-      lab.setColor('#4ade80');
-      lab.setText(`OBJ ${dist}`);
-      // still draw short arrow
-    } else {
-      lab.setPosition(bx, by + 16);
-      lab.setColor('#fbbf24');
-      lab.setText(`OBJ ${dist}`);
+    if (lab) {
+      lab.style.top = `${by + 16}px`;
+      lab.style.color = dist <= 6 ? '#4ade80' : '#fbbf24';
+      lab.textContent = `OBJ ${dist}`;
     }
 
     const ang = Math.atan2(dy, dx);

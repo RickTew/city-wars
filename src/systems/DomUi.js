@@ -4,9 +4,20 @@
  * Studio rule (DungeonHole / AstroHold / VISUAL-STYLE.md):
  * Phaser pixelArt:true nearest-neighbor-samples Text textures → chunky or mushy
  * glyphs. All player-facing labels go through this layer instead.
+ *
+ * Layers (z-order):
+ *   #dom-hud   (15) — in-run status, action bar, toast
+ *   #dom-ui    (20) — title / character select
+ *   #dom-craft (22) — docked craft panel
+ *   #dom-modal (30) — popups, bag, run menu, legend, end screen
  */
 
-const ROOT_ID = 'dom-ui';
+const LAYERS = {
+  hud: { id: 'dom-hud', z: 15 },
+  ui: { id: 'dom-ui', z: 20 },
+  craft: { id: 'dom-craft', z: 22 },
+  modal: { id: 'dom-modal', z: 30 },
+};
 
 function ensureParentRelative() {
   const parent = document.getElementById('game-container');
@@ -17,33 +28,124 @@ function ensureParentRelative() {
   return parent;
 }
 
+function ensureLayer(name) {
+  const def = LAYERS[name] || LAYERS.ui;
+  const parent = ensureParentRelative();
+  if (!parent) return null;
+  let el = document.getElementById(def.id);
+  if (!el) {
+    el = document.createElement('div');
+    el.id = def.id;
+    el.style.zIndex = String(def.z);
+    parent.appendChild(el);
+  }
+  return el;
+}
+
+function clearLayer(name) {
+  const def = LAYERS[name] || LAYERS.ui;
+  const el = document.getElementById(def.id);
+  if (!el) return;
+  el.innerHTML = '';
+  el.className = '';
+  el.style.display = 'none';
+  el.style.pointerEvents = '';
+}
+
+/** Phaser 0xRRGGBB → #rrggbb */
+export function hexCss(n) {
+  if (typeof n === 'string') return n.startsWith('#') ? n : `#${n}`;
+  return `#${(n >>> 0).toString(16).padStart(6, '0')}`;
+}
+
+/**
+ * Adapter so existing code can do btn.label.setText / btn.bg.setFillStyle.
+ */
+export function btnAdapter(btnEl) {
+  const api = {
+    el: btnEl,
+    label: {
+      get text() {
+        return btnEl.textContent || '';
+      },
+      setText(t) {
+        btnEl.textContent = t;
+      },
+      setFontSize(size) {
+        if (size != null) btnEl.style.fontSize = typeof size === 'number' ? `${size}px` : size;
+      },
+      destroy() {
+        /* label lives on button */
+      },
+    },
+    bg: {
+      setFillStyle(hex, alpha) {
+        btnEl.style.background = hexCss(hex);
+        if (alpha != null) btnEl.style.opacity = String(alpha);
+      },
+      setAlpha(a) {
+        btnEl.style.opacity = String(a);
+      },
+      destroy() {
+        btnEl.remove();
+      },
+    },
+    destroy() {
+      btnEl.remove();
+    },
+  };
+  return api;
+}
+
 export const DomUi = {
-  /** Root overlay (pointer-events none; children opt-in). */
+  layer(name = 'ui') {
+    return ensureLayer(name);
+  },
+
+  /** Title / character select root (legacy). */
   root() {
-    const parent = ensureParentRelative();
-    if (!parent) return null;
-    let el = document.getElementById(ROOT_ID);
-    if (!el) {
-      el = document.createElement('div');
-      el.id = ROOT_ID;
-      parent.appendChild(el);
-    }
-    return el;
+    return ensureLayer('ui');
   },
 
-  clear() {
-    const el = document.getElementById(ROOT_ID);
-    if (!el) return;
-    el.innerHTML = '';
-    el.className = '';
-    el.style.display = 'none';
+  hud() {
+    return ensureLayer('hud');
   },
 
-  show(className = '') {
-    const el = this.root();
+  craft() {
+    return ensureLayer('craft');
+  },
+
+  modal() {
+    return ensureLayer('modal');
+  },
+
+  clear(name = 'ui') {
+    clearLayer(name);
+  },
+
+  clearHud() {
+    clearLayer('hud');
+  },
+
+  clearCraft() {
+    clearLayer('craft');
+  },
+
+  clearModal() {
+    clearLayer('modal');
+  },
+
+  clearAll() {
+    for (const name of Object.keys(LAYERS)) clearLayer(name);
+  },
+
+  /**
+   * Show a layer with optional className. name: 'ui' | 'hud' | 'craft' | 'modal'
+   */
+  show(className = '', name = 'ui') {
+    const el = ensureLayer(name);
     if (!el) return null;
-    el.className = className;
-    // Clear inline display so CSS classes (flex layouts) win — never force block
+    el.className = className || '';
     el.style.display = '';
     return el;
   },
@@ -64,6 +166,31 @@ export const DomUi = {
       e.stopPropagation();
       onClick?.(e);
     });
+    // Also block pointerdown so map path doesn't start under the button
+    btn.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+    });
     return btn;
+  },
+
+  hexCss,
+
+  btnAdapter,
+
+  /**
+   * Absolute-positioned HUD button (center x/y in CSS pixels).
+   * Returns { bg, label, el, destroy } adapter.
+   */
+  absButton(parent, x, y, w, h, label, color, onClick, extraClass = '') {
+    const btn = this.button(`hit hud-btn ${extraClass}`.trim(), label, onClick);
+    btn.style.position = 'absolute';
+    btn.style.left = `${Math.round(x - w / 2)}px`;
+    btn.style.top = `${Math.round(y - h / 2)}px`;
+    btn.style.width = `${Math.round(w)}px`;
+    btn.style.height = `${Math.round(h)}px`;
+    btn.style.background = hexCss(color);
+    parent.appendChild(btn);
+    return btnAdapter(btn);
   },
 };

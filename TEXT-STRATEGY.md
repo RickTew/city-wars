@@ -36,43 +36,45 @@ Reference: `VISUAL-STYLE.md`, DungeonHole `VISUAL-STYLE.md`, AstroHold `docs/VIS
 
 - Title menu (`MenuScene` + CSS `.menu-ui`)
 - Character select (`CharacterSelectScene` + avatar chips)
-- Story / tutorial modals (`GameScene.showPopup` → DOM `.popup-ui`)
+- Story / tutorial modals (`GameScene.showPopup` → DOM `.popup-ui` on **modal** layer)
+- **In-run HUD** (`#dom-hud`): status, objective, day/heat, toast, bottom action bar
+- **Craft panel** (`#dom-craft`): STREET RIG / recipes
+- **Bag / loadout** (`EquipUI` → `#dom-modal.bag-ui`)
+- **Run menu / MORE / MAP legend / combat specials / end screen**
+- **Combat dock** labels + log
+- **Minimap “MAP” + compass labels** (DOM)
 
-## Still Phaser Text — MUST migrate next session (priority order)
+### DomUi layers (z-order)
 
-These are what the user still sees as “bad text” (e.g. craft panel **STREET RIG**, objective strip, day bar, action buttons).
+| Layer | id | Use |
+|-------|-----|-----|
+| HUD | `#dom-hud` (15) | Always-on in-run UI |
+| Menus | `#dom-ui` (20) | Title + runner select |
+| Craft | `#dom-craft` (22) | Docked craft panel |
+| Modal | `#dom-modal` (30) | Popups, bag, sheets, end |
 
-| Surface | Where in code | Notes |
-|---------|----------------|-------|
-| **Craft panel “STREET RIG” + recipes** | `systems/CraftPanel.js` | User screenshot 2026-07-22 |
-| **Objective banner** (“Gold crate EAST…”) | `GameScene` guide/objective UI | Top of play view |
-| **Day / heat / status strip** | `GameScene` HUD create (~1050+) | “Day 1 · DAY”, GRID HEAT |
-| **Bottom action bar** (USE/SLEEP/…) | `makeUiButton` in `GameScene` | High traffic |
-| **Run menu / legend / MORE** | `GameScene` | |
-| **Equip / bag UI** | `systems/EquipUI.js` | Many labels |
-| **Combat log / bars** | `GameScene` + `combatMixin.js` | |
-| **Minimap labels** | `systems/Minimap.js` | |
-| **Floating actor names** | `entities/Actor.js` | Optional; can stay small or DOM floaters |
-| **Win/lose / end screen** | `GameScene` end UI | |
+## Optional Phaser Text (world floaters only)
 
-### Next-session implementation plan (do not half-fix)
+| Surface | Where | Notes |
+|---------|--------|-------|
+| Enemy HP digits | `entities/Actor.js` | World-space; tiny |
+| Damage popups | `systems/VFX.js` `floatText` | Ephemeral world floaters |
 
-1. Extend `DomUi` with layered HUD roots if needed (`#dom-hud`, `#dom-modal`) so menus/popups/HUD don’t clobber each other.
-2. Migrate **CraftPanel** first (user-visible pain).
-3. Migrate **objective + top status** second.
-4. Migrate **makeUiButton** to DOM buttons (or hybrid: Phaser hit rect + DOM label — prefer full DOM hit targets).
-5. EquipUI + combat + end screens.
-6. Grep gate: **zero** `this.add.text` / `makeUiButton` Phaser labels for player-facing copy when done (debug-only exceptions allowed if marked).
+These are **not** HUD chrome. Do not “fix” them by flipping `pixelArt`.
+
+### Grep gate
+
+Player-facing UI copy must not use `this.add.text`. Remaining `makeUiButton` is a DOM adapter only.
 
 ### Acceptance test
 
 Squint on a live screenshot of:
 
-- Title, runner select, SIGNAL BOOT popup (**already pass**)
-- In-run craft open, objective, day bar, bottom buttons (**must pass**)
+- Title, runner select, SIGNAL BOOT popup
+- In-run craft open, objective, day bar, bottom buttons
 - Bag/equip, combat, death/win
 
-If any line looks pixel-chunky → it is still Phaser Text → migrate.
+If any **HUD/menu** line looks pixel-chunky → still Phaser Text → migrate.
 
 ## Fonts
 

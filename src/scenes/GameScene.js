@@ -45,7 +45,7 @@ import { SaveSystem } from '../systems/SaveSystem.js';
 import { Minimap } from '../systems/Minimap.js';
 import { CraftPanel } from '../systems/CraftPanel.js';
 import { RunLegacy } from '../systems/RunLegacy.js';
-import { HUD_FONT, ZONE_TINT } from '../config/art.js';
+import { ZONE_TINT } from '../config/art.js';
 import { DomUi } from '../systems/DomUi.js';
 
 export class GameScene extends Phaser.Scene {
@@ -54,8 +54,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   create() {
-    // Menus use DOM overlays; wipe them before in-game Phaser HUD takes over
-    DomUi.clear();
+    // Wipe title/char DOM; build layered in-run HUD (hud / craft / modal)
+    DomUi.clearAll();
 
     this.zones = new ZoneManager();
     const dayKey = this.registry.get('dayLength') || 'medium';
@@ -337,7 +337,7 @@ export class GameScene extends Phaser.Scene {
       this._popupFinish(true);
       return true;
     }
-    DomUi.clear();
+    DomUi.clearModal();
     this.popupOpen = false;
     this._popupFinish = null;
     this.clearMousePath();
@@ -472,97 +472,61 @@ export class GameScene extends Phaser.Scene {
   }
 
   /**
-   * High-contrast tutorial step banner above the action bar.
-   * Depth above buttons so it cannot sit under USE/CRAFT/etc.
+   * High-contrast tutorial step banner above the action bar (DOM).
    */
   showGuideToast(title, body) {
-    const w = this.scale.width;
-    const m = this.barMetrics();
-    const cy = m.logY - 30;
-    const panelW = Math.min(560, w - 16);
     const text = `${title}\n${String(body || '').replace(/\n/g, ' ')}`;
-
-    if (!this.guideToastBg) {
-      this.guideToastBg = this.add
-        .rectangle(w / 2, cy, panelW, 58, 0x0f172a, 0.96)
-        .setStrokeStyle(2, 0xfbbf24)
-        .setScrollFactor(0)
-        .setDepth(210);
-      this.guideToastText = this.add
-        .text(w / 2, cy, '', {
-          fontFamily: 'system-ui',
-          fontSize: '14px',
-          fontStyle: 'bold',
-          color: '#fde68a',
-          align: 'center',
-          wordWrap: { width: panelW - 24 },
-        })
-        .setOrigin(0.5)
-        .setScrollFactor(0)
-        .setDepth(211);
+    if (this.domGuideToast) {
+      this.domGuideToast.textContent = text;
+      this.domGuideToast.classList.remove('hidden');
     }
-
-    this.guideToastBg.setPosition(w / 2, cy).setSize(panelW, 58).setVisible(true);
-    this.guideToastText
-      .setPosition(w / 2, cy)
-      .setWordWrapWidth?.(panelW - 24)
-      .setText(text)
-      .setVisible(true);
-
-    // Also mirror into log for desktop players who glance at the strip
     this.log(`${title}: ${String(body || '').replace(/\n/g, ' ')}`);
 
     if (this._guideToastClear) this._guideToastClear.remove?.(false);
     this._guideToastClear = this.time.delayedCall(5000, () => {
-      this.guideToastBg?.setVisible(false);
-      this.guideToastText?.setVisible(false);
+      this.domGuideToast?.classList.add('hidden');
     });
   }
 
-  /** Position top HUD elements — avoids objective overlapping stats on phones. */
+  /** Sync DOM HUD layout classes (mobile strip vs desktop). */
   layoutTopHud(w = this.scale.width, h = this.scale.height) {
     const mobile = this.isMobileHud(w, h);
-    // Extra strip on phones for the gold objective (was crushed under heat + minimap)
-    const topH = mobile ? 102 : 56;
-    if (this.topBar) {
-      this.topBar.setSize(w, topH);
+    if (this.domHudRoot) {
+      this.domHudRoot.classList.toggle('hud-mobile', mobile);
     }
-    if (this.objBanner) {
-      this.objBanner.setVisible(mobile);
-      if (mobile) {
-        this.objBanner.setPosition(w / 2, 86);
-        this.objBanner.setSize(Math.min(w - 12, 420), 28);
-      }
+    this.syncDomBarMetrics(w, h);
+  }
+
+  /** Push bar metrics into DOM toast / home / map label positions. */
+  syncDomBarMetrics(w = this.scale.width, h = this.scale.height) {
+    const m = this.barMetrics(w, h);
+    if (this.domToast) {
+      this.domToast.style.bottom = `${m.hudBottom + 14}px`;
     }
-    if (this.alertText) {
-      this.alertText.setPosition(10, mobile ? 8 : 8);
-      this.alertText.setFontSize(mobile ? '14px' : '18px');
+    if (this.domGuideToast) {
+      this.domGuideToast.style.bottom = `${m.hudBottom + 42}px`;
     }
-    if (this.statText) {
-      this.statText.setPosition(10, mobile ? 26 : 32);
+    if (this.domHomeLabel) {
+      this.domHomeLabel.style.bottom = `${m.homeY - 22}px`;
+      // homeY is from top in Phaser coords; convert: bottom = h - (homeY+22)
+      this.domHomeLabel.style.bottom = `${Math.max(8, h - (m.homeY + 22))}px`;
     }
-    if (this.invText) {
-      this.invText.setVisible(!mobile);
-      if (!mobile) this.invText.setPosition(w - 14, 10);
+    if (this.domBar) {
+      // bar height handled by content; ensure craft dock knows metrics
     }
-    if (this.dayBarBg) this.dayBarBg.setPosition(w / 2, mobile ? 42 : 42);
-    if (this.dayBarFill) this.dayBarFill.setPosition(w / 2 - 100, mobile ? 42 : 42);
-    if (this.dayBarLabel) this.dayBarLabel.setPosition(w / 2, mobile ? 42 : 42);
-    if (this.heatText) this.heatText.setPosition(w / 2, mobile ? 54 : 54);
-    if (this.heatBarBg) this.heatBarBg.setPosition(w / 2, mobile ? 62 : 62);
-    if (this.heatBarFill) this.heatBarFill.setPosition(w / 2 - 50, mobile ? 62 : 62);
-    if (this.objText) {
-      if (mobile) {
-        this.objText.setPosition(w / 2, 86);
-        this.objText.setWordWrapWidth?.(w - 40);
-        this.objText.setFontSize('12px');
-        this.objText.setOrigin(0.5, 0.5);
-      } else {
-        this.objText.setPosition(w / 2, 6);
-        this.objText.setWordWrapWidth?.(Math.min(420, w * 0.42));
-        this.objText.setFontSize('13px');
-        this.objText.setOrigin(0.5, 0);
-      }
+    if (this.domMapLabel) {
+      const yTop = this.isMobileHud(w, h) ? 108 : 78;
+      const size = w < 520 ? 88 : 118;
+      this.domMapLabel.style.top = `${yTop + size + 4}px`;
+      this.domMapLabel.style.width = `${size}px`;
+      this.domMapLabel.style.right = '10px';
+    }
+    if (this.domCompassLabel) {
+      const by = Math.min(120, (this.isMobileHud(w, h) ? 118 : 64) + (h < 700 ? 8 : 20));
+      this.domCompassLabel.style.top = `${by}px`;
+    }
+    if (this.domHunt) {
+      this.domHunt.style.top = `${this.isMobileHud(w, h) ? 118 : 78}px`;
     }
   }
 
@@ -574,36 +538,13 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.setZoom(1);
     this.cameras.main.setDeadzone(w * 0.2, h * 0.18);
 
-    if (this.topBar) {
-      const topH = this.isMobileHud(w, h) ? 102 : 56;
-      this.topBar.setSize(w, topH);
-      this.topBar.setPosition(0, 0);
-    }
     this.layoutTopHud(w, h);
-    if (this.logText) {
-      this.logText.setPosition(w / 2, m.logY);
-      this.logText.setWordWrapWidth?.(Math.min(520, w - 24));
-    }
-    if (this.guideToastBg) {
-      this.guideToastBg.setPosition(w / 2, m.logY - 28);
-      this.guideToastBg.setSize(Math.min(560, w - 16), 56);
-    }
-    if (this.guideToastText) {
-      this.guideToastText.setPosition(w / 2, m.logY - 28);
-      this.guideToastText.setWordWrapWidth?.(Math.min(520, w - 32));
-    }
-    if (this.combatHud?.visible) this.combatHud.setPosition(12, 64);
-    if (this.bottomBar) {
-      this.bottomBar.setPosition(w / 2, m.bottomY);
-      this.bottomBar.setSize(w, m.barH);
-    }
     // Rebuild bar so MORE / SPEC slots match new width + combat state
     if (this.actionButtons) this.rebuildActionBar();
     if (this.moreOpen) {
       this.closeMoreMenu();
     }
     if (this.homeArrow) this.homeArrow.setPosition(36, m.homeY);
-    if (this.homeArrowLabel) this.homeArrowLabel.setPosition(36, m.homeY + 22);
     this.minimap?.onResize?.();
     this.craftPanel?.refresh?.();
   }
@@ -820,11 +761,13 @@ export class GameScene extends Phaser.Scene {
   clearActionButtons() {
     for (const b of this.actionButtons || []) {
       try {
-        b.bg?.destroy?.();
-        b.label?.destroy?.();
+        b.destroy?.();
       } catch (_) {
         /* ignore */
       }
+    }
+    if (this.domBarRows) {
+      for (const row of this.domBarRows) row.innerHTML = '';
     }
     this.actionButtons = [];
     this.btnUse = null;
@@ -841,39 +784,48 @@ export class GameScene extends Phaser.Scene {
     this.btnMore = null;
   }
 
-  /** Rebuild bottom bar for width / combat (destroys + recreates buttons). */
+  /** Rebuild bottom bar for width / combat (DOM buttons). */
   rebuildActionBar() {
-    const d = 120;
     const w = this.scale.width;
     const h = this.scale.height;
-    if (!this.bottomBar) return;
+    if (!this.domBar) return;
 
     this.clearActionButtons();
     const catalog = this.barActionCatalog();
     const metrics = this.barMetrics(w, h);
-    this.bottomBar.setSize(w, metrics.barH);
-    this.bottomBar.setPosition(w / 2, metrics.bottomY);
+    this.syncDomBarMetrics(w, h);
 
-    const { rows, twoRow } = this.getVisibleBarRows();
+    const { rows } = this.getVisibleBarRows();
+    // Ensure we have enough row containers
+    while (this.domBarRows.length < rows.length) {
+      const r = DomUi.el('div', 'hud-bar-row');
+      this.domBar.appendChild(r);
+      this.domBarRows.push(r);
+    }
+    this.domBarRows.forEach((r, i) => {
+      r.style.display = i < rows.length ? 'flex' : 'none';
+      r.innerHTML = '';
+    });
+
     rows.forEach((ids, rowIdx) => {
-      const rowY = twoRow ? (rowIdx === 0 ? metrics.secondaryY : metrics.primaryY) : metrics.primaryY;
-      const layout = this.layoutActionBarRow(w, rowY, ids.length, metrics.narrow);
-      ids.forEach((id, i) => {
+      const rowEl = this.domBarRows[rowIdx];
+      const layout = this.layoutActionBarRow(w, 0, ids.length, metrics.narrow);
+      ids.forEach((id) => {
         const def = catalog[id];
         if (!def) return;
-        const x = layout.startX + i * layout.gap;
-        const b = this.makeUiButton(
-          x,
-          layout.y,
-          layout.btnW,
-          layout.btnH,
-          def.label,
-          def.color,
-          def.fn,
-          d + 1,
-          layout.hitPad
-        );
-        if (b.label?.setFontSize) b.label.setFontSize(layout.fontSize);
+        const btn = DomUi.button('hit hud-btn', def.label, () => {
+          this.uiBlockClick = true;
+          def.fn();
+          this.time.delayedCall(80, () => {
+            this.uiBlockClick = false;
+          });
+        });
+        btn.style.background = DomUi.hexCss(def.color);
+        btn.style.fontSize = layout.fontSize;
+        btn.style.maxWidth = `${layout.btnW + 16}px`;
+        btn.style.height = `${layout.btnH}px`;
+        rowEl.appendChild(btn);
+        const b = DomUi.btnAdapter(btn);
         this.actionButtons.push(b);
         if (id === 'use') this.btnUse = b;
         if (id === 'sleep') this.btnSleep = b;
@@ -890,7 +842,6 @@ export class GameScene extends Phaser.Scene {
       });
     });
     this.syncMoveModeButtons();
-    // Refresh sleep kit count label if present
     if (this.btnSleep) {
       const kits = this.countBedrolls?.() || 0;
       this.btnSleep.label.setText(kits > 0 ? `SLEEP×${kits}` : 'SLEEP');
@@ -1036,182 +987,109 @@ export class GameScene extends Phaser.Scene {
   // ─── CAMERA methods in cameraMixin ───
 
   setupHud() {
-    const d = 100;
     const w = this.scale.width;
     const h = this.scale.height;
+    const d = 100;
 
-    // Top bar  -  three clean columns, no stacked text
-    const topH = this.isMobileHud(w, h) ? 102 : 56;
-    this.topBar = this.add
-      .rectangle(0, 0, w, topH, 0x020617, 0.92)
-      .setOrigin(0)
-      .setScrollFactor(0)
-      .setDepth(d);
+    DomUi.clearHud();
+    const root = DomUi.show('hud-ui', 'hud');
+    this.domHudRoot = root;
 
-    // LEFT: status + HP only
-    this.alertText = this.add
-      .text(14, 8, 'CLEAR', {
-        fontFamily: HUD_FONT,
-        fontSize: '18px',
-        fontStyle: 'bold',
-        color: '#22c55e',
-      })
-      .setScrollFactor(0)
-      .setDepth(d + 1);
-    this.statText = this.add
-      .text(14, 32, '', { fontFamily: 'system-ui', fontSize: '12px', color: '#cbd5e1' })
-      .setScrollFactor(0)
-      .setDepth(d + 1);
+    // Top status strip
+    const top = DomUi.el('div', 'hud-top');
+    const left = DomUi.el('div', 'hud-left');
+    this.domAlert = DomUi.el('div', 'hud-alert', 'CLEAR');
+    this.domStat = DomUi.el('div', 'hud-stat', '');
+    left.appendChild(this.domAlert);
+    left.appendChild(this.domStat);
 
-    // Mobile objective banner (dedicated strip so quest text is not buried)
-    this.objBanner = this.add
-      .rectangle(w / 2, 86, Math.min(w - 12, 420), 28, 0x422006, 0.95)
-      .setStrokeStyle(1, 0xfbbf24)
-      .setScrollFactor(0)
-      .setDepth(d + 1)
-      .setVisible(this.isMobileHud(w, h));
+    const center = DomUi.el('div', 'hud-center');
+    this.domObj = DomUi.el('div', 'hud-obj', '');
+    const dayWrap = DomUi.el('div', 'hud-day-wrap');
+    const dayTrack = DomUi.el('div', 'hud-day-track');
+    this.domDayFill = DomUi.el('div', 'hud-day-fill');
+    this.domDayLabel = DomUi.el('div', 'hud-day-label', 'DAY 1');
+    dayTrack.appendChild(this.domDayFill);
+    dayWrap.appendChild(dayTrack);
+    dayWrap.appendChild(this.domDayLabel);
+    this.domHeatLabel = DomUi.el('div', 'hud-heat-label', 'GRID HEAT 0');
+    const heatTrack = DomUi.el('div', 'hud-heat-track');
+    this.domHeatFill = DomUi.el('div', 'hud-heat-fill');
+    heatTrack.appendChild(this.domHeatFill);
+    center.appendChild(this.domObj);
+    center.appendChild(dayWrap);
+    center.appendChild(this.domHeatLabel);
+    center.appendChild(heatTrack);
 
-    // CENTER: objective + day bar
-    this.objText = this.add
-      .text(w / 2, 6, '', {
-        fontFamily: HUD_FONT,
-        fontSize: '13px',
-        fontStyle: 'bold',
-        color: '#fbbf24',
-        wordWrap: { width: Math.min(420, w * 0.4) },
-        align: 'center',
-      })
-      .setOrigin(0.5, 0)
-      .setScrollFactor(0)
-      .setDepth(d + 2);
+    this.domInv = DomUi.el('div', 'hud-right', '');
+    top.appendChild(left);
+    top.appendChild(center);
+    top.appendChild(this.domInv);
+    root.appendChild(top);
 
-    this.dayBarBg = this.add
-      .rectangle(w / 2, 42, 200, 12, 0x1e293b, 1)
-      .setStrokeStyle(1, 0x475569)
-      .setScrollFactor(0)
-      .setDepth(d + 1);
-    this.dayBarFill = this.add
-      .rectangle(w / 2 - 100, 42, 2, 10, 0xfbbf24, 1)
-      .setOrigin(0, 0.5)
-      .setScrollFactor(0)
-      .setDepth(d + 2);
-    this.dayBarLabel = this.add
-      .text(w / 2, 42, 'DAY 1', {
-        fontFamily: 'system-ui',
-        fontSize: '11px',
-        fontStyle: 'bold',
-        color: '#f8fafc',
-        stroke: '#0f172a',
-        strokeThickness: 3,
-      })
-      .setOrigin(0.5)
-      .setScrollFactor(0)
-      .setDepth(d + 3);
+    // Combat dock
+    this.domCombat = DomUi.el('div', 'hud-combat hidden');
+    this.domCombat.appendChild(DomUi.el('div', 'hud-combat-title', 'COMBAT LOG'));
+    this.domPlayerBarLabel = DomUi.el('div', 'hud-combat-label', 'YOU');
+    this.domCombat.appendChild(this.domPlayerBarLabel);
+    const pTrack = DomUi.el('div', 'hud-bar-track');
+    this.domPlayerBarFill = DomUi.el('div', 'hud-bar-fill');
+    pTrack.appendChild(this.domPlayerBarFill);
+    this.domCombat.appendChild(pTrack);
+    this.domEnemyBarLabel = DomUi.el('div', 'hud-combat-label enemy', 'ENEMY');
+    this.domCombat.appendChild(this.domEnemyBarLabel);
+    const eTrack = DomUi.el('div', 'hud-bar-track');
+    this.domEnemyBarFill = DomUi.el('div', 'hud-bar-fill enemy');
+    eTrack.appendChild(this.domEnemyBarFill);
+    this.domCombat.appendChild(eTrack);
+    this.domCombatLog = DomUi.el('div', 'hud-combat-log', '');
+    this.domCombat.appendChild(this.domCombatLog);
+    root.appendChild(this.domCombat);
 
-    this.heatText = this.add
-      .text(w / 2, 54, 'HEAT 0', {
-        fontFamily: 'system-ui',
-        fontSize: '9px',
-        fontStyle: 'bold',
-        color: '#64748b',
-      })
-      .setOrigin(0.5)
-      .setScrollFactor(0)
-      .setDepth(d + 3);
+    // Floating labels
+    this.domCompassLabel = DomUi.el('div', 'hud-compass-label', '');
+    this.domHomeLabel = DomUi.el('div', 'hud-home-label', 'HQ');
+    this.domMapLabel = DomUi.el('div', 'hud-map-label', 'MAP');
+    root.appendChild(this.domCompassLabel);
+    root.appendChild(this.domHomeLabel);
+    root.appendChild(this.domMapLabel);
 
-    this.heatBarBg = this.add
-      .rectangle(w / 2, 62, 100, 4, 0x1e293b, 1)
-      .setScrollFactor(0)
-      .setDepth(d + 2);
-    this.heatBarFill = this.add
-      .rectangle(w / 2 - 50, 62, 1, 3, 0x64748b, 1)
-      .setOrigin(0, 0.5)
-      .setScrollFactor(0)
-      .setDepth(d + 3);
+    // Toasts
+    this.domToast = DomUi.el('div', 'hud-toast', '');
+    this.domGuideToast = DomUi.el('div', 'hud-guide-toast hidden', '');
+    root.appendChild(this.domToast);
+    root.appendChild(this.domGuideToast);
 
+    // Hunt list
+    this.domHunt = DomUi.el('div', 'hud-hunt hidden', '');
+    root.appendChild(this.domHunt);
+
+    // Bottom action bar shell
+    this.domBar = DomUi.el('div', 'hud-bar');
+    this.domBarRows = [DomUi.el('div', 'hud-bar-row'), DomUi.el('div', 'hud-bar-row')];
+    this.domBarRows.forEach((r) => this.domBar.appendChild(r));
+    root.appendChild(this.domBar);
+
+    // Thin adapters so older code paths can call .setText / .setColor
+    this.alertText = this._domTextProxy(this.domAlert);
+    this.statText = this._domTextProxy(this.domStat);
+    this.objText = this._domTextProxy(this.domObj);
+    this.dayBarLabel = this._domTextProxy(this.domDayLabel);
+    this.heatText = this._domTextProxy(this.domHeatLabel);
+    this.invText = this._domTextProxy(this.domInv);
+    this.logText = this._domTextProxy(this.domToast);
+    this.homeArrowLabel = this._domTextProxy(this.domHomeLabel);
+    this.playerBarLabel = this._domTextProxy(this.domPlayerBarLabel);
+    this.enemyBarLabel = this._domTextProxy(this.domEnemyBarLabel);
+    this.combatLogText = this._domTextProxy(this.domCombatLog);
+    this.helpText = this._domTextProxy(DomUi.el('div', '', '')); // legacy no-op
+    this.modeText = this._domTextProxy(DomUi.el('div', '', ''));
+    this.timeText = this._domTextProxy(DomUi.el('div', '', ''));
+
+    // Phaser-only chrome (no text)
     this.heatVignette = this.add.graphics().setScrollFactor(0).setDepth(d + 8).setAlpha(0);
-
-    // RIGHT: inventory only (no second status word overlapping)
-    this.invText = this.add
-      .text(w - 14, 10, '', {
-        fontFamily: 'system-ui',
-        fontSize: '12px',
-        color: '#94a3b8',
-        align: 'right',
-      })
-      .setOrigin(1, 0)
-      .setScrollFactor(0)
-      .setDepth(d + 1);
-
-    // Hidden legacy (mode folded into alertText)
-    this.modeText = this.add.text(0, 0, '').setVisible(false);
-    this.timeText = this.add.text(0, 0, '').setVisible(false);
-
-    // Bottom toast  -  ABOVE action bar, higher depth than buttons (bar is 120)
-    const hud = this.barMetrics(w, h);
-    this.logText = this.add
-      .text(w / 2, hud.logY, '', {
-        fontFamily: 'system-ui',
-        fontSize: '14px',
-        fontStyle: 'bold',
-        color: '#f8fafc',
-        backgroundColor: '#020617',
-        padding: { x: 14, y: 8 },
-        align: 'center',
-        wordWrap: { width: Math.min(520, w - 24) },
-      })
-      .setOrigin(0.5, 1)
-      .setScrollFactor(0)
-      .setDepth(200);
-
-    // Legacy help strip removed  -  use ? button instead
-    this.helpText = this.add.text(0, 0, '').setVisible(false);
-
-    // Combat HUD (shown only in combat)
     this.combatLogLines = [];
-    this.combatHud = this.add.container(0, 0).setScrollFactor(0).setDepth(150).setVisible(false);
-    this.combatPanelBg = this.add
-      .rectangle(0, 0, 280, 220, 0x0f172a, 0.92)
-      .setStrokeStyle(2, 0xef4444)
-      .setOrigin(0, 0);
-    this.combatTitle = this.add.text(12, 8, 'COMBAT LOG', {
-      fontFamily: 'system-ui',
-      fontSize: '13px',
-      fontStyle: 'bold',
-      color: '#fca5a5',
-    });
-    this.playerBarLabel = this.add.text(12, 32, 'YOU', {
-      fontFamily: 'system-ui',
-      fontSize: '11px',
-      color: '#7dd3fc',
-    });
-    this.playerBarBg = this.add.rectangle(12, 50, 250, 12, 0x1e293b).setOrigin(0, 0.5);
-    this.playerBarFill = this.add.rectangle(12, 50, 250, 10, 0x22c55e).setOrigin(0, 0.5);
-    this.enemyBarLabel = this.add.text(12, 68, 'ENEMY', {
-      fontFamily: 'system-ui',
-      fontSize: '11px',
-      color: '#fca5a5',
-    });
-    this.enemyBarBg = this.add.rectangle(12, 86, 250, 12, 0x1e293b).setOrigin(0, 0.5);
-    this.enemyBarFill = this.add.rectangle(12, 86, 250, 10, 0xef4444).setOrigin(0, 0.5);
-    this.combatLogText = this.add.text(12, 104, '', {
-      fontFamily: 'system-ui',
-      fontSize: '11px',
-      color: '#e2e8f0',
-      lineSpacing: 3,
-      wordWrap: { width: 256 },
-    });
-    this.combatHud.add([
-      this.combatPanelBg,
-      this.combatTitle,
-      this.playerBarLabel,
-      this.playerBarBg,
-      this.playerBarFill,
-      this.enemyBarLabel,
-      this.enemyBarBg,
-      this.enemyBarFill,
-      this.combatLogText,
-    ]);
+    this.combatHud = { setVisible: (v) => this.domCombat?.classList.toggle('hidden', !v), setPosition: () => {}, visible: false };
 
     this.craftOpen = false;
     this.craftUi = [];
@@ -1221,38 +1099,77 @@ export class GameScene extends Phaser.Scene {
 
     this.objMarker = this.add.triangle(0, 0, 0, 12, 9, 0, 18, 12, 0xfbbf24).setDepth(28);
     this.pathGfx = this.add.graphics().setDepth(12);
+    // Markers for day/heat fill width updates
+    this.dayBarFill = { width: 2, setFillStyle: (col) => {
+      if (this.domDayFill) this.domDayFill.style.background = DomUi.hexCss(col);
+    } };
+    this.heatBarFill = { width: 1, setFillStyle: (col) => {
+      if (this.domHeatFill) this.domHeatFill.style.background = DomUi.hexCss(col);
+    } };
+    this.playerBarFill = { width: 250, setFillStyle: (col) => {
+      if (this.domPlayerBarFill) this.domPlayerBarFill.style.background = DomUi.hexCss(col);
+    } };
+    this.enemyBarFill = { width: 0, setFillStyle: (col) => {
+      if (this.domEnemyBarFill) this.domEnemyBarFill.style.background = DomUi.hexCss(col);
+    } };
+
     this.layoutTopHud(w, h);
+  }
+
+  /** Minimal text proxy for DOM nodes (setText / setColor / setFontSize). */
+  _domTextProxy(el) {
+    return {
+      el,
+      setText(t) {
+        if (el) el.textContent = t == null ? '' : String(t);
+        return this;
+      },
+      setColor(c) {
+        if (el && c != null) el.style.color = c;
+        return this;
+      },
+      setFontSize(s) {
+        if (el && s != null) el.style.fontSize = typeof s === 'number' ? `${s}px` : s;
+        return this;
+      },
+      setVisible(v) {
+        if (el) el.style.display = v ? '' : 'none';
+        return this;
+      },
+      setPosition() {
+        return this;
+      },
+      setWordWrapWidth() {
+        return this;
+      },
+      setOrigin() {
+        return this;
+      },
+      setScrollFactor() {
+        return this;
+      },
+      setDepth() {
+        return this;
+      },
+      get text() {
+        return el?.textContent || '';
+      },
+    };
   }
 
   /** Bottom action bar  -  primary mouse UI (MORE on narrow; SPEC in combat) */
   setupMouseBar() {
     const d = 120;
-    const w = this.scale.width;
-    const h = this.scale.height;
-    const m = this.barMetrics(w, h);
-    this.bottomBar = this.add
-      .rectangle(w / 2, m.bottomY, w, m.barH, 0x020617, 0.94)
-      .setScrollFactor(0)
-      .setDepth(d)
-      .setStrokeStyle(1, 0x334155);
-
+    const m = this.barMetrics();
+    // bottomBar flag so rebuildActionBar knows HUD exists (DOM)
+    this.bottomBar = true;
     this.actionButtons = [];
     this.rebuildActionBar();
 
-    // Home compass  -  graphics chevron pointing +X; rotation = atan2 toward HQ
+    // Home compass chevron — graphics only; label is DOM
     this.homeArrow = this.add.graphics().setScrollFactor(0).setDepth(d + 2);
     this.homeArrow.setPosition(36, m.homeY);
     this.drawHomeChevron();
-    this.homeArrowLabel = this.add
-      .text(36, m.homeY + 22, 'HQ', {
-        fontFamily: 'system-ui',
-        fontSize: '11px',
-        fontStyle: 'bold',
-        color: '#fbbf24',
-      })
-      .setOrigin(0.5)
-      .setScrollFactor(0)
-      .setDepth(d + 2);
   }
 
   toggleMoreMenu() {
@@ -1266,60 +1183,42 @@ export class GameScene extends Phaser.Scene {
     this.moreOpen = true;
     this.clearMousePath();
     this.uiBlockClick = true;
-    const d = 350;
-    const w = this.scale.width;
-    const h = this.scale.height;
     const ids = this.getMoreMenuIds();
     const catalog = this.barActionCatalog();
-    const rowH = 48;
-    const panelH = 56 + ids.length * rowH + 16;
-    const panelW = Math.min(300, w - 32);
-    const cx = w / 2;
     const m = this.barMetrics();
-    const cy = h - m.hudBottom - panelH / 2 - 12;
 
-    this.moreUi = [];
-    const dim = this.add
-      .rectangle(cx, h / 2, w, h, 0x020617, 0.45)
-      .setScrollFactor(0)
-      .setDepth(d)
-      .setInteractive();
-    dim.on('pointerup', () => this.closeMoreMenu());
+    DomUi.clearModal();
+    const root = DomUi.show('more-ui', 'modal');
+    root.addEventListener('pointerup', (e) => {
+      if (e.target === root) this.closeMoreMenu();
+    });
 
-    const panel = this.add
-      .rectangle(cx, cy, panelW, panelH, 0x0f172a, 0.98)
-      .setStrokeStyle(2, 0x64748b)
-      .setScrollFactor(0)
-      .setDepth(d + 1);
+    const panel = DomUi.el('div', 'more-panel');
+    panel.style.bottom = `${m.hudBottom + 16}px`;
+    panel.appendChild(DomUi.el('div', 'sheet-title', 'MORE'));
+    const actions = DomUi.el('div', 'sheet-actions');
 
-    const title = this.add
-      .text(cx, cy - panelH / 2 + 22, 'MORE', {
-        fontFamily: 'system-ui',
-        fontSize: '15px',
-        fontStyle: 'bold',
-        color: '#e2e8f0',
-      })
-      .setOrigin(0.5)
-      .setScrollFactor(0)
-      .setDepth(d + 2);
-
-    this.moreUi.push(dim, panel, title);
-
-    ids.forEach((id, i) => {
+    ids.forEach((id) => {
       const def = catalog[id];
       if (!def) return;
-      const y = cy - panelH / 2 + 52 + i * rowH;
-      const b = this.makeUiButton(cx, y, panelW - 36, 40, def.label, def.color, () => {
+      const btn = DomUi.button('hit sheet-btn', def.label, () => {
         def.fn();
-        // keep MORE open for sneak/walk toggle so player sees state; close for menu/map
         if (id === 'menu' || id === 'map') this.closeMoreMenu();
-        else this.syncMoveModeButtons();
-      }, d + 3);
-      this.moreUi.push(b.bg, b.label);
-      // Stash refs so syncMoveModeButtons can update labels inside MORE
+        else {
+          // Rebuild MORE so sneak/walk labels match toggled state
+          this.moreOpen = false;
+          this.openMoreMenu();
+        }
+      });
+      btn.style.background = DomUi.hexCss(def.color);
+      actions.appendChild(btn);
+      const b = DomUi.btnAdapter(btn);
       if (id === 'sneak') this.btnSneak = b;
       if (id === 'walk') this.btnRun = b;
     });
+    panel.appendChild(actions);
+    root.appendChild(panel);
+    this.moreUi = [root];
     this.syncMoveModeButtons();
     this.time.delayedCall(80, () => {
       if (this.moreOpen) this.uiBlockClick = false;
@@ -1329,13 +1228,7 @@ export class GameScene extends Phaser.Scene {
   closeMoreMenu() {
     if (!this.moreOpen && !(this.moreUi || []).length) return;
     this.moreOpen = false;
-    for (const o of this.moreUi || []) {
-      try {
-        o?.destroy?.();
-      } catch (_) {
-        /* ignore */
-      }
-    }
+    DomUi.clearModal();
     this.moreUi = [];
     // Sneak/walk buttons may have lived only in MORE; clear dangling refs if not on main bar
     if (!this.actionButtons?.some((b) => b === this.btnSneak)) this.btnSneak = null;
@@ -1394,77 +1287,46 @@ export class GameScene extends Phaser.Scene {
       this.closeRunMenu();
       return;
     }
+    if (this.bagOpen) this.equipUI?.close();
+    if (this.craftOpen) this.craftPanel?.toggle(false);
     this.menuOpen = true;
     this.clearMousePath();
     this.uiBlockClick = true;
+    this.moreOpen = false;
+    this.legendOpen = false;
+    this.specialOpen = false;
 
-    const d = 460;
-    const w = this.scale.width;
-    const h = this.scale.height;
-    const cx = w / 2;
-    const cy = h / 2 - 10;
-    this.menuUi = [];
-
-    const dim = this.add
-      .rectangle(cx, h / 2, w, h, 0x020617, 0.78)
-      .setScrollFactor(0)
-      .setDepth(d)
-      .setInteractive();
-    dim.on('pointerup', () => this.closeRunMenu());
-
-    const panel = this.add
-      .rectangle(cx, cy, 520, 440, 0x0f172a, 0.98)
-      .setStrokeStyle(3, 0x38bdf8)
-      .setScrollFactor(0)
-      .setDepth(d + 1)
-      .setInteractive();
-    panel.on('pointerup', (p) => {
-      p.event?.stopPropagation?.();
-      this.uiBlockClick = true;
-      this.time.delayedCall(80, () => {
-        this.uiBlockClick = false;
-      });
+    DomUi.clearModal();
+    const root = DomUi.show('modal-ui', 'modal');
+    root.addEventListener('pointerup', (e) => {
+      if (e.target === root) this.closeRunMenu();
     });
 
-    const title = this.add
-      .text(cx, cy - 190, 'RUN MENU', {
-        fontFamily: 'system-ui',
-        fontSize: '22px',
-        fontStyle: 'bold',
-        color: '#f8fafc',
-      })
-      .setOrigin(0.5)
-      .setScrollFactor(0)
-      .setDepth(d + 2);
-
-    const help =
-      'WHO: Runner  ·  WHAT: Breach Kit, escape\n' +
-      'WHEN: Day safer · Night dogs  ·  WHERE: HQ center, Wall edges\n' +
-      'HOW: Click map · BAG equip · CRAFT at purple rig · HEAL kits\n' +
-      'Street Charge (Boom craft): detonates near foes. Loud.\n' +
-      'Camera: edge-pan or middle-mouse drag.';
-    const body = this.add
-      .text(cx, cy - 100, help, {
-        fontFamily: 'system-ui',
-        fontSize: '13px',
-        color: '#cbd5e1',
-        align: 'center',
-        lineSpacing: 5,
-      })
-      .setOrigin(0.5)
-      .setScrollFactor(0)
-      .setDepth(d + 2);
+    const sheet = DomUi.el('div', 'sheet');
+    sheet.appendChild(DomUi.el('div', 'sheet-title', 'RUN MENU'));
+    sheet.appendChild(
+      DomUi.el(
+        'div',
+        'sheet-body',
+        'WHO: Runner  ·  WHAT: Breach Kit, escape\n' +
+          'WHEN: Day safer · Night dogs  ·  WHERE: HQ center, Wall edges\n' +
+          'HOW: Click map · BAG equip · CRAFT at purple rig · HEAL kits\n' +
+          'Street Charge (Boom craft): detonates near foes. Loud.\n' +
+          'Camera: edge-pan or middle-mouse drag.'
+      )
+    );
 
     const soundOn = this.audio?.on !== false;
     const narr = this.story?.narratorOn !== false;
-
-    const mk = (y, label, color, fn) => {
-      const b = this.makeUiButton(cx, y, 220, 40, label, color, fn, d + 3);
-      this.menuUi.push(b.bg, b.label);
-      return b;
+    const actions = DomUi.el('div', 'sheet-actions');
+    const mk = (label, color, fn, ghost) => {
+      const btn = DomUi.button(`hit sheet-btn${ghost ? ' ghost' : ''}`, label, fn);
+      btn.style.background = DomUi.hexCss(color);
+      if (ghost) btn.style.color = '#e2e8f0';
+      actions.appendChild(btn);
     };
 
-    mk(cy + 20, soundOn ? 'SOUND: ON' : 'SOUND: OFF', soundOn ? 0x22c55e : 0x64748b, () => {
+    mk(soundOn ? 'SOUND: ON' : 'SOUND: OFF', soundOn ? 0x22c55e : 0x64748b, () => {
       const next = !this.audio.on;
       if (this.audio.setMuted) this.audio.setMuted(!next);
       else this.audio.on = next;
@@ -1472,26 +1334,29 @@ export class GameScene extends Phaser.Scene {
       this.openRunMenu();
       this.log(this.audio.on ? 'Sound ON.' : 'Sound muted.');
     });
-    mk(cy + 70, narr ? 'NARRATOR: ON' : 'NARRATOR: OFF', narr ? 0x7c3aed : 0x64748b, () => {
+    mk(narr ? 'NARRATOR: ON' : 'NARRATOR: OFF', narr ? 0x7c3aed : 0x64748b, () => {
       this.story.narratorOn = !this.story.narratorOn;
       this.story.persist();
       this.closeRunMenu();
       this.openRunMenu();
       this.log(this.story.narratorOn ? 'Narrator ON.' : 'Narrator OFF.');
     });
-    mk(cy + 110, 'SAVE RUN', 0x0ea5e9, () => {
+    mk('SAVE RUN', 0x0ea5e9, () => {
       const ok = SaveSystem.save(this);
       this.log(ok ? 'Run saved. CONTINUE from main menu later.' : 'Save failed.');
       this.closeRunMenu();
     });
-    mk(cy + 155, 'NEW RUN (menu)', 0xe11d48, () => {
+    mk('NEW RUN (menu)', 0xe11d48, () => {
       this.closeRunMenu();
       this.audio.stopWorldAmb?.();
+      DomUi.clearAll();
       this.scene.start('Menu');
     });
-    mk(cy + 200, 'CLOSE', 0x94a3b8, () => this.closeRunMenu());
+    mk('CLOSE', 0x94a3b8, () => this.closeRunMenu(), true);
 
-    this.menuUi.push(dim, panel, title, body);
+    sheet.appendChild(actions);
+    root.appendChild(sheet);
+    this.menuUi = [root];
     this.time.delayedCall(100, () => {
       if (this.menuOpen) this.uiBlockClick = false;
     });
@@ -1499,7 +1364,7 @@ export class GameScene extends Phaser.Scene {
 
   closeRunMenu() {
     this.menuOpen = false;
-    for (const o of this.menuUi || []) o?.destroy?.();
+    DomUi.clearModal();
     this.menuUi = [];
     this.clearMousePath();
     this.uiBlockClick = true;
@@ -1514,10 +1379,11 @@ export class GameScene extends Phaser.Scene {
 
   openBagPanel() {
     this.closeMoreMenu();
+    this.closeRunMenu();
     this.clearMousePath();
     this.equipUI?.toggle();
     if (this.bagOpen) {
-      this.log('BAG open. Click an item to equip, or drag onto a slot.');
+      this.log('BAG open. Tap an item to equip, or tap a slot to unequip.');
     }
   }
 
@@ -1527,44 +1393,15 @@ export class GameScene extends Phaser.Scene {
       return;
     }
     this.legendOpen = true;
-    this.closeRunMenu();
-    this.closeMoreMenu();
-    const d = 350;
-    const w = this.scale.width;
-    const h = this.scale.height;
-    const cx = w / 2;
-    const cy = h / 2 - 10;
+    this.menuOpen = false;
+    this.moreOpen = false;
+    this.clearMousePath();
 
-    const dim = this.add
-      .rectangle(cx, h / 2, w, h, 0x020617, 0.65)
-      .setScrollFactor(0)
-      .setDepth(d)
-      .setInteractive();
-    dim.on('pointerup', () => this.closeLegend());
-
-    const panel = this.add
-      .rectangle(cx, cy, 500, 480, 0x0f172a, 0.98)
-      .setStrokeStyle(2, 0x38bdf8)
-      .setScrollFactor(0)
-      .setDepth(d + 1)
-      .setInteractive();
-    panel.on('pointerup', (p) => {
-      this.uiBlockClick = true;
-      this.time.delayedCall(80, () => {
-        this.uiBlockClick = false;
-      });
+    DomUi.clearModal();
+    const root = DomUi.show('modal-ui', 'modal');
+    root.addEventListener('pointerup', (e) => {
+      if (e.target === root) this.closeLegend();
     });
-
-    const title = this.add
-      .text(cx, cy - 215, 'MAP LEGEND', {
-        fontFamily: 'system-ui',
-        fontSize: '20px',
-        fontStyle: 'bold',
-        color: '#e2e8f0',
-      })
-      .setOrigin(0.5)
-      .setScrollFactor(0)
-      .setDepth(d + 2);
 
     const lines = [
       ['Blue pad (HQ)', 'Safe starting courtyard'],
@@ -1584,26 +1421,28 @@ export class GameScene extends Phaser.Scene {
       ['You (small figure)', 'The Runner  -  click map to walk'],
     ];
 
-    const body = lines
-      .map(([a, b]) => `• ${a}   -   ${b}`)
-      .join('\n');
-    const text = this.add
-      .text(cx - 220, cy - 185, body, {
-        fontFamily: 'system-ui',
-        fontSize: '12px',
-        color: '#cbd5e1',
-        lineSpacing: 5,
-      })
-      .setScrollFactor(0)
-      .setDepth(d + 2);
-
-    const close = this.makeUiButton(cx, cy + 210, 140, 40, 'CLOSE', 0x94a3b8, () => this.closeLegend(), d + 3);
-    this.legendUi = [dim, panel, title, text, close.bg, close.label];
+    const sheet = DomUi.el('div', 'sheet');
+    sheet.appendChild(DomUi.el('div', 'sheet-title', 'MAP LEGEND'));
+    sheet.appendChild(
+      DomUi.el(
+        'div',
+        'sheet-body left',
+        lines.map(([a, b]) => `• ${a}   -   ${b}`).join('\n')
+      )
+    );
+    const actions = DomUi.el('div', 'sheet-actions');
+    const close = DomUi.button('hit sheet-btn ghost', 'CLOSE', () => this.closeLegend());
+    close.style.background = DomUi.hexCss(0x94a3b8);
+    close.style.color = '#0b1220';
+    actions.appendChild(close);
+    sheet.appendChild(actions);
+    root.appendChild(sheet);
+    this.legendUi = [root];
   }
 
   closeLegend() {
     this.legendOpen = false;
-    for (const o of this.legendUi || []) o?.destroy?.();
+    DomUi.clearModal();
     this.legendUi = [];
     this.clearMousePath();
     this.uiBlockClick = true;
@@ -1613,63 +1452,19 @@ export class GameScene extends Phaser.Scene {
   }
 
   /**
-   * HUD button  -  always scrollFactor 0, high depth, reliable clicks.
-   * Larger hit pad on touch-sized buttons; fires on pointerup with down-guard.
+   * DOM HUD button adapter (absolute position on modal layer).
+   * Prefer bar rebuild / sheet builders for new UI.
    */
-  makeUiButton(x, y, w, h, label, color, onClick, depth = 121, hitPad) {
-    const bg = this.add
-      .rectangle(x, y, w, h, color, 1)
-      .setStrokeStyle(2, 0xf8fafc, 0.4)
-      .setScrollFactor(0)
-      .setDepth(depth);
-    const mobile = this.isMobileHud?.() ?? false;
-    const pad =
-      hitPad ??
-      (w >= 160 ? 14 : w < 48 ? (mobile ? 4 : 6) : mobile ? 4 : 4);
-    bg.setInteractive({
-      useHandCursor: true,
-      hitArea: new Phaser.Geom.Rectangle(-w / 2 - pad, -h / 2 - pad, w + pad * 2, h + pad * 2),
-      hitAreaCallback: Phaser.Geom.Rectangle.Contains,
-    });
-    const text = this.add
-      .text(x, y, label, {
-        fontFamily: 'system-ui',
-        fontSize: '13px',
-        fontStyle: 'bold',
-        color: '#0b1220',
-      })
-      .setOrigin(0.5)
-      .setScrollFactor(0)
-      .setDepth(depth + 1);
-    // Text must not steal clicks
-    text.disableInteractive?.();
-
-    let pressed = false;
-    bg.on('pointerover', () => bg.setAlpha(0.88));
-    bg.on('pointerout', () => {
-      bg.setAlpha(1);
-      pressed = false;
-    });
-    bg.on('pointerdown', (pointer) => {
-      pointer.event?.preventDefault?.();
-      pointer.event?.stopPropagation?.();
-      if (pointer.event?.stopPropagation) pointer.event.stopPropagation();
-      pressed = true;
+  makeUiButton(x, y, w, h, label, color, onClick, _depth = 121, _hitPad) {
+    const parent = DomUi.modal() || DomUi.hud();
+    const b = DomUi.absButton(parent, x, y, w, h, label, color, () => {
       this.uiBlockClick = true;
-    });
-    bg.on('pointerup', (pointer) => {
-      pointer.event?.preventDefault?.();
-      pointer.event?.stopPropagation?.();
-      if (!pressed) {
-        // Still accept if released on button (mobile often skips clean down/up pairing)
-      }
-      pressed = false;
-      onClick();
+      onClick?.();
       this.time.delayedCall(80, () => {
         this.uiBlockClick = false;
       });
     });
-    return { bg, label: text };
+    return b;
   }
 
   /** ATK shown on HUD / combat: base + weapon + live char bonuses (never baked into gear). */
@@ -1683,6 +1478,7 @@ export class GameScene extends Phaser.Scene {
 
   refreshHud() {
     const p = this.player;
+    if (!p) return;
     const atk = this.playerEffectiveAtk();
     const def = this.inv.totalDef(p.baseDef);
     const zone = this.zones.label(this.zones.getZone(p.tx, p.ty));
@@ -1726,10 +1522,9 @@ export class GameScene extends Phaser.Scene {
       this.heatText.setText(`GRID HEAT ${h}`);
       this.heatText.setColor(this.heat.color);
       this.runStats.maxHeat = Math.max(this.runStats.maxHeat || 0, h);
-      if (this.heatBarFill) {
-        this.heatBarFill.width = Math.max(1, (this.heat.level / 100) * 100);
-        const col = parseInt(this.heat.color.replace('#', ''), 16);
-        this.heatBarFill.setFillStyle(col);
+      if (this.domHeatFill) {
+        this.domHeatFill.style.width = `${Math.max(1, this.heat.level)}%`;
+        this.domHeatFill.style.background = this.heat.color;
       }
     }
     this.updateCombatHud();
@@ -1767,19 +1562,20 @@ export class GameScene extends Phaser.Scene {
   }
 
   updateCombatHud() {
-    if (!this.combatHud) return;
+    if (!this.domCombat) return;
     const show = this.mode === 'combat';
-    this.combatHud.setVisible(show);
+    this.domCombat.classList.toggle('hidden', !show);
+    this.combatHud.visible = show;
     if (!show) return;
-
-    const w = this.scale.width;
-    // Dock left under top bar
-    this.combatHud.setPosition(12, 64);
 
     const p = this.player;
     const pPct = Math.max(0, p.hp / p.maxHp);
-    this.playerBarFill.width = 250 * pPct;
-    this.playerBarFill.setFillStyle(pPct > 0.5 ? 0x22c55e : pPct > 0.25 ? 0xeab308 : 0xef4444);
+    if (this.domPlayerBarFill) {
+      this.domPlayerBarFill.style.width = `${Math.round(pPct * 100)}%`;
+      this.domPlayerBarFill.style.background = DomUi.hexCss(
+        pPct > 0.5 ? 0x22c55e : pPct > 0.25 ? 0xeab308 : 0xef4444
+      );
+    }
     this.playerBarLabel.setText(
       `YOU  ${p.hp}/${p.maxHp}  (${this.inv.weapon?.name || 'Fists'} ATK ${this.playerEffectiveAtk()})`
     );
@@ -1792,15 +1588,16 @@ export class GameScene extends Phaser.Scene {
     }
     if (foe) {
       const ePct = Math.max(0, foe.hp / foe.maxHp);
-      this.enemyBarFill.width = 250 * ePct;
-      this.enemyBarFill.setFillStyle(0xef4444);
+      if (this.domEnemyBarFill) {
+        this.domEnemyBarFill.style.width = `${Math.round(ePct * 100)}%`;
+        this.domEnemyBarFill.style.background = DomUi.hexCss(0xef4444);
+      }
       const rangeNote = foe.ranged ? 'ranged' : 'melee';
       this.enemyBarLabel.setText(`${foe.name}  ${foe.hp}/${foe.maxHp}  (${rangeNote})`);
     } else {
-      this.enemyBarFill.width = 0;
+      if (this.domEnemyBarFill) this.domEnemyBarFill.style.width = '0%';
       this.enemyBarLabel.setText('No target');
     }
-    void w;
   }
 
   /** True while any modal is open  -  freezes world time & AI */
@@ -1984,14 +1781,13 @@ export class GameScene extends Phaser.Scene {
   }
 
   updateDayBar() {
-    if (!this.dayBarFill || !this.dayBarLabel) return;
+    if (!this.domDayFill || !this.dayBarLabel) return;
     const fill = this.dayNight.barFill; // day fills → night drains
-    const maxW = 200;
-    this.dayBarFill.width = Math.max(2, maxW * fill);
+    this.domDayFill.style.width = `${Math.max(2, fill * 100)}%`;
     let col = 0xfbbf24; // day gold
     if (this.dayNight.isNight) col = 0x6366f1; // night indigo
     else if (fill > 0.85) col = 0xf97316; // late day / dusk
-    this.dayBarFill.setFillStyle(col, 1);
+    this.domDayFill.style.background = DomUi.hexCss(col);
     const phase = this.dayNight.isNight ? 'NIGHT' : fill > 0.85 ? 'DUSK' : 'DAY';
     this.dayBarLabel.setText(`Day ${this.dayNight.day} · ${phase}`);
     this.dayBarLabel.setColor('#f8fafc');
@@ -1999,7 +1795,7 @@ export class GameScene extends Phaser.Scene {
 
   /**
    * Story / tutorial modal — DOM text (crisp Inter), not Phaser Text.
-   * Time frozen while open. See VISUAL-STYLE.md.
+   * Uses modal layer so in-run HUD stays mounted. See VISUAL-STYLE.md.
    */
   showPopup(title, body, onClose, opts = {}) {
     if (typeof onClose === 'object' && onClose !== null) {
@@ -2017,8 +1813,8 @@ export class GameScene extends Phaser.Scene {
     const hasCheck = !!opts.checkboxLabel;
     let checked = opts.checkboxDefault === true;
 
-    DomUi.clear();
-    const root = DomUi.show('popup-ui');
+    DomUi.clearModal();
+    const root = DomUi.show('popup-ui', 'modal');
     if (!root) {
       this.popupOpen = false;
       return;
@@ -2045,7 +1841,7 @@ export class GameScene extends Phaser.Scene {
     const finish = (fromOk) => {
       if (!this.popupOpen) return;
       if (checkInput) checked = !!checkInput.checked;
-      DomUi.clear();
+      DomUi.clearModal();
       this.popupOpen = false;
       this._popupFinish = null;
       this.clearMousePath();
@@ -2134,10 +1930,6 @@ export class GameScene extends Phaser.Scene {
   }
 
   refreshHuntHud() {
-    if (this.huntHudParts) {
-      this.huntHudParts.forEach((o) => o?.destroy?.());
-      this.huntHudParts = null;
-    }
     this.huntList = this.huntList.filter((h) => {
       const result = BLUEPRINTS[h.bpId]?.result;
       if (result && this.inv.items.some((i) => i.id === result)) return false;
@@ -2150,10 +1942,13 @@ export class GameScene extends Phaser.Scene {
       return true;
     });
 
-    if (!this.huntList.length) return;
+    if (!this.domHunt) return;
+    if (!this.huntList.length) {
+      this.domHunt.classList.add('hidden');
+      this.domHunt.innerHTML = '';
+      return;
+    }
 
-    const d = 110;
-    const w = this.scale.width;
     const lines = ['HUNT LIST', ''];
     for (const h of this.huntList) {
       lines.push(`▸ ${h.name}`);
@@ -2164,48 +1959,14 @@ export class GameScene extends Phaser.Scene {
       }
       lines.push('');
     }
-
-    const body = this.add
-      .text(w - 20, 78, lines.join('\n'), {
-        fontFamily: 'system-ui',
-        fontSize: '12px',
-        color: '#fde68a',
-        lineSpacing: 3,
-        align: 'left',
-      })
-      .setOrigin(1, 0)
-      .setScrollFactor(0)
-      .setDepth(d + 1);
-
-    const pad = 12;
-    const bw = body.width + pad * 2;
-    const bh = body.height + pad * 2 + 28;
-    // Proper rect (no setSize after stroke  -  that caused the diagonal line)
-    const bg = this.add
-      .rectangle(w - 12 - bw / 2, 70 + bh / 2, bw, bh, 0x0f172a, 0.92)
-      .setStrokeStyle(2, 0xfbbf24)
-      .setScrollFactor(0)
-      .setDepth(d);
-
-    body.setPosition(w - 12 - pad, 70 + pad);
-
-    const clearBtn = this.add
-      .text(w - 12 - pad, 70 + bh - 18, '✕ clear hunts', {
-        fontFamily: 'system-ui',
-        fontSize: '11px',
-        color: '#f87171',
-      })
-      .setOrigin(1, 0.5)
-      .setScrollFactor(0)
-      .setDepth(d + 1)
-      .setInteractive({ useHandCursor: true });
-    clearBtn.on('pointerup', () => {
+    this.domHunt.classList.remove('hidden');
+    this.domHunt.textContent = lines.join('\n').trimEnd();
+    const clear = DomUi.button('hit hunt-clear', '✕ clear hunts', () => {
       this.huntList = [];
       this.refreshHuntHud();
       this.log('Hunt list cleared.');
     });
-
-    this.huntHudParts = [bg, body, clearBtn];
+    this.domHunt.appendChild(clear);
   }
 
   updateObjective() {
@@ -3485,8 +3246,6 @@ export class GameScene extends Phaser.Scene {
   }
 
   showEnd(won, msg) {
-    const w = this.scale.width;
-    const h = this.scale.height;
     const days = this.dayNight?.day || 1;
     const kills = this.runStats?.kills || 0;
     const heat = Math.round(this.runStats?.maxHeat || this.heat?.maxSeen || 0);
@@ -3495,76 +3254,34 @@ export class GameScene extends Phaser.Scene {
       `Days survived: ${days}\nKills: ${kills}  ·  Level: ${lvl}\nPeak grid heat: ${heat}`;
     const legacy = RunLegacy.summaryLine();
 
-    this.add
-      .rectangle(w / 2, h / 2, w, h, 0x020617, 0.82)
-      .setScrollFactor(0)
-      .setDepth(200);
-    this.add
-      .text(w / 2, h * 0.28, won ? 'YOU ESCAPED' : 'KIA', {
-        fontFamily: 'system-ui',
-        fontSize: '48px',
-        fontStyle: 'bold',
-        color: won ? '#38bdf8' : '#fb7185',
-      })
-      .setOrigin(0.5)
-      .setScrollFactor(0)
-      .setDepth(201);
-    this.add
-      .text(w / 2, h * 0.42, msg, {
-        fontFamily: 'system-ui',
-        fontSize: '16px',
-        color: '#cbd5e1',
-        align: 'center',
-      })
-      .setOrigin(0.5)
-      .setScrollFactor(0)
-      .setDepth(201);
-    this.add
-      .text(w / 2, h * 0.52, stats, {
-        fontFamily: 'system-ui',
-        fontSize: '13px',
-        color: '#94a3b8',
-        align: 'center',
-      })
-      .setOrigin(0.5)
-      .setScrollFactor(0)
-      .setDepth(201);
-    this.add
-      .text(w / 2, h * 0.58, legacy, {
-        fontFamily: 'system-ui',
-        fontSize: '12px',
-        color: '#64748b',
-        align: 'center',
-      })
-      .setOrigin(0.5)
-      .setScrollFactor(0)
-      .setDepth(201);
+    DomUi.clearCraft();
+    DomUi.clearModal();
+    const root = DomUi.show('end-ui', 'modal');
+    root.appendChild(
+      DomUi.el('div', `end-title ${won ? 'win' : 'lose'}`, won ? 'YOU ESCAPED' : 'KIA')
+    );
+    root.appendChild(DomUi.el('div', 'end-msg', msg));
+    root.appendChild(DomUi.el('div', 'end-stats', stats));
+    root.appendChild(DomUi.el('div', 'end-legacy', legacy));
 
-    const mkBtn = (y, label, color, fn) => {
-      const btn = this.add
-        .rectangle(w / 2, y, 220, 48, color)
-        .setScrollFactor(0)
-        .setDepth(201)
-        .setInteractive({ useHandCursor: true });
-      this.add
-        .text(w / 2, y, label, {
-          fontFamily: 'system-ui',
-          fontSize: '18px',
-          fontStyle: 'bold',
-          color: '#fff',
-        })
-        .setOrigin(0.5)
-        .setScrollFactor(0)
-        .setDepth(202);
-      btn.on('pointerup', fn);
-    };
-
-    mkBtn(h * 0.66, 'NEW RUN', won ? 0x0ea5e9 : 0xe11d48, () => this.scene.restart());
-    mkBtn(h * 0.76, 'MAIN MENU', 0x334155, () => {
+    const actions = DomUi.el('div', 'sheet-actions');
+    const newRun = DomUi.button('hit sheet-btn', 'NEW RUN', () => {
+      DomUi.clearAll();
+      this.scene.restart();
+    });
+    newRun.style.background = DomUi.hexCss(won ? 0x0ea5e9 : 0xe11d48);
+    newRun.style.color = '#fff';
+    const menu = DomUi.button('hit sheet-btn ghost', 'MAIN MENU', () => {
       SaveSystem.clear();
       this.audio.stopWorldAmb?.();
+      DomUi.clearAll();
       this.scene.start('Menu');
     });
+    menu.style.background = DomUi.hexCss(0x334155);
+    menu.style.color = '#fff';
+    actions.appendChild(newRun);
+    actions.appendChild(menu);
+    root.appendChild(actions);
   }
 }
 

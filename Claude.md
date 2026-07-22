@@ -6,7 +6,7 @@ Phaser 4 turn-based top-down city escape game (Escape from New York / early Rock
 
 ## Text (LOCKED — user repeated)
 
-**Entire game** needs crisp DOM text (`DomUi.js`). Phaser Text under `pixelArt: true` looks chunky. Menus/popups migrated; **HUD/craft/buttons still Phaser — next session priority.** Do not flip pixelArt off to “fix” type.
+**Entire game** needs crisp DOM text (`DomUi.js` layers: hud / ui / craft / modal). Phaser Text under `pixelArt: true` looks chunky. Menus + in-run HUD/craft/bag/combat/end migrated. Optional world floaters (Actor HP, VFX) may stay Phaser. Do not flip pixelArt off to “fix” type.
 
 ## Always use latest packages
 
