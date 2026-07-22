@@ -243,7 +243,7 @@ export class GameScene extends Phaser.Scene {
       this._guideCamSoftFollow = mobile;
       this.showGuideToast(
         'QUEST 1',
-        'Follow the gold pulse / arrow. Tap the gold crate EAST of HQ.'
+        'Follow the gold pulse.\nTap the gold crate EAST of HQ.'
       );
     });
   }
@@ -472,18 +472,24 @@ export class GameScene extends Phaser.Scene {
   }
 
   /**
-   * High-contrast tutorial step banner above the action bar (DOM).
+   * Sticky mid-screen tutorial coach (DOM). Stays long enough to read.
    */
   showGuideToast(title, body) {
-    const text = `${title}\n${String(body || '').replace(/\n/g, ' ')}`;
+    const bodyText = String(body || '').trim();
     if (this.domGuideToast) {
-      this.domGuideToast.textContent = text;
+      this.domGuideToast.innerHTML = '';
+      const t = document.createElement('span');
+      t.className = 'guide-toast-title';
+      t.textContent = title || 'NEXT';
+      this.domGuideToast.appendChild(t);
+      this.domGuideToast.appendChild(document.createTextNode(bodyText));
       this.domGuideToast.classList.remove('hidden');
     }
-    this.log(`${title}: ${String(body || '').replace(/\n/g, ' ')}`);
+    this.log(`${title}: ${bodyText.replace(/\n/g, ' ')}`);
 
+    // 16s — was 5s and too easy to miss under the bar toast
     if (this._guideToastClear) this._guideToastClear.remove?.(false);
-    this._guideToastClear = this.time.delayedCall(5000, () => {
+    this._guideToastClear = this.time.delayedCall(16000, () => {
       this.domGuideToast?.classList.add('hidden');
     });
   }
@@ -941,6 +947,8 @@ export class GameScene extends Phaser.Scene {
       }
     }
     if (night) {
+      // No night packs during quest-0 hand-hold (they stole the BAG step)
+      if (this.isGuideHandhold()) return;
       // spawn a few dogs near player ring (never over the guide dog)
       let dogs = 0;
       for (let i = 0; i < 40 && dogs < 6; i++) {
@@ -968,6 +976,7 @@ export class GameScene extends Phaser.Scene {
   /** Heat spike spawns a patrol enforcer near the player. */
   spawnHeatPatrol() {
     if (this.mode === 'combat' || this.ended) return;
+    if (this.isGuideHandhold()) return;
     for (let i = 0; i < 30; i++) {
       const a = Math.random() * Math.PI * 2;
       const d = 10 + Math.random() * 8;
@@ -1097,7 +1106,11 @@ export class GameScene extends Phaser.Scene {
     this.legendOpen = false;
     this.legendUi = [];
 
-    this.objMarker = this.add.triangle(0, 0, 0, 12, 9, 0, 18, 12, 0xfbbf24).setDepth(28);
+    // Legacy marker kept invisible — gold pulse is the only world objective cue
+    this.objMarker = this.add
+      .triangle(0, 0, 0, 12, 9, 0, 18, 12, 0xfbbf24)
+      .setDepth(28)
+      .setVisible(false);
     this.pathGfx = this.add.graphics().setDepth(12);
     // Markers for day/heat fill width updates
     this.dayBarFill = { width: 2, setFillStyle: (col) => {
@@ -1383,6 +1396,8 @@ export class GameScene extends Phaser.Scene {
     this.clearMousePath();
     this.equipUI?.toggle();
     if (this.bagOpen) {
+      // Coach banner done its job once BAG is open
+      this.domGuideToast?.classList.add('hidden');
       this.log('BAG open. Tap an item to equip, or tap a slot to unequip.');
     }
   }
@@ -1413,11 +1428,11 @@ export class GameScene extends Phaser.Scene {
       ['Gold square', 'Loot crate  -  click to scavenge scrap'],
       ['Brown bat shape', 'Street Stick gear pickup'],
       ['Purple hat shape', 'Neon Fedora gear pickup'],
-      ['Purple “U” bench', 'Street Rig  -  craft here'],
+      ['Purple “U” tile', 'Street Rig / workbench  -  stand next to it, open CRAFT'],
       ['Teal oval', 'Sleep spot  -  rest until morning'],
       ['Pink + white dot', 'Blueprint  -  walk on to learn recipe'],
       ['Amber / gold edge', 'ESCAPE pad  -  needs Breach Kit'],
-      ['Gold pulse / ▲', 'Current guide objective'],
+      ['Gold pulse ring', 'Current guide objective (follow it)'],
       ['You (small figure)', 'The Runner  -  click map to walk'],
     ];
 
@@ -1531,19 +1546,13 @@ export class GameScene extends Phaser.Scene {
     this.updateHomeArrow();
     this.updateSneakRing();
     if (this.objText) this.objText.setText(this.objective || '');
-    if (this.objMarker && this.objTarget && !this.objTarget.ui) {
-      // Spots use {x,y} tiles; actors use {tx,ty}
-      const ox = this.objTarget.tx ?? this.objTarget.x;
-      const oy = this.objTarget.ty ?? this.objTarget.y;
-      if (ox != null && oy != null) {
-        this.objMarker.setPosition(ox * TILE + 16, oy * TILE - 4);
-        this.objMarker.setVisible(this.mode !== 'combat' && !this.bagOpen);
-      } else {
-        this.objMarker.setVisible(false);
-      }
-    } else if (this.objMarker) {
-      this.objMarker.setVisible(false);
-    }
+    // Gold pulse is enough — no floating ▲ triangle over the target
+    if (this.objMarker) this.objMarker.setVisible(false);
+  }
+
+  /** Quest 0 hand-hold: suppress random fights / night packs until bandage step done. */
+  isGuideHandhold() {
+    return !!(this.guide && !this.guide.done && this.guide.isHandhold?.());
   }
 
   log(msg) {
@@ -1644,13 +1653,24 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  /** Pulse ring on the current guide target (tile or UI button). */
+  /** Clear gold CSS pulse from bottom-bar buttons. */
+  clearDomBtnPulses() {
+    for (const b of this.actionButtons || []) {
+      b.el?.classList?.remove('hud-btn-pulse');
+    }
+    this.btnBag?.el?.classList?.remove('hud-btn-pulse');
+    this.btnCraft?.el?.classList?.remove('hud-btn-pulse');
+    this.btnSleep?.el?.classList?.remove('hud-btn-pulse');
+  }
+
+  /** Pulse ring on the current guide target (tile or DOM UI button). */
   updateQuestPulse(dt = 0) {
     this._pulseT = (this._pulseT || 0) + dt;
     const world = this.questPulseWorld;
     const ui = this.questPulseUi;
     world?.clear();
     ui?.clear();
+    this.clearDomBtnPulses();
     if (this.mode === 'combat') return;
     if (this.bagOpen || this.craftOpen || this.menuOpen || this.legendOpen) return;
 
@@ -1667,7 +1687,7 @@ export class GameScene extends Phaser.Scene {
     if (ui) ui.setDepth(this.popupOpen ? 520 : 140);
 
     if (target.ui) {
-      // UI pulses only when not under a full modal
+      // DOM bar buttons — CSS pulse (Phaser hit-rect pulse is dead after DomUi bar)
       if (this.popupOpen) return;
       const btn =
         target.ui === 'bag'
@@ -1677,21 +1697,7 @@ export class GameScene extends Phaser.Scene {
             : target.ui === 'sleep'
               ? this.btnSleep
               : null;
-      if (!btn?.bg) return;
-      const bx = btn.bg.x;
-      const by = btn.bg.y;
-      const hw = (btn.bg.width || 80) / 2 + 6;
-      const hh = (btn.bg.height || 40) / 2 + 6;
-      const pad = phase * 5;
-      ui.lineStyle(3, 0xfbbf24, a);
-      ui.strokeRect(bx - hw - pad, by - hh - pad, hw * 2 + pad * 2, hh * 2 + pad * 2);
-      ui.lineStyle(2, 0xfde68a, a * 0.7);
-      ui.strokeRect(
-        bx - hw - pad * 1.4 - 4,
-        by - hh - pad * 1.4 - 4,
-        hw * 2 + pad * 2.8 + 8,
-        hh * 2 + pad * 2.8 + 8
-      );
+      if (btn?.el) btn.el.classList.add('hud-btn-pulse');
       return;
     }
 
@@ -1709,6 +1715,20 @@ export class GameScene extends Phaser.Scene {
       world.strokeCircle(wx, wy, r + 8 + phase * 6);
       world.fillStyle(0xfbbf24, 0.1 + phase * 0.12);
       world.fillCircle(wx, wy, r * 0.85);
+    }
+
+    // When pulsing the HQ workbench, also light CRAFT on the bar
+    if (
+      this.guide &&
+      !this.guide.done &&
+      this.guide.quest === 0 &&
+      this.guide.flags?.equippedStick &&
+      this.guide.flags?.equippedHat &&
+      !this.guide.flags?.bandage &&
+      this.btnCraft?.el &&
+      !this.popupOpen
+    ) {
+      this.btnCraft.el.classList.add('hud-btn-pulse');
     }
 
     // Screen-edge beacon when off-screen, or always under a modal (world hidden by dimmer)
@@ -2563,7 +2583,7 @@ export class GameScene extends Phaser.Scene {
     this.nightVeil.setAlpha(this.dayNight.isNight ? 0.45 : 0.05);
     this.alert.update(dt, this.hiding);
     this.heat?.update(dt, this);
-    if (this.alert.state === ALERT.RED && this.mode !== 'combat') {
+    if (this.alert.state === ALERT.RED && this.mode !== 'combat' && !this.isGuideHandhold()) {
       const near = this.enemies.find(
         (e) => e.alive && !e._dormant && Math.abs(e.tx - this.player.tx) + Math.abs(e.ty - this.player.ty) <= 8
       );
@@ -2999,6 +3019,8 @@ export class GameScene extends Phaser.Scene {
   // ─── STEALTH / SPOT ──────────────────────────────────
   checkSpotting() {
     if (this.alert.state === ALERT.RED) return;
+    // Hand-hold: finish loot → equip → bandage before any street fight
+    if (this.isGuideHandhold()) return;
     const vis = this.playerVision();
     const sneak = this.playerSneakBonus();
     for (const e of this.enemies) {

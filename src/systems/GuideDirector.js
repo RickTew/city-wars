@@ -1,7 +1,7 @@
 /**
  * Three quests as short one-step prompts.
  * Hikes spread targets so the player learns the map.
- * Scene pulses the current target tile / button.
+ * Scene pulses the current target tile / button (no extra gold triangle).
  */
 import { CENTER_X, CENTER_Y } from '../config/constants.js';
 
@@ -10,14 +10,14 @@ export const QUESTS = [
   {
     id: 'q1',
     title: 'QUEST 1',
-    body: 'Follow the gold pulse / arrow.\nTap the gold crate EAST of HQ.',
-    objective: 'Gold crate east (follow gold arrow)',
+    body: 'Follow the gold pulse.\nTap the gold crate EAST of HQ.',
+    objective: 'Gold crate east (follow gold pulse)',
   },
   {
     id: 'q2',
     title: 'QUEST 2',
-    body: 'A dog is near. Follow the gold pulse.\nTap it. Fight until it drops.',
-    objective: 'Tap the pulsing dog',
+    body: 'A Grid Dog is near. Follow the gold pulse.\nTap the dog. Fight until it drops.',
+    objective: 'Tap the pulsing Grid Dog',
   },
   {
     id: 'q3',
@@ -35,24 +35,24 @@ export const QUESTS = [
 
 /**
  * Micro-steps after each action.
- * Shown as toast/log only (not full modals) so the player is not stuck in popups.
+ * Shown as sticky coach banner (not a blink toast).
  */
 const COACH = {
   looted: {
     title: 'NEXT',
-    body: 'Hike SOUTH. Walk onto the pulsing stick (gold arrow).',
+    body: 'Hike SOUTH. Walk onto the pulsing stick.',
   },
   stick: {
     title: 'NEXT',
-    body: 'Hike WEST. Walk onto the pulsing hat (gold arrow).',
+    body: 'Hike WEST. Walk onto the pulsing hat.',
   },
   hat: {
     title: 'NEXT',
-    body: 'Open BAG (bottom bar, gold pulse). Tap stick, then hat.',
+    body: 'Open BAG on the bottom bar (gold pulse).\nTap the stick, then the hat to equip.',
   },
   equipped: {
     title: 'NEXT',
-    body: 'Back to HQ purple rig. CRAFT Field Bandage (gold pulse).',
+    body: 'HQ workbench = purple U tile (Street Rig).\nStand next to it, open CRAFT, make Field Bandage.',
   },
 };
 
@@ -87,9 +87,9 @@ export class GuideDirector {
       if (!f.stick) return '→ Stick SOUTH (follow gold pulse)';
       if (!f.hat) return '→ Hat WEST (follow gold pulse)';
       if (!f.equippedStick || !f.equippedHat) return '→ Open BAG. Equip stick, then hat';
-      if (!f.bandage) return '→ HQ purple rig. CRAFT Field Bandage';
+      if (!f.bandage) return '→ Purple U workbench. CRAFT Field Bandage';
     }
-    if (this.quest === 1) return '→ Tap the pulsing dog';
+    if (this.quest === 1) return '→ Tap the pulsing Grid Dog';
     if (this.quest === 2) return '→ HQ. Press SLEEP';
     return QUESTS[this.quest]?.objective || '';
   }
@@ -115,6 +115,7 @@ export class GuideDirector {
       if (!f.hat) return g.gearDrops?.find((d) => d.id === 'sexy_hat' && !d.taken);
       if (!f.equippedStick || !f.equippedHat) return { ui: 'bag' };
       if (!f.bandage) {
+        // Pulse craft button AND world bench (prefer bench so they walk there)
         return g.nearestBench() || { ui: 'craft' };
       }
     }
@@ -128,6 +129,11 @@ export class GuideDirector {
       return { x: CENTER_X, y: CENTER_Y };
     }
     return null;
+  }
+
+  /** Quest 0 hand-hold: no random fights until bandage craft done. */
+  isHandhold() {
+    return !this.done && this.quest === 0;
   }
 
   tick() {

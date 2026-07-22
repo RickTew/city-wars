@@ -184,26 +184,11 @@ export class Minimap {
       }
       return;
     }
+    // Distance only — world gold pulse is the main cue (no second gold arrow)
     if (lab) {
-      lab.style.top = `${by + 16}px`;
+      lab.style.top = `${by}px`;
       lab.style.color = dist <= 6 ? '#4ade80' : '#fbbf24';
       lab.textContent = `OBJ ${dist}`;
     }
-
-    const ang = Math.atan2(dy, dx);
-    g.lineStyle(2, 0xfbbf24, 1);
-    g.fillStyle(0xfbbf24, 1);
-    const len = 14;
-    const ex = bx + Math.cos(ang) * len;
-    const ey = by + Math.sin(ang) * len;
-    g.lineBetween(bx, by, ex, ey);
-    g.fillTriangle(
-      ex,
-      ey,
-      ex - Math.cos(ang - 0.5) * 6,
-      ey - Math.sin(ang - 0.5) * 6,
-      ex - Math.cos(ang + 0.5) * 6,
-      ey - Math.sin(ang + 0.5) * 6
-    );
   }
 }

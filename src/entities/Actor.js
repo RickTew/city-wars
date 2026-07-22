@@ -58,17 +58,43 @@ export class Actor {
   }
 
   buildDogLook(scene) {
-    const torso = scene.add.ellipse(-2, 2, 20, 11, 0x57534e);
-    const rump = scene.add.circle(-10, 2, 5, 0x44403c);
-    const head = scene.add.ellipse(10, 0, 11, 9, 0x78716c);
-    const snout = scene.add.ellipse(16, 1, 7, 5, 0xa8a29e);
-    const earL = scene.add.triangle(6, -8, 0, 0, 6, 2, 2, -10, 0x44403c);
-    const earR = scene.add.triangle(11, -7, 0, 0, 5, 2, 2, -9, 0x57534e);
-    const leg1 = scene.add.rectangle(-6, 8, 3, 6, 0x292524);
-    const leg2 = scene.add.rectangle(2, 8, 3, 6, 0x292524);
-    const tail = scene.add.rectangle(-14, -2, 8, 2, 0x57534e).setAngle(-30);
-    const eye = scene.add.circle(12, -1, 1.5, 0xfbbf24);
-    this.root.add([torso, rump, leg1, leg2, tail, head, snout, earL, earR, eye]);
+    // Larger, clearer silhouette — must read as a dog at tile scale (not a brown blob)
+    const shadow = scene.add.ellipse(0, 11, 26, 8, 0x000000, 0.35);
+    const torso = scene.add.ellipse(-1, 1, 26, 14, 0x57534e);
+    const belly = scene.add.ellipse(2, 4, 16, 8, 0x78716c, 0.55);
+    const rump = scene.add.circle(-12, 1, 7, 0x44403c);
+    const neck = scene.add.ellipse(8, -1, 10, 9, 0x57534e);
+    const head = scene.add.ellipse(14, -2, 13, 11, 0x78716c);
+    const snout = scene.add.ellipse(22, 0, 10, 6, 0xa8a29e);
+    const nose = scene.add.circle(26, 0, 2, 0x1c1917);
+    const earL = scene.add.triangle(10, -10, 0, 2, 8, 4, 3, -12, 0x44403c);
+    const earR = scene.add.triangle(16, -9, 0, 2, 7, 3, 2, -11, 0x57534e);
+    const leg1 = scene.add.rectangle(-8, 10, 4, 8, 0x292524);
+    const leg2 = scene.add.rectangle(-2, 10, 4, 8, 0x1c1917);
+    const leg3 = scene.add.rectangle(6, 10, 4, 8, 0x292524);
+    const leg4 = scene.add.rectangle(12, 10, 4, 8, 0x1c1917);
+    const tail = scene.add.rectangle(-18, -4, 12, 3, 0x57534e).setAngle(-35);
+    const eye = scene.add.circle(16, -3, 2.2, 0xfbbf24);
+    const eyeDot = scene.add.circle(16.5, -3, 0.9, 0x0f172a);
+    this.root.add([
+      shadow,
+      tail,
+      leg1,
+      leg2,
+      leg3,
+      leg4,
+      rump,
+      torso,
+      belly,
+      neck,
+      head,
+      snout,
+      nose,
+      earL,
+      earR,
+      eye,
+      eyeDot,
+    ]);
     this.flash = torso;
   }
 

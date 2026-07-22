@@ -12,6 +12,13 @@ export const combatMixin = {
   startCombat(enemy, playerInitiated) {
     if (this.ended) return;
     if (!enemy || !enemy.alive) return;
+    // Quest-0 hand-hold: finish loot → BAG equip → bandage before any fight
+    if (this.isGuideHandhold?.()) {
+      if (playerInitiated) {
+        this.log('Gear up first — finish the gold trail (crate → stick → hat → BAG).');
+      }
+      return;
+    }
     if (this.mode === 'combat') {
       // Already fighting  -  attack this target instead of no-op
       this.combatAttackTarget(enemy);

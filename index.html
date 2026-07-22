@@ -739,21 +739,32 @@
       #dom-hud .hud-guide-toast {
         position: absolute;
         left: 50%;
-        bottom: 100px;
-        transform: translateX(-50%);
-        max-width: min(560px, calc(100% - 16px));
-        padding: 10px 14px;
-        border-radius: 8px;
-        background: rgba(15, 23, 42, 0.96);
-        border: 2px solid #fbbf24;
+        /* Mid-screen — not buried under bar toast */
+        top: 42%;
+        bottom: auto;
+        transform: translate(-50%, -50%);
+        width: min(520px, calc(100% - 24px));
+        max-width: min(520px, calc(100% - 24px));
+        padding: 16px 18px 14px;
+        border-radius: 10px;
+        background: rgba(15, 23, 42, 0.97);
+        border: 3px solid #fbbf24;
+        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55), 0 0 24px rgba(251, 191, 36, 0.25);
         color: #fde68a;
-        font-size: 14px;
+        font-size: clamp(15px, 2vw, 17px);
         font-weight: 700;
         text-align: center;
-        line-height: 1.35;
+        line-height: 1.4;
         white-space: pre-line;
         pointer-events: none;
-        z-index: 7;
+        z-index: 8;
+      }
+      #dom-hud .hud-guide-toast .guide-toast-title {
+        display: block;
+        font-size: clamp(13px, 1.6vw, 14px);
+        letter-spacing: 0.08em;
+        color: #fbbf24;
+        margin-bottom: 6px;
       }
       #dom-hud .hud-guide-toast.hidden {
         display: none;
@@ -839,6 +850,33 @@
         height: 34px;
         font-size: 10px;
         max-width: 80px;
+      }
+      /* Guide UI pulse (DOM bar buttons — BAG / CRAFT / SLEEP) */
+      #dom-hud .hud-btn.hud-btn-pulse {
+        box-shadow:
+          0 0 0 3px #fbbf24,
+          0 0 0 6px rgba(251, 191, 36, 0.45),
+          0 0 18px rgba(251, 191, 36, 0.55);
+        animation: hud-btn-pulse 0.9s ease-in-out infinite;
+        z-index: 2;
+        position: relative;
+      }
+      @keyframes hud-btn-pulse {
+        0%,
+        100% {
+          box-shadow:
+            0 0 0 2px #fbbf24,
+            0 0 0 5px rgba(251, 191, 36, 0.35),
+            0 0 12px rgba(251, 191, 36, 0.4);
+          filter: brightness(1.08);
+        }
+        50% {
+          box-shadow:
+            0 0 0 4px #fde68a,
+            0 0 0 9px rgba(253, 224, 71, 0.5),
+            0 0 22px rgba(251, 191, 36, 0.75);
+          filter: brightness(1.18);
+        }
       }
 
       /* ── Craft dock ── */

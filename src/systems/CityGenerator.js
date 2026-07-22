@@ -52,14 +52,14 @@ export class CityGenerator {
     carve(g, CENTER_X - 3, CENTER_Y - 3, 7, 7, T.HQ);
     g[CENTER_Y][CENTER_X] = T.HQ;
 
-    // HQ amenities only (no tutorial pile at your feet)
-    place(g, w, CENTER_X + 2, CENTER_Y, T.BENCH, this.benches);
+    // HQ amenities — keep OFF the east road (guide gold crate hikes that way)
+    place(g, w, CENTER_X - 2, CENTER_Y - 2, T.BENCH, this.benches);
     place(g, w, CENTER_X - 2, CENTER_Y + 1, T.SLEEP, this.sleeps);
 
     // Quest 1 hikes: short enough to stay on-screen (phones ~390px ≈ 6 tiles half-width)
     // Keep on main roads so pathing is clean. ~6 tiles also sits inside day vision (9).
     const HIKE = 6;
-    // 1) Gold crate EAST
+    // 1) Gold crate EAST (clear path — no bench on this artery)
     const glX = CENTER_X + HIKE;
     const glY = CENTER_Y;
     w[glY][glX] = 0;

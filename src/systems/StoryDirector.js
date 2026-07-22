@@ -38,9 +38,9 @@ export class StoryDirector {
         title: 'SIGNAL BOOT',
         body:
           `${char.name}\n\n` +
-          'QUEST 1: Follow the gold pulse / arrow.\n' +
+          'QUEST 1: Follow the gold pulse.\n' +
           'Tap the gold crate EAST of you.\n\n' +
-          'Then: stick · hat · BAG · bandage · dog · SLEEP.\n' +
+          'Then: stick · hat · BAG · workbench craft · dog · SLEEP.\n' +
           'Tap map to walk.',
       };
     }
@@ -50,10 +50,10 @@ export class StoryDirector {
         `${char.name}: "${char.blurb}"\n\n` +
         'The Wall still stands. Dogs own the dark.\n' +
         'Scavenge. Craft. Breach. Get out.\n\n' +
-        'QUEST 1: Follow the gold pulse / arrow.\n' +
+        'QUEST 1: Follow the gold pulse.\n' +
         'Click the gold crate EAST of you.\n\n' +
         'Then: stick south · hat west · BAG equip ·\n' +
-        'CRAFT bandage · fight dog · SLEEP at HQ.\n\n' +
+        'purple U workbench CRAFT bandage · dog · SLEEP.\n\n' +
         'Click map to walk. Left-click enemies to fight.',
     };
   }
