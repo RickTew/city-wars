@@ -8,6 +8,13 @@ Phaser 4 turn-based top-down city escape game (Escape from New York / early Rock
 
 **Entire game** needs crisp DOM text (`DomUi.js` layers: hud / ui / craft / modal). Phaser Text under `pixelArt: true` looks chunky. Menus + in-run HUD/craft/bag/combat/end migrated. Optional world floaters (Actor HP, VFX) may stay Phaser. Do not flip pixelArt off to “fix” type.
 
+## Visual (2026-07-22)
+
+- **`TILE = 64`**, directional roads, Style Lab (`?lab=1`)  
+- Hybrid goal: procedural terrain + pixel miniatures later (DungeonHole model)  
+- Camera: wheel zoom, right-drag pan  
+- Grok is primary — see **`AGENTS.md`**
+
 ## Always use latest packages
 
 - **Phaser**: always latest stable major line (`npm install phaser@latest`). Currently **Phaser 4** — never Phaser 3.

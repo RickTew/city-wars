@@ -10,8 +10,8 @@
 | **Play (prod)** | **https://city-wars-rho.vercel.app** (stable alias only) |
 | **Vercel project** | `ricktew/city-wars` · auto-deploys on push to `main` |
 
-**Version:** 3.9.x (menu DOM, ambience samples, popup DOM)  
-**HEAD:** `b45cc21` on `main` (2026-07-22) · auto-deploys to Vercel  
+**Version:** 3.9.x (DomUi HUD, TILE 64, Style Lab, camera polish)  
+**HEAD:** `8509771` on `main` (2026-07-22) · auto-deploys to Vercel  
 
 **Deploy preference (user):** after every major change/fix, **commit + push `main`** so testing is on **https://city-wars-rho.vercel.app** (not only localhost).
 
@@ -19,96 +19,111 @@
 
 ## ⛔ NEXT SESSION — DO THIS FIRST
 
-**Text migration (HUD + craft + bag + menus) shipped.**  
-Hard-refresh prod: **https://city-wars-rho.vercel.app** — if any *HUD* line is still chunky, it’s a regression.
+**Visual direction locked (user):** DungeonHole hybrid — procedural board + pixel miniatures 1:1 later. Live **`TILE = 64`**. DomUi for all HUD text.
 
 | Doc | Purpose |
 |-----|---------|
-| **`TEXT-STRATEGY.md`** | Locked text architecture + layer map |
-| **`VISUAL-STYLE.md`** | Split-brain procedural + pixel + DOM text |
-| **`public/audio/CREDITS.md`** | Mixkit ambient samples |
+| **`TEXT-STRATEGY.md`** | DOM text layers |
+| **`VISUAL-STYLE.md`** | Procedural + pixel hybrid; TILE 64 |
+| **`public/audio/CREDITS.md`** | Mixkit ambient (no cheer/clap yells) |
 
 ### Resume prompt
 
 ```
-Continue City Wars in ~/Dev/City Wars per AGENTS.md + TEXT-STRATEGY.md.
-Verify full DomUi HUD on https://city-wars-rho.vercel.app (hard refresh).
-Optional: Actor HP / VFX floatText stay Phaser (world floaters).
-Next product: 15-min loop feel / gameplay polish if text looks good.
-pixelArt:true stays. Do not "fix" text with antialias.
+Continue City Wars in ~/Dev/City Wars per AGENTS.md + VISUAL-STYLE.md.
+HEAD 8509771. TILE=64. Style Lab: ?lab=1 or menu STYLE LAB.
+Priority options: (A) tile readability polish (B) real pixel runner/dog sprites
+(C) camera default zoom so more city fits (D) 15-min loop feel.
+pixelArt:true stays. DomUi for UI text. Do not flip pixelArt off for type.
 ```
 
 ```bash
 cd ~/Dev/City\ Wars
 npm run dev   # http://localhost:5173/  — Cmd+Shift+R
+# Style Lab: http://localhost:5173/?lab=1
 ```
 
 ---
 
 ## Visual + text contract (LOCKED)
 
-- **Procedural** board/skyline/chrome  
-- **Pixel** later for characters/crates (nearest)  
-- **All player-facing text = DOM** (`DomUi.js` + `index.html` CSS)  
-- Layers: `#dom-hud` · `#dom-ui` · `#dom-craft` · `#dom-modal`  
-- `pixelArt: true` **stays** — never use it as an excuse for bad UI type  
-- No orphan neon props / joke OPEN signs  
+- **Procedural** board (roads H/V/X, grass, barricade, buildings…)  
+- **Pixel 1:1 later** for characters/crates (DungeonHole model)  
+- **All player-facing text = DOM** (`DomUi` layers: hud / ui / craft / modal)  
+- **`TILE = 64`** (actors scaled from 32 design base)  
+- `pixelArt: true` **stays**  
+- Roads: dashes **follow street axis** (not circuit-stamp)  
+- No orphan neon / joke signs  
 
-### Migrated (crisp DOM)
+### Style Lab
 
-- Title menu, character select, story popups  
-- In-run HUD (status, objective, day/heat, toast, action bar)  
-- Craft **STREET RIG**, bag/loadout, run menu, MORE, legend, specials  
-- Combat dock, minimap labels, end screen  
+- Menu → **STYLE LAB** or `?lab=1`  
+- Full terrain vocabulary + hybrid miniature stand-ins  
 
-### Optional Phaser (world floaters only)
+---
 
-- Enemy HP digits (`Actor.js`), damage `floatText` (`VFX.js`)  
+## Controls (camera)
+
+| Input | Action |
+|-------|--------|
+| Wheel | Zoom 0.4–1.75 (gentle steps) |
+| Pinch | Same zoom range |
+| **Right-drag** | Pan map |
+| Middle-drag | Pan map |
+| Edge pan | Still works |
+| Short right-click (combat) | Specials (if not dragged) |
 
 ---
 
 ## World tone / audio (LOCKED)
 
-City **already fell**. Gangs/vigilantes/dogs — **no police sirens**.
+City **already fell**. No police sirens. **No cheer/clap yell samples** (removed).
 
 | Context | Gap |
 |---------|-----|
 | Title menu | **2–10s** |
-| In run | Zone-scaled **~2–28s** (`startWorldAmb({ getZone, isNight })`) |
+| In run | Zone-scaled gaps |
 
-Samples: `public/audio/ambient/` (Mixkit free). Oscillators only for UI + light cyber.
+Samples: dogs, howls, guns, explosions, screams, cyber only.
 
 ---
 
-## Session wrap (2026-07-22) — DOM HUD migration
+## Session wrap (2026-07-22) — visual + tutorial + camera
 
-**Status:** Full in-run DomUi migration. **Commit + push `main`** for Vercel.
+**Status:** Clean tree, pushed `main` @ `8509771`.
 
-### Shipped
+### Shipped this arc
 
 | Area | What |
 |------|------|
-| DomUi layers | hud / ui / craft / modal |
-| CraftPanel | STREET RIG + recipes DOM |
-| GameScene HUD | objective, day/heat, bar buttons, toast, combat, end |
-| EquipUI | full bag/loadout DOM |
-| Minimap labels | MAP + compass DOM |
+| DomUi | Full in-run HUD/craft/bag/menus/end |
+| Roads | ROAD / ROAD_V / ROAD_X directional dashes |
+| TILE | 64px live; TileArt scales paints |
+| Style Lab | Side-by-side + full tile legend |
+| Tutorial | Map-first boot ~1.5s; compact coach + CLOSE; no double toast; no early fights/craft |
+| Camera | Wheel/pinch zoom; right-drag pan; clearer minimap |
+| Audio | Yell/cheer bank removed |
 
-### Open after verify
+### Open next session
 
-1. Live screenshot pass on prod (hard refresh)  
-2. Gameplay / 15-min loop feel  
-3. Optional world floater DOM later  
+1. **Pixel art path** — runner/dog/crate sprites at 1:1 on 64px board (`game-asset-core` / character skills)  
+2. Default camera zoom so more city fits at 64px  
+3. Further tile readability if needed  
+4. 15-min loop / gameplay feel  
+5. Optional: world floaters (HP/dmg) still Phaser  
 
 ### Rules that burned sessions (do not repeat)
 
 - Do not flip `pixelArt` off to “fix” text  
-- Do not leave decorative glows when removing joke signs  
-- Do not claim “text is fixed” after menus only — user means **entire game**  
-- Prefer live screenshots; hard refresh after DOM/CSS changes  
+- Do not claim text fixed after menus only  
+- Do not put horizontal dashes on N–S roads  
+- Do not stack coach + log toast  
+- Hard refresh after DOM/CSS/deploy  
+- Keep questions/options at **end** of replies (user request)  
 
 ---
 
 ## Flow
 
-**Day length** → **START RUN** / **CONTINUE** → **Choose Runner** → **ENTER THE GRID**.
+**Day length** → **START RUN** / **CONTINUE** → **Choose Runner** → **ENTER THE GRID**.  
+**STYLE LAB** from menu for visual compare.
