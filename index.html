@@ -822,18 +822,19 @@
         left: 50%;
         bottom: 72px;
         transform: translateX(-50%);
-        max-width: min(520px, calc(100% - 24px));
-        padding: 8px 14px;
-        border-radius: 6px;
-        background: #020617;
-        color: #f8fafc;
-        font-size: 14px;
+        max-width: min(560px, calc(100% - 24px));
+        padding: 12px 18px;
+        border-radius: 8px;
+        background: rgba(15, 23, 42, 0.96);
+        color: #fde68a;
+        border: 2px solid #fbbf24;
+        font-size: clamp(14px, 1.6vw, 16px);
         font-weight: 700;
         text-align: center;
-        line-height: 1.35;
+        line-height: 1.4;
         pointer-events: none;
         z-index: 6;
-        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45), 0 0 12px rgba(251, 191, 36, 0.2);
       }
       #dom-hud .hud-toast:empty {
         display: none;

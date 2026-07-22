@@ -91,53 +91,71 @@ export class TileArt {
         g.fillRect(x + r(22), r(22), r(4), r(4));
       }
       if (i === T.SIDEWALK) {
-        g.fillStyle(0x52525b, 1);
+        // Lighter concrete so it separates from asphalt roads
+        g.fillStyle(0x71717a, 1);
         g.fillRect(x, 0, TILE, TILE);
-        g.fillStyle(0x737373, 0.35);
-        g.fillRect(x + r(2), r(2), r(12), r(12));
-        g.fillRect(x + r(16), r(16), r(12), r(12));
-        g.lineStyle(1, 0x27272a, 0.5);
+        g.fillStyle(0xa1a1aa, 0.4);
+        g.fillRect(x + r(2), r(2), r(13), r(13));
+        g.fillRect(x + r(16), r(16), r(13), r(13));
+        g.lineStyle(1, 0x3f3f46, 0.7);
         g.strokeRect(x + 1, 1, TILE - 2, TILE - 2);
       }
       if (i === T.ALLEY) {
-        g.fillStyle(0x1c1917, 0.6);
+        g.fillStyle(0x1c1917, 0.75);
         g.fillRect(x + r(2), r(24), TILE - r(4), r(6));
+        g.fillStyle(0x44403c, 0.35);
+        g.fillRect(x + r(4), r(4), r(8), r(8));
       }
       if (i === T.PARK) {
-        // Grass / park — clear green canopy blobs
-        g.fillStyle(0x166534, 0.55);
-        g.fillCircle(x + r(10), r(12), r(6));
-        g.fillCircle(x + r(22), r(20), r(7));
-        g.fillStyle(0x22c55e, 0.25);
-        g.fillCircle(x + r(16), r(16), r(5));
+        // Grass — bold green base (not dark “block with dots”)
+        g.fillStyle(0x15803d, 1);
+        g.fillRect(x, 0, TILE, TILE);
+        g.fillStyle(0x22c55e, 0.55);
+        g.fillCircle(x + r(10), r(12), r(8));
+        g.fillCircle(x + r(22), r(20), r(9));
+        g.fillStyle(0x4ade80, 0.35);
+        g.fillCircle(x + r(16), r(16), r(6));
+        g.fillStyle(0x14532d, 0.4);
+        g.fillRect(x + r(2), r(26), TILE - r(4), r(4));
       }
       if (i === T.BUILDING) {
+        g.fillStyle(0x0f172a, 1);
+        g.fillRect(x, 0, TILE, TILE);
+        g.fillStyle(0x1e293b, 1);
+        g.fillRect(x + r(4), r(4), TILE - r(8), TILE - r(8));
         const wins = [
           [r(8), r(8), NEON.cyan],
           [r(18), r(8), NEON.pink],
-          [r(8), r(18), 0x000000],
+          [r(8), r(18), 0x020617],
           [r(18), r(18), NEON.gold],
         ];
         for (const [wx, wy, c] of wins) {
-          g.fillStyle(c, wy > r(14) ? 0.15 : 0.55);
-          g.fillRect(x + wx, wy, r(5), r(5));
+          g.fillStyle(c, wy > r(14) ? 0.2 : 0.65);
+          g.fillRect(x + wx, wy, r(6), r(6));
         }
-        g.lineStyle(Math.max(1, r(1)), 0x334155, 0.8);
-        g.strokeRect(x + r(6), r(6), r(20), r(20));
+        g.lineStyle(Math.max(1, r(1)), 0x64748b, 0.9);
+        g.strokeRect(x + r(4), r(4), TILE - r(8), TILE - r(8));
       }
       if (i === T.RUIN) {
-        g.fillStyle(0x78350f, 0.7);
+        g.fillStyle(0x78350f, 1);
+        g.fillRect(x, 0, TILE, TILE);
+        g.fillStyle(0xa16207, 0.7);
         g.fillRect(x + r(4), r(14), r(10), r(8));
         g.fillRect(x + r(18), r(6), r(8), r(12));
-        g.lineStyle(r(2), 0xa8a29e, 0.4);
+        g.lineStyle(r(2), 0xa8a29e, 0.5);
         g.lineBetween(x + r(6), r(28), x + r(26), r(10));
       }
       if (i === T.BARRICADE) {
+        // High-contrast red block + X so it never reads as “another building”
+        g.fillStyle(0x991b1b, 1);
+        g.fillRect(x, 0, TILE, TILE);
         g.fillStyle(0x450a0a, 1);
-        g.fillRect(x + r(4), r(8), r(24), r(16));
-        g.lineStyle(r(2), NEON.red, 0.7);
-        g.lineBetween(x + r(6), r(10), x + r(26), r(22));
-        g.lineBetween(x + r(26), r(10), x + r(6), r(22));
+        g.fillRect(x + r(3), r(6), r(26), r(20));
+        g.lineStyle(r(3), 0xfca5a5, 0.95);
+        g.lineBetween(x + r(6), r(8), x + r(26), r(24));
+        g.lineBetween(x + r(26), r(8), x + r(6), r(24));
+        g.lineStyle(1, 0xef4444, 0.8);
+        g.strokeRect(x + r(2), r(2), TILE - r(4), TILE - r(4));
       }
       if (i === T.HQ) {
         g.fillStyle(NEON.cyan, 0.15);

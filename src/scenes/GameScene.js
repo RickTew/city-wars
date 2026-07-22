@@ -167,8 +167,22 @@ export class GameScene extends Phaser.Scene {
     this.inv.learnBlueprint('bandage');
 
     this.cameras.main.setZoom(1);
-    this.input.on('wheel', (_p, _o, _dx, dy) => {
-      void dy;
+    // Mouse wheel zoom (out for more city, in for streets) — zoom toward cursor
+    this.input.on('wheel', (pointer, _over, _dx, dy) => {
+      if (this.ended || this.isPaused?.()) return;
+      const cam = this.cameras.main;
+      const oldZ = cam.zoom;
+      // dy > 0 = scroll down = zoom out
+      const next = Phaser.Math.Clamp(oldZ * (dy > 0 ? 0.9 : 1.11), 0.4, 1.75);
+      if (Math.abs(next - oldZ) < 0.001) return;
+      // Keep world point under cursor stable
+      const wx = cam.scrollX + pointer.x / oldZ;
+      const wy = cam.scrollY + pointer.y / oldZ;
+      cam.setZoom(next);
+      cam.scrollX = wx - pointer.x / next;
+      cam.scrollY = wy - pointer.y / next;
+      this.clampCamScroll?.();
+      this.beginFreeCam?.();
     });
 
     this.dayNight.on((ev) => {
@@ -1690,9 +1704,9 @@ export class GameScene extends Phaser.Scene {
     const phase = (Math.sin(this._pulseT * 5.5) + 1) / 2;
     const a = 0.45 + phase * 0.55;
     const mobile = this.isMobileHud();
-    // Pulse scales with TILE so 64px streets still read clearly
-    const base = Math.max(16, TILE * 0.45);
-    const r = base + phase * (mobile ? TILE * 0.55 : TILE * 0.4);
+    // Pulse frames the whole tile — big enough to match HUD type weight
+    const base = Math.max(28, TILE * 0.72);
+    const r = base + phase * (mobile ? TILE * 0.35 : TILE * 0.28);
     // Sit above modal dimmer (500) so edge beacons stay visible while reading GOT IT
     if (ui) ui.setDepth(this.popupOpen ? 520 : 140);
 
@@ -1719,12 +1733,17 @@ export class GameScene extends Phaser.Scene {
 
     // World pulse only when world is visible (not under a modal)
     if (!this.popupOpen && world) {
-      world.lineStyle(4, 0xfbbf24, a);
+      const outer = r + Math.max(10, TILE * 0.18) + phase * Math.max(8, TILE * 0.12);
+      world.lineStyle(Math.max(3, TILE * 0.08), 0xfbbf24, a);
       world.strokeCircle(wx, wy, r);
-      world.lineStyle(2, 0xfef08a, a * 0.75);
-      world.strokeCircle(wx, wy, r + 8 + phase * 6);
-      world.fillStyle(0xfbbf24, 0.1 + phase * 0.12);
-      world.fillCircle(wx, wy, r * 0.85);
+      world.lineStyle(Math.max(2, TILE * 0.05), 0xfef08a, a * 0.8);
+      world.strokeCircle(wx, wy, outer);
+      // Soft square “box” so it reads like a target frame around the tile
+      const half = TILE * 0.48 + phase * TILE * 0.06;
+      world.lineStyle(Math.max(2, TILE * 0.05), 0xfbbf24, a * 0.85);
+      world.strokeRect(wx - half, wy - half, half * 2, half * 2);
+      world.fillStyle(0xfbbf24, 0.08 + phase * 0.1);
+      world.fillCircle(wx, wy, r * 0.9);
     }
 
     // When pulsing the HQ workbench, also light CRAFT on the bar
