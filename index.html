@@ -217,6 +217,100 @@
         font-weight: 700;
         font-size: clamp(14px, 1.55vw, 17px);
       }
+      #dom-ui .lab-link {
+        background: #1e293b;
+        border-color: #64748b;
+        color: #e2e8f0;
+        max-width: 300px;
+        margin-top: 4px;
+      }
+
+      /* ── Style Lab ── */
+      #dom-ui.lab-ui {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 12px 16px 20px;
+        pointer-events: none;
+        gap: 10px;
+      }
+      #dom-ui.lab-ui .lab-head {
+        text-align: center;
+        max-width: 720px;
+      }
+      #dom-ui.lab-ui .lab-title {
+        font-family: 'Share Tech Mono', ui-monospace, monospace;
+        font-size: clamp(22px, 4vw, 28px);
+        font-weight: 700;
+        color: #f8fafc;
+        letter-spacing: 0.06em;
+      }
+      #dom-ui.lab-ui .lab-sub {
+        margin-top: 4px;
+        font-size: 13px;
+        color: #94a3b8;
+      }
+      #dom-ui.lab-ui .lab-cols {
+        display: flex;
+        gap: 12px;
+        width: min(920px, 100%);
+        pointer-events: none;
+      }
+      #dom-ui.lab-ui .lab-card {
+        flex: 1;
+        padding: 10px 12px;
+        border-radius: 8px;
+        background: rgba(15, 23, 42, 0.88);
+        border: 1px solid #475569;
+      }
+      #dom-ui.lab-ui .lab-card-title {
+        font-weight: 800;
+        font-size: 14px;
+        color: #fbbf24;
+        margin-bottom: 4px;
+      }
+      #dom-ui.lab-ui .lab-card-body {
+        font-size: 12px;
+        color: #cbd5e1;
+        line-height: 1.4;
+        white-space: pre-line;
+      }
+      #dom-ui.lab-ui .lab-notes {
+        max-width: 720px;
+        text-align: center;
+        font-size: 13px;
+        color: #e2e8f0;
+        line-height: 1.4;
+      }
+      #dom-ui.lab-ui .lab-muted {
+        margin-top: 6px;
+        font-size: 12px;
+        color: #94a3b8;
+      }
+      #dom-ui.lab-ui .lab-actions {
+        display: flex;
+        gap: 10px;
+        pointer-events: auto;
+      }
+      #dom-ui.lab-ui .lab-btn {
+        padding: 12px 18px;
+        border-radius: 8px;
+        background: #ea580c;
+        color: #0b1220;
+        border: 2px solid #fbbf24 !important;
+        font-weight: 800;
+        font-size: 14px;
+      }
+      #dom-ui.lab-ui .lab-btn.secondary {
+        background: #334155;
+        border-color: #64748b !important;
+        color: #f1f5f9;
+      }
+      @media (max-width: 700px) {
+        #dom-ui.lab-ui .lab-cols {
+          flex-direction: column;
+        }
+      }
       #dom-ui .help-box {
         width: 100%;
         max-width: 340px;
@@ -370,6 +464,14 @@
         padding: clamp(48px, 8vh, 80px) 16px clamp(100px, 14vh, 120px);
         background: rgba(2, 6, 23, 0.82);
         pointer-events: auto;
+      }
+      /* Slow fade for tutorial boot (map first, then card) */
+      #dom-modal.popup-ui.popup-enter {
+        opacity: 0;
+        transition: opacity 0.75s ease;
+      }
+      #dom-modal.popup-ui.popup-enter.popup-visible {
+        opacity: 1;
       }
       #dom-ui .popup-panel,
       #dom-modal .popup-panel {

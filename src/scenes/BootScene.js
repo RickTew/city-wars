@@ -11,6 +11,10 @@ export class BootScene extends Phaser.Scene {
     if (typeof document !== 'undefined') {
       document.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
     }
-    this.scene.start('Menu');
+    // Visual lab: http://localhost:5173/?lab=1
+    const lab =
+      typeof location !== 'undefined' &&
+      /(?:^|[?&])lab=1(?:&|$)/.test(location.search || '');
+    this.scene.start(lab ? 'StyleLab' : 'Menu');
   }
 }

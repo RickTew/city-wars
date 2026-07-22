@@ -3,11 +3,14 @@ import { BootScene } from './scenes/BootScene.js';
 import { MenuScene } from './scenes/MenuScene.js';
 import { CharacterSelectScene } from './scenes/CharacterSelectScene.js';
 import { GameScene } from './scenes/GameScene.js';
+import { StyleLabScene } from './scenes/StyleLabScene.js';
 
 /**
  * pixelArt: true = nearest-neighbor for tile/sprite textures (studio default).
  * Player-facing text is DOM (see VISUAL-STYLE.md + DomUi.js) — never rely on
  * Phaser Text under this flag (chunky) or on global antialias:true (fuzzy).
+ *
+ * Style Lab (DungeonHole hybrid compare): ?lab=1 or menu → STYLE LAB
  */
 const config = {
   type: Phaser.AUTO,
@@ -23,9 +26,9 @@ const config = {
   input: {
     mouse: { preventDefaultWheel: true },
   },
-  scene: [BootScene, MenuScene, CharacterSelectScene, GameScene],
+  scene: [BootScene, MenuScene, CharacterSelectScene, GameScene, StyleLabScene],
   title: 'City Wars',
-  version: '3.6.0',
+  version: '3.9.1',
 };
 
 // eslint-disable-next-line no-new

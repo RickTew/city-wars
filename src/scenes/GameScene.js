@@ -213,16 +213,17 @@ export class GameScene extends Phaser.Scene {
           });
         }
       } else {
-        this.cameras.main.fadeIn(500);
-        this.showTutorialBoot();
+        this.cameras.main.fadeIn(600);
+        // Map breathes ~1.5s, then SIGNAL BOOT fades in (user choice 3B)
+        this.time.delayedCall(1500, () => this.showTutorialBoot({ slowIn: true }));
       }
     } else {
       this.updateObjective();
       this.updateFow();
       this.refreshHud();
-      // Boot modal immediately (with fade) — no “live city then card slam”
-      this.cameras.main.fadeIn(500);
-      this.showTutorialBoot();
+      this.cameras.main.fadeIn(600);
+      // Map first so gold pulse is on-screen, then soft card
+      this.time.delayedCall(1500, () => this.showTutorialBoot({ slowIn: true }));
     }
 
     // Dev / playtest harness (console + automated smoke)
@@ -232,21 +233,27 @@ export class GameScene extends Phaser.Scene {
   }
 
   /** One intro modal for a new run. Unlocks story + nudges camera to the gold target. */
-  showTutorialBoot() {
+  showTutorialBoot(opts = {}) {
     const mobile = this.isMobileHud();
     const intro = this.story.introCard(this.char, { compact: true });
     // Keep craft closed under the boot card
     this.craftPanel?.toggle?.(false);
+    this.nudgeCameraTowardGuide();
     this.audio?.popup?.();
-    this.showPopup(intro.title, intro.body, () => {
-      this._storyQuiet = false;
-      this.updateObjective();
-      this.refreshHud();
-      this.nudgeCameraTowardGuide();
-      this._guideCamSoftFollow = mobile;
-      // No second giant "QUEST 1" toast — top objective + gold pulse already say it
-      this.log(this.guide?.objectiveText() || 'Follow the gold pulse east.');
-    });
+    this.showPopup(
+      intro.title,
+      intro.body,
+      () => {
+        this._storyQuiet = false;
+        this.updateObjective();
+        this.refreshHud();
+        this.nudgeCameraTowardGuide();
+        this._guideCamSoftFollow = mobile;
+        // No second giant "QUEST 1" toast — top objective + gold pulse already say it
+        this.log(this.guide?.objectiveText() || 'Follow the gold pulse east.');
+      },
+      { slowIn: !!opts.slowIn }
+    );
   }
 
   /** Advance escape arc after tutorial. */
@@ -1835,10 +1842,16 @@ export class GameScene extends Phaser.Scene {
     let checked = opts.checkboxDefault === true;
 
     DomUi.clearModal();
-    const root = DomUi.show('popup-ui', 'modal');
+    const root = DomUi.show(opts.slowIn ? 'popup-ui popup-enter' : 'popup-ui', 'modal');
     if (!root) {
       this.popupOpen = false;
       return;
+    }
+    // Slow fade-in when requested (tutorial boot after map breathe)
+    if (opts.slowIn) {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => root.classList.add('popup-visible'));
+      });
     }
 
     const panel = DomUi.el('div', 'popup-panel');

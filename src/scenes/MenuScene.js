@@ -128,6 +128,16 @@ export class MenuScene extends Phaser.Scene {
     help.appendChild(DomUi.el('div', 'line2', 'Follow the gold pulse. Try not to die funny.'));
     stack.appendChild(help);
 
+    stack.appendChild(
+      DomUi.button('hit cont-btn lab-link', 'STYLE LAB', () => {
+        this.startIntroAudio();
+        this.audio.uiClick();
+        this.audio.stopMenu();
+        DomUi.clearAll();
+        this.scene.start('StyleLab');
+      })
+    );
+
     root.appendChild(stack);
     root.appendChild(DomUi.el('div', 'footer', `~${mins} min cycle`));
   }
