@@ -2195,8 +2195,8 @@ export class GameScene extends Phaser.Scene {
             const cam = this.cameras.main;
             const z = Phaser.Math.Clamp(
               this._pinchStart.zoom * (dist / this._pinchStart.dist),
-              0.68,
-              1.45
+              0.4,
+              1.75
             );
             cam.setZoom(z);
             this.clampCamScroll();
