@@ -1,5 +1,19 @@
 import { CENTER_X, CENTER_Y, MAP_H, MAP_W, T, ZONE } from '../config/constants.js';
 
+/**
+ * Pick road paint by real street axis.
+ * Horizontal dashes only on E–W runs; vertical on N–S; intersection = cross pad.
+ */
+function roadTileAt(x, y) {
+  const ew =
+    roadLane(y) || y === CENTER_Y || y === CENTER_Y + 1;
+  const ns =
+    roadLane(x) || x === CENTER_X || x === CENTER_X + 1;
+  if (ew && ns) return T.ROAD_X;
+  if (ns) return T.ROAD_V;
+  return T.ROAD; // E–W
+}
+
 export class CityGenerator {
   constructor(zones) {
     this.zones = zones;
@@ -18,7 +32,7 @@ export class CityGenerator {
     for (let y = 0; y < MAP_H; y++) {
       for (let x = 0; x < MAP_W; x++) {
         if (road(x, y)) {
-          g[y][x] = T.ROAD;
+          g[y][x] = roadTileAt(x, y);
           continue;
         }
         const z = this.zones.getZone(x, y);
@@ -38,12 +52,12 @@ export class CityGenerator {
       for (const cy of [CENTER_Y, CENTER_Y + 1]) {
         if (cy >= MAP_H) continue;
         w[cy][i] = 0;
-        g[cy][i] = T.ROAD;
+        g[cy][i] = roadTileAt(i, cy);
       }
       for (const cx of [CENTER_X, CENTER_X + 1]) {
         if (cx >= MAP_W) continue;
         w[i][cx] = 0;
-        g[i][cx] = T.ROAD;
+        g[i][cx] = roadTileAt(cx, i);
       }
     }
 

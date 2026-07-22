@@ -12,7 +12,7 @@ export const GAME_W = 1280;
 export const GAME_H = 720;
 
 export const T = {
-  ROAD: 1,
+  ROAD: 1, // east–west avenue (horizontal center dashes)
   SIDEWALK: 2,
   PARK: 3,
   BUILDING: 4,
@@ -30,10 +30,17 @@ export const T = {
   GEAR_DROP: 16, // generic world gear (legacy / fallback)
   GEAR_STICK: 17, // Street Stick hike pickup
   GEAR_HAT: 18, // Neon Fedora hike pickup
+  ROAD_V: 19, // north–south avenue (vertical center dashes)
+  ROAD_X: 20, // intersection (no false single-axis dashes)
 };
+
+/** Any asphalt street tile (H / V / X). */
+export const ROAD_TILES = new Set([T.ROAD, T.ROAD_V, T.ROAD_X]);
 
 export const WALKABLE = new Set([
   T.ROAD,
+  T.ROAD_V,
+  T.ROAD_X,
   T.SIDEWALK,
   T.PARK,
   T.ALLEY,

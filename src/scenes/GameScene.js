@@ -213,15 +213,16 @@ export class GameScene extends Phaser.Scene {
           });
         }
       } else {
-        this.time.delayedCall(400, () => this.showTutorialBoot());
+        this.cameras.main.fadeIn(500);
+        this.showTutorialBoot();
       }
     } else {
       this.updateObjective();
       this.updateFow();
       this.refreshHud();
-      this.cameras.main.fadeIn(400);
-      // Single boot card (intro + quest 1 merged). No second modal.
-      this.time.delayedCall(400, () => this.showTutorialBoot());
+      // Boot modal immediately (with fade) — no “live city then card slam”
+      this.cameras.main.fadeIn(500);
+      this.showTutorialBoot();
     }
 
     // Dev / playtest harness (console + automated smoke)
@@ -234,6 +235,8 @@ export class GameScene extends Phaser.Scene {
   showTutorialBoot() {
     const mobile = this.isMobileHud();
     const intro = this.story.introCard(this.char, { compact: true });
+    // Keep craft closed under the boot card
+    this.craftPanel?.toggle?.(false);
     this.audio?.popup?.();
     this.showPopup(intro.title, intro.body, () => {
       this._storyQuiet = false;
@@ -241,10 +244,8 @@ export class GameScene extends Phaser.Scene {
       this.refreshHud();
       this.nudgeCameraTowardGuide();
       this._guideCamSoftFollow = mobile;
-      this.showGuideToast(
-        'QUEST 1',
-        'Follow the gold pulse.\nTap the gold crate EAST of HQ.'
-      );
+      // No second giant "QUEST 1" toast — top objective + gold pulse already say it
+      this.log(this.guide?.objectiveText() || 'Follow the gold pulse east.');
     });
   }
 
@@ -1420,7 +1421,7 @@ export class GameScene extends Phaser.Scene {
 
     const lines = [
       ['Blue pad (HQ)', 'Safe starting courtyard'],
-      ['Gray + white dashes', 'Road  -  main streets'],
+      ['Gray asphalt + gold dashes', 'Road  -  dashes follow the street direction'],
       ['Brown / tan ground', 'Alley / sidewalk / ruin'],
       ['Green', 'Park / open green'],
       ['Dark + yellow dots', 'Building (blocked  -  walk around)'],
@@ -2784,6 +2785,17 @@ export class GameScene extends Phaser.Scene {
   /** Auto-open craft panel at bench; close when walking away. */
   syncBenchCraftPanel() {
     if (this.mode === 'combat' || this.bagOpen || this.popupOpen || this.ended) return;
+    // Early guide: don't pop RECIPES over the loot hike (only after stick+hat equipped)
+    if (this.isGuideHandhold()) {
+      const f = this.guide?.flags;
+      if (!f?.equippedStick || !f?.equippedHat) {
+        if (this.craftOpen && this._benchAutoCraft) {
+          this._benchAutoCraft = false;
+          this.craftPanel?.toggle(false);
+        }
+        return;
+      }
+    }
     const near = this.isNearBench();
     if (!near) {
       this._benchCraftDismissed = false;

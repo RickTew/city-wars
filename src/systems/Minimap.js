@@ -2,7 +2,7 @@
  * Corner minimap + objective compass (active during tutorial too).
  * Labels are DOM (scene.domCompassLabel / domMapLabel) for crisp type.
  */
-import { CENTER_X, CENTER_Y, MAP_H, MAP_W, T } from '../config/constants.js';
+import { CENTER_X, CENTER_Y, MAP_H, MAP_W, ROAD_TILES, T } from '../config/constants.js';
 
 export class Minimap {
   constructor(scene) {
@@ -89,7 +89,7 @@ export class Minimap {
         const tile = s.ground?.[ty]?.[tx];
         if (tile == null) continue;
         let col = 0x1e293b;
-        if (tile === T.ROAD || tile === T.HQ) col = 0x475569;
+        if (ROAD_TILES.has(tile) || tile === T.HQ) col = 0x475569;
         else if (tile === T.ESCAPE) col = 0xf59e0b;
         else if (tile === T.LOOT) col = 0xa16207;
         else if (tile === T.LANDMARK) col = 0xdb2777;

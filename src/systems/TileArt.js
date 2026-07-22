@@ -9,6 +9,8 @@ export class TileArt {
     const g = scene.make.graphics({ add: false });
     const pal = {
       [T.ROAD]: 0x27272a,
+      [T.ROAD_V]: 0x27272a,
+      [T.ROAD_X]: 0x2a2a2e,
       [T.SIDEWALK]: 0x3f3f46,
       [T.PARK]: 0x14532d,
       [T.BUILDING]: 0x0f172a,
@@ -44,24 +46,45 @@ export class TileArt {
       g.lineStyle(1, 0x000000, 0.45);
       g.strokeRect(x + 0.5, 0.5, TILE - 1, TILE - 1);
 
-      if (i === T.ROAD) {
-        // Asphalt avenue (reads as road on 1-wide and 2-wide)
+      // Asphalt base shared by all road orientations
+      if (i === T.ROAD || i === T.ROAD_V || i === T.ROAD_X) {
         g.fillStyle(0x3f3f46, 1);
         g.fillRect(x, 0, TILE, TILE);
         g.fillStyle(0x27272a, 1);
         g.fillRect(x + 2, 2, TILE - 4, TILE - 4);
         // Curb lips
-        g.fillStyle(0x71717a, 0.55);
+        g.fillStyle(0x71717a, 0.5);
         g.fillRect(x, 0, TILE, 2);
         g.fillRect(x, TILE - 2, TILE, 2);
         g.fillRect(x, 0, 2, TILE);
         g.fillRect(x + TILE - 2, 0, 2, TILE);
-        // Center lane dashes
-        g.fillStyle(0xfbbf24, 0.85);
-        g.fillRect(x + 11, 14, 10, 3);
-        g.fillStyle(0xa1a1aa, 0.35);
-        g.fillRect(x + 4, 24, 8, 2);
-        g.fillRect(x + 20, 8, 8, 2);
+      }
+      if (i === T.ROAD) {
+        // E–W street: dashes run horizontally (along the road)
+        g.fillStyle(0xfbbf24, 0.7);
+        g.fillRect(x + 8, 14, 16, 3);
+        g.fillStyle(0xa1a1aa, 0.3);
+        g.fillRect(x + 4, 24, 10, 2);
+        g.fillRect(x + 18, 8, 10, 2);
+      }
+      if (i === T.ROAD_V) {
+        // N–S street: dashes run vertically (along the road)
+        g.fillStyle(0xfbbf24, 0.7);
+        g.fillRect(x + 14, 8, 3, 16);
+        g.fillStyle(0xa1a1aa, 0.3);
+        g.fillRect(x + 8, 4, 2, 10);
+        g.fillRect(x + 22, 18, 2, 10);
+      }
+      if (i === T.ROAD_X) {
+        // Intersection: soft cross, not a single-axis dash stamp
+        g.fillStyle(0xfbbf24, 0.35);
+        g.fillRect(x + 13, 10, 6, 12);
+        g.fillRect(x + 10, 13, 12, 6);
+        g.fillStyle(0x52525b, 0.4);
+        g.fillRect(x + 6, 6, 4, 4);
+        g.fillRect(x + 22, 6, 4, 4);
+        g.fillRect(x + 6, 22, 4, 4);
+        g.fillRect(x + 22, 22, 4, 4);
       }
       if (i === T.SIDEWALK) {
         g.fillStyle(0x52525b, 1);
