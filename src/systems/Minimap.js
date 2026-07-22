@@ -82,23 +82,28 @@ export class Minimap {
     g.fillStyle(0x020617, 0.95);
     g.fillRect(cx - half, cy - half, half * 2, half * 2);
 
-    // coarse terrain sample
+    // Coarse sample — emphasize roads/HQ so mini map isn't a solid wall mesh
     const step = 2;
+    const pix = Math.max(1.4, scale * step);
     for (let ty = 0; ty < MAP_H; ty += step) {
       for (let tx = 0; tx < MAP_W; tx += step) {
         const tile = s.ground?.[ty]?.[tx];
         if (tile == null) continue;
+        const wall = s.walls?.[ty]?.[tx];
         let col = 0x1e293b;
-        if (ROAD_TILES.has(tile) || tile === T.HQ) col = 0x475569;
+        if (ROAD_TILES.has(tile)) col = 0x64748b;
+        else if (tile === T.HQ) col = 0x0ea5e9;
         else if (tile === T.ESCAPE) col = 0xf59e0b;
         else if (tile === T.LOOT) col = 0xa16207;
         else if (tile === T.LANDMARK) col = 0xdb2777;
-        else if (tile === T.PARK) col = 0x166534;
-        else if (s.walls?.[ty]?.[tx]) col = 0x0f172a;
+        else if (tile === T.PARK) col = 0x16a34a;
+        else if (tile === T.SIDEWALK) col = 0x475569;
+        else if (wall) col = 0x0b1220; // buildings almost black, roads read as grid
+        else col = 0x334155;
         const px = cx - half + 2 + tx * scale;
         const py = cy - half + 2 + ty * scale;
         g.fillStyle(col, 1);
-        g.fillRect(px, py, Math.max(1.2, scale * step), Math.max(1.2, scale * step));
+        g.fillRect(px, py, pix, pix);
       }
     }
 

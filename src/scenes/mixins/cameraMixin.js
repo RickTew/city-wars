@@ -50,7 +50,7 @@ export const cameraMixin = {
 
   updateCameraEdgePan(dt) {
     if (this.ended || this.isPaused() || this.mode === 'combat') return;
-    if (this._midDrag || this._touchDrag) return;
+    if (this._midDrag || this._touchDrag || this._rightDrag) return;
 
     const cam = this.cameras.main;
     const p = this.input.activePointer;

@@ -555,7 +555,7 @@ export class GameScene extends Phaser.Scene {
       this.domToast.style.bottom = `${m.hudBottom + 14}px`;
     }
     if (this.domGuideToast) {
-      this.domGuideToast.style.bottom = `${m.hudBottom + 18}px`;
+      this.domGuideToast.style.bottom = `${m.hudBottom + 22}px`;
     }
     if (this.domHomeLabel) {
       this.domHomeLabel.style.bottom = `${m.homeY - 22}px`;
@@ -2128,13 +2128,25 @@ export class GameScene extends Phaser.Scene {
     });
 
     this.input.on('pointerup', (p) => {
-      // End middle-mouse / touch free-pan
+      // End middle-mouse / right-drag / touch free-pan
       if (p.button === 1 || this._midDrag || this._touchDrag) {
         this._midDrag = null;
         this._touchDrag = null;
         this._pinchStart = null;
         this._edgePanIdle = 0;
         this.cancelLongPress();
+        return;
+      }
+
+      // Right-click: pan if dragged; else combat specials (short click)
+      if (p.button === 2 || this._rightDrag) {
+        const dragged = !!this._rightDrag?.moved;
+        this._rightDrag = null;
+        this._edgePanIdle = 0;
+        this.cancelLongPress();
+        if (!dragged && this.mode === 'combat' && !this.isPaused() && !this.ended) {
+          this.openCombatSpecials?.();
+        }
         return;
       }
 
@@ -2166,19 +2178,35 @@ export class GameScene extends Phaser.Scene {
       const wpt = this.cameras.main.getWorldPoint(p.x, p.y);
       const tx = (wpt.x / TILE) | 0;
       const ty = (wpt.y / TILE) | 0;
-      this.handleWorldClick(tx, ty, p.rightButtonReleased() || p.button === 2);
+      this.handleWorldClick(tx, ty, false);
     });
 
     this.input.on('pointerdown', (p) => {
       // Middle-mouse drag pan
       if (p.button === 1) {
-        if (this.ended || this.isPaused() || this.mode === 'combat') return;
+        if (this.ended || this.isPaused()) return;
         this.beginFreeCam();
         this._midDrag = {
           x: p.x,
           y: p.y,
           scrollX: this.cameras.main.scrollX,
           scrollY: this.cameras.main.scrollY,
+        };
+        this._edgePanIdle = 0;
+        return;
+      }
+
+      // Right-click drag pan (grab map). Short click in combat still opens specials.
+      if (p.button === 2) {
+        if (this.ended || this.isPaused()) return;
+        if (this.hudPointerZone(p)) return;
+        this.beginFreeCam();
+        this._rightDrag = {
+          x: p.x,
+          y: p.y,
+          scrollX: this.cameras.main.scrollX,
+          scrollY: this.cameras.main.scrollY,
+          moved: false,
         };
         this._edgePanIdle = 0;
         return;
@@ -2261,6 +2289,19 @@ export class GameScene extends Phaser.Scene {
         const cam = this.cameras.main;
         cam.scrollX = this._touchDrag.scrollX - (p.x - this._touchDrag.x) / cam.zoom;
         cam.scrollY = this._touchDrag.scrollY - (p.y - this._touchDrag.y) / cam.zoom;
+        this.clampCamScroll();
+        this._edgePanIdle = 0;
+        return;
+      }
+
+      // Right-button grab-pan
+      if (this._rightDrag && p.isDown) {
+        const cam = this.cameras.main;
+        const dx = p.x - this._rightDrag.x;
+        const dy = p.y - this._rightDrag.y;
+        if (dx * dx + dy * dy > 9) this._rightDrag.moved = true;
+        cam.scrollX = this._rightDrag.scrollX - dx / cam.zoom;
+        cam.scrollY = this._rightDrag.scrollY - dy / cam.zoom;
         this.clampCamScroll();
         this._edgePanIdle = 0;
         return;

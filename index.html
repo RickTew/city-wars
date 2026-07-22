@@ -839,11 +839,12 @@
       #dom-hud .hud-toast:empty {
         display: none;
       }
-      /* Compact coach — one card, fits content (not a giant empty panel) */
+      /* Compact coach — one card above the bar, always shows CLOSE */
       #dom-hud .hud-guide-toast {
         position: absolute;
         left: 50%;
-        bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+        /* Sit clearly above bottom bar (bar ~48–90px) */
+        bottom: calc(96px + env(safe-area-inset-bottom, 0px));
         top: auto;
         transform: translateX(-50%);
         width: auto;
@@ -860,7 +861,7 @@
         line-height: 1.4;
         white-space: pre-line;
         pointer-events: auto;
-        z-index: 8;
+        z-index: 12;
       }
       #dom-hud .hud-guide-toast .guide-toast-title {
         display: block;
