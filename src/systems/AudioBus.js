@@ -74,7 +74,7 @@ const SAMPLE_BANKS = {
     'scream_7.mp3',
     'scream_8.mp3',
   ],
-  yell: ['yell_1.mp3', 'yell_2.mp3', 'yell_3.mp3', 'yell_4.mp3', 'yell_5.mp3'],
+  // yell bank removed — Mixkit “yells” included cheer/clap crowd beds (wrong tone)
   cyber: [
     'cyber_1.mp3',
     'cyber_2.mp3',
@@ -447,15 +447,6 @@ export class AudioBus {
     });
   }
 
-  ambYell() {
-    this.playSample('yell', {
-      baseGain: 0.2,
-      rate: 0.9 + Math.random() * 0.25,
-      distance: pickDistance(),
-      echo: 'auto',
-    });
-  }
-
   ambScream() {
     this.playSample('scream', {
       baseGain: 0.17,
@@ -490,22 +481,22 @@ export class AudioBus {
       if (z === 'wall') gunBias = 0.12;
     }
 
-    if (roll < 0.16) this.ambDog();
-    else if (roll < 0.28) this.ambHowl();
-    else if (roll < 0.46 + gunBias) this.ambGun();
-    else if (roll < 0.6 + gunBias) this.ambExplosion();
-    else if (roll < 0.72) this.ambYell();
+    // No cheer/clap “yells” — dogs, howls, guns, booms, screams, cyber only
+    if (roll < 0.18) this.ambDog();
+    else if (roll < 0.32) this.ambHowl();
+    else if (roll < 0.52 + gunBias) this.ambGun();
+    else if (roll < 0.68 + gunBias) this.ambExplosion();
     else if (roll < 0.82) this.ambScream();
     else if (roll < 0.94) this.ambCyber();
     else this.ambCrackle();
 
-    // Occasional double-hit (gun then yell, dogs then howl) — rare
+    // Occasional double-hit (gun then scream, dogs then howl) — rare
     if (Math.random() < 0.12) {
       setTimeout(() => {
         if (!this._ambMode || !this.on) return;
         const follow = Math.random();
         if (follow < 0.35) this.ambGun();
-        else if (follow < 0.55) this.ambYell();
+        else if (follow < 0.55) this.ambScream();
         else if (follow < 0.75) this.ambDog();
         else this.ambHowl();
       }, 400 + Math.random() * 900);
