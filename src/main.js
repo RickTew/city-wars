@@ -4,6 +4,11 @@ import { MenuScene } from './scenes/MenuScene.js';
 import { CharacterSelectScene } from './scenes/CharacterSelectScene.js';
 import { GameScene } from './scenes/GameScene.js';
 
+/**
+ * pixelArt: true = nearest-neighbor for tile/sprite textures (studio default).
+ * Player-facing text is DOM (see VISUAL-STYLE.md + DomUi.js) — never rely on
+ * Phaser Text under this flag (chunky) or on global antialias:true (fuzzy).
+ */
 const config = {
   type: Phaser.AUTO,
   parent: 'game-container',

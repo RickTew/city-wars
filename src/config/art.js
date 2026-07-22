@@ -1,6 +1,14 @@
-/** Shared visual palette — Escape-from-NY grit + neon bleed. */
-export const HUD_FONT = '"Share Tech Mono", "Courier New", monospace';
-export const UI_FONT = 'system-ui, -apple-system, sans-serif';
+/**
+ * Shared visual palette — Escape-from-NY grit + neon bleed.
+ *
+ * Fonts: for player-facing UI use DomUi (DOM + Inter/system-ui). Phaser Text
+ * under pixelArt:true looks chunky; see VISUAL-STYLE.md.
+ * These constants remain for legacy GameScene Phaser strings until that HUD
+ * is migrated to DomUi.
+ */
+export const HUD_FONT = 'Inter, system-ui, -apple-system, sans-serif';
+export const UI_FONT = 'Inter, system-ui, -apple-system, sans-serif';
+export const TITLE_FONT = '"Share Tech Mono", ui-monospace, monospace';
 
 export const NEON = {
   cyan: 0x22d3ee,

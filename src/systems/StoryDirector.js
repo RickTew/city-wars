@@ -142,10 +142,11 @@ export class StoryDirector {
     if (!this.narratorOn) return null;
     if (Math.random() > 0.4) return null;
     const lines = [
-      'A siren somewhere practices dying.',
+      'A dog pack argues three blocks over. Nobody owns them.',
       'Rain that is not rain taps the sheet metal.',
       'You smell burnt sugar and gun oil. Dinner, maybe.',
       'Footsteps above. Or the building remembering people.',
+      'A far crack. Rifle or door. Same difference out here.',
     ];
     return {
       title: 'NIGHT NOTE',
@@ -178,7 +179,8 @@ export class StoryDirector {
       'A poster of a smiling mayor peels into a skull.',
       'Something sweet rots in a vent. Free perfume.',
       'Your shadow arrives half a second late.',
-      'Static whispers a street name that is not on maps.',
+      'Two crews trade insults across an avenue. No cops coming.',
+      'Someone yells a name. The name does not answer.',
     ];
     return {
       title: 'SIGNAL NOISE',

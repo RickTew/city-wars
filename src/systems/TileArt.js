@@ -1,3 +1,4 @@
+import Phaser from 'phaser';
 import { TILE, T } from '../config/constants.js';
 import { NEON } from '../config/art.js';
 
@@ -179,5 +180,11 @@ export class TileArt {
 
     g.generateTexture('tiles', max * TILE, TILE);
     g.destroy();
+
+    // World tiles stay blocky; UI text must stay LINEAR (see main.js — no global pixelArt).
+    const tex = scene.textures.get('tiles');
+    if (tex?.setFilter) {
+      tex.setFilter(Phaser.Textures.FilterMode.NEAREST);
+    }
   }
 }

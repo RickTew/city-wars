@@ -46,6 +46,7 @@ import { Minimap } from '../systems/Minimap.js';
 import { CraftPanel } from '../systems/CraftPanel.js';
 import { RunLegacy } from '../systems/RunLegacy.js';
 import { HUD_FONT, ZONE_TINT } from '../config/art.js';
+import { DomUi } from '../systems/DomUi.js';
 
 export class GameScene extends Phaser.Scene {
   constructor() {
@@ -53,6 +54,9 @@ export class GameScene extends Phaser.Scene {
   }
 
   create() {
+    // Menus use DOM overlays; wipe them before in-game Phaser HUD takes over
+    DomUi.clear();
+
     this.zones = new ZoneManager();
     const dayKey = this.registry.get('dayLength') || 'medium';
     this.dayNight = new DayNight(DAY_LENGTH[dayKey] || DAY_LENGTH.medium);
@@ -64,6 +68,11 @@ export class GameScene extends Phaser.Scene {
     this.audio.loadMute();
     this.audio.ensure();
     this.audio.stopMenu?.();
+    // World ambience: 2–22s base, denser toward outer/wall + night (see AudioBus)
+    this.audio.startWorldAmb?.({
+      getZone: () => this.zones.getZone(this.player?.tx ?? 0, this.player?.ty ?? 0),
+      isNight: () => !!this.dayNight?.isNight,
+    });
     this._guideCamSoftFollow = false;
 
     this.enemies = [];
@@ -166,7 +175,7 @@ export class GameScene extends Phaser.Scene {
       if (ev === 'night') {
         this.audio.night();
         this.heat?.onNight();
-        this.log('Night crawls in. Something howls like a broken siren.');
+        this.log('Night crawls in. Dogs take the street. Far off, something cracks.');
         this.refreshNightSpawns(true);
         const card = this.story.onNight();
         if (card) this.time.delayedCall(120, () => this.showPopup(card.title, card.body));
@@ -328,14 +337,7 @@ export class GameScene extends Phaser.Scene {
       this._popupFinish(true);
       return true;
     }
-    const kids = this.children.list.filter((c) => c.depth >= 500);
-    kids.forEach((c) => {
-      try {
-        c.destroy?.();
-      } catch (_) {
-        /* ignore */
-      }
-    });
+    DomUi.clear();
     this.popupOpen = false;
     this._popupFinish = null;
     this.clearMousePath();
@@ -1484,6 +1486,7 @@ export class GameScene extends Phaser.Scene {
     });
     mk(cy + 155, 'NEW RUN (menu)', 0xe11d48, () => {
       this.closeRunMenu();
+      this.audio.stopWorldAmb?.();
       this.scene.start('Menu');
     });
     mk(cy + 200, 'CLOSE', 0x94a3b8, () => this.closeRunMenu());
@@ -1995,8 +1998,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   /**
-   * Stable modal (no shake): fixed integer positions, no per-frame rebuild.
-   * Time frozen while open.
+   * Story / tutorial modal — DOM text (crisp Inter), not Phaser Text.
+   * Time frozen while open. See VISUAL-STYLE.md.
    */
   showPopup(title, body, onClose, opts = {}) {
     if (typeof onClose === 'object' && onClose !== null) {
@@ -2011,156 +2014,38 @@ export class GameScene extends Phaser.Scene {
     this.clearMousePath();
     this.movePath = [];
 
-    // Depth above guide edge-beacon (520) so GOT IT is always tappable on phones
-    const d = 560;
-    const w = Math.round(this.scale.width);
-    const h = Math.round(this.scale.height);
-    const cx = Math.round(w / 2);
     const hasCheck = !!opts.checkboxLabel;
-    const narrow = w < 520 || h < 700;
-    // Keep clear of top status + bottom action bar / home indicator
-    const m = this.barMetrics(w, h);
-    const safeTop = narrow ? 56 : 24;
-    const safeBot = Math.max(narrow ? 110 : 40, m.hudBottom + 12);
-    const maxPanelH = h - safeTop - safeBot;
-    const panelW = Math.min(560, w - (narrow ? 20 : 48));
-    const bodyFont = narrow ? '13px' : '15px';
-    const titleFont = narrow ? '20px' : '24px';
-    const lineSp = narrow ? 5 : 8;
-    const wrapW = panelW - (narrow ? 36 : 56);
-
-    // Measure body; clamp so button never gets pushed off-screen
-    const probe = this.add
-      .text(0, 0, body, {
-        fontFamily: 'system-ui',
-        fontSize: bodyFont,
-        align: 'center',
-        wordWrap: { width: wrapW },
-        lineSpacing: lineSp,
-      })
-      .setVisible(false);
-    let bodyH = Math.ceil(probe.height);
-    probe.destroy();
-
-    const titleH = narrow ? 28 : 36;
-    const padTop = narrow ? 16 : 24;
-    const gapTitleBody = narrow ? 12 : 20;
-    const gapBodyCheck = hasCheck ? 24 : 12;
-    const checkH = hasCheck ? 28 : 0;
-    const gapCheckBtn = narrow ? 16 : 24;
-    const btnH = narrow ? 52 : 48;
-    const padBot = narrow ? 16 : 24;
-    const chrome =
-      padTop + titleH + gapTitleBody + gapBodyCheck + checkH + gapCheckBtn + btnH + padBot;
-    const maxBodyH = Math.max(80, maxPanelH - chrome);
-    if (bodyH > maxBodyH) bodyH = maxBodyH;
-
-    const panelH = Math.min(maxPanelH, chrome + bodyH);
-    // Prefer sitting above the bottom bar on phones
-    const cy = narrow
-      ? Math.round(safeTop + panelH / 2 + 4)
-      : Math.round(h / 2);
-    const panelTop = Math.round(cy - panelH / 2);
-
-    const dim = this.add
-      .rectangle(w / 2, h / 2, w, h, 0x020617, 0.82)
-      .setScrollFactor(0)
-      .setDepth(d)
-      .setInteractive();
-
-    const panel = this.add
-      .rectangle(cx, cy, panelW, panelH, 0x0f172a, 1)
-      .setStrokeStyle(3, 0x38bdf8)
-      .setScrollFactor(0)
-      .setDepth(d + 1);
-    // Panel is visual only  -  do NOT setInteractive (it was eating taps meant for GOT IT)
-
-    const t1 = this.add
-      .text(cx, panelTop + padTop, title, {
-        fontFamily: 'system-ui',
-        fontSize: titleFont,
-        fontStyle: 'bold',
-        color: '#f8fafc',
-      })
-      .setOrigin(0.5, 0)
-      .setScrollFactor(0)
-      .setDepth(d + 2);
-
-    const bodyY = panelTop + padTop + titleH + gapTitleBody;
-    const t2 = this.add
-      .text(cx, bodyY, body, {
-        fontFamily: 'system-ui',
-        fontSize: bodyFont,
-        color: '#cbd5e1',
-        align: 'center',
-        wordWrap: { width: wrapW },
-        lineSpacing: lineSp,
-      })
-      .setOrigin(0.5, 0)
-      .setScrollFactor(0)
-      .setDepth(d + 2);
-    // Clip long body so it cannot cover the button
-    if (t2.height > maxBodyH) {
-      t2.setCrop(0, 0, wrapW + 8, maxBodyH);
-    }
-
-    // Default OFF for track checkbox
     let checked = opts.checkboxDefault === true;
-    const ui = [dim, panel, t1, t2];
 
-    if (hasCheck) {
-      const boxY = Math.round(Math.min(bodyY + bodyH, panelTop + panelH - padBot - btnH - 36));
-      const box = this.add
-        .rectangle(cx - Math.min(150, panelW / 2 - 40), boxY, 22, 22, checked ? 0x0ea5e9 : 0x1e293b, 1)
-        .setStrokeStyle(2, 0x94a3b8)
-        .setScrollFactor(0)
-        .setDepth(d + 3)
-        .setInteractive({ useHandCursor: true });
-      const mark = this.add
-        .text(box.x, boxY, checked ? 'Y' : '', {
-          fontFamily: 'system-ui',
-          fontSize: '14px',
-          fontStyle: 'bold',
-          color: '#0b1220',
-        })
-        .setOrigin(0.5)
-        .setScrollFactor(0)
-        .setDepth(d + 4);
-      const lab = this.add
-        .text(box.x + 20, boxY, opts.checkboxLabel, {
-          fontFamily: 'system-ui',
-          fontSize: narrow ? '12px' : '14px',
-          color: '#e2e8f0',
-          wordWrap: { width: panelW - 80 },
-        })
-        .setOrigin(0, 0.5)
-        .setScrollFactor(0)
-        .setDepth(d + 3)
-        .setInteractive({ useHandCursor: true });
-      const toggle = () => {
-        checked = !checked;
-        box.setFillStyle(checked ? 0x0ea5e9 : 0x1e293b);
-        mark.setText(checked ? 'Y' : '');
-      };
-      box.on('pointerup', (p) => {
-        p.event?.stopPropagation?.();
-        toggle();
-      });
-      lab.on('pointerup', (p) => {
-        p.event?.stopPropagation?.();
-        toggle();
-      });
-      ui.push(box, mark, lab);
+    DomUi.clear();
+    const root = DomUi.show('popup-ui');
+    if (!root) {
+      this.popupOpen = false;
+      return;
     }
 
-    const btnY = Math.round(panelTop + panelH - padBot - btnH / 2);
-    const btnW = Math.min(240, panelW - 32);
+    const panel = DomUi.el('div', 'popup-panel');
+    panel.appendChild(DomUi.el('div', 'popup-title', title));
+    panel.appendChild(DomUi.el('div', 'popup-body', body));
+
+    let checkInput = null;
+    if (hasCheck) {
+      const row = DomUi.el('label', 'popup-check');
+      checkInput = document.createElement('input');
+      checkInput.type = 'checkbox';
+      checkInput.checked = checked;
+      checkInput.addEventListener('change', () => {
+        checked = !!checkInput.checked;
+      });
+      row.appendChild(checkInput);
+      row.appendChild(document.createTextNode(opts.checkboxLabel));
+      panel.appendChild(row);
+    }
 
     const finish = (fromOk) => {
       if (!this.popupOpen) return;
-      ui.forEach((o) => o?.destroy?.());
-      ok.bg.destroy();
-      ok.label.destroy();
+      if (checkInput) checked = !!checkInput.checked;
+      DomUi.clear();
       this.popupOpen = false;
       this._popupFinish = null;
       this.clearMousePath();
@@ -2175,11 +2060,14 @@ export class GameScene extends Phaser.Scene {
     };
     this._popupFinish = finish;
 
-    // Slightly oversized so thumbs hit reliably (makeUiButton already pads hit area)
-    const ok = this.makeUiButton(cx, btnY, btnW, Math.max(btnH, 52), 'GOT IT', 0x0ea5e9, () => finish(true), d + 10);
-    // Only close on dimmer when no checkbox (avoid misclicks)
+    panel.appendChild(DomUi.button('hit popup-ok', 'GOT IT', () => finish(true)));
+    root.appendChild(panel);
+
+    // Dimmer click closes only when there is no checkbox (avoid mis-taps)
     if (!hasCheck) {
-      dim.on('pointerup', () => finish(true));
+      root.addEventListener('pointerup', (e) => {
+        if (e.target === root) finish(true);
+      });
     }
   }
 
@@ -3674,6 +3562,7 @@ export class GameScene extends Phaser.Scene {
     mkBtn(h * 0.66, 'NEW RUN', won ? 0x0ea5e9 : 0xe11d48, () => this.scene.restart());
     mkBtn(h * 0.76, 'MAIN MENU', 0x334155, () => {
       SaveSystem.clear();
+      this.audio.stopWorldAmb?.();
       this.scene.start('Menu');
     });
   }

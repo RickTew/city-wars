@@ -20,9 +20,10 @@
     <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png" />
+    <!-- Display mono for title only; body UI uses system-ui (crisp DOM) -->
     <link
       rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Inter:wght@400;600;700;800&display=swap"
     />
 
     <style>
@@ -40,7 +41,9 @@
         position: fixed;
         background: #0b1220;
         touch-action: none;
-        font-family: 'Share Tech Mono', 'Courier New', monospace;
+        font-family: Inter, system-ui, -apple-system, sans-serif;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
       }
       #game-container {
         width: 100%;
@@ -51,10 +54,381 @@
         padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px)
           env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
       }
+      /* Phaser canvas: 1:1 buffer under RESIZE. Pixelated only for sprites/tiles. */
       #game-container canvas {
         display: block;
         width: 100% !important;
         height: 100% !important;
+        image-rendering: pixelated;
+        image-rendering: crisp-edges;
+      }
+
+      /* ── DOM UI layer (menus / labels) — browser AA, above canvas ── */
+      #dom-ui {
+        position: absolute;
+        inset: 0;
+        z-index: 20;
+        pointer-events: none;
+        color: #e2e8f0;
+        font-family: Inter, system-ui, -apple-system, sans-serif;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+      #dom-ui .hit {
+        pointer-events: auto;
+        cursor: pointer;
+        border: none;
+        font-family: inherit;
+        -webkit-tap-highlight-color: transparent;
+      }
+      #dom-ui button.hit:focus-visible {
+        outline: 2px solid #fbbf24;
+        outline-offset: 2px;
+      }
+
+      /* ── Menu: centered column over skyline ── */
+      #dom-ui.menu-ui {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: clamp(16px, 3vh, 40px) 16px clamp(40px, 6vh, 56px);
+        text-align: center;
+        overflow: auto;
+      }
+      #dom-ui.menu-ui .menu-stack {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: clamp(12px, 1.8vh, 20px);
+        width: min(440px, 92vw);
+        max-width: 100%;
+        position: relative;
+        z-index: 2;
+        /* Soft scrim so buttons read on busy skyline */
+        padding: clamp(20px, 3vh, 32px) clamp(18px, 3vw, 28px);
+        border-radius: 12px;
+        background: linear-gradient(
+          180deg,
+          rgba(5, 8, 15, 0.72) 0%,
+          rgba(5, 8, 15, 0.55) 100%
+        );
+        border: 1px solid rgba(71, 85, 105, 0.45);
+        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+      }
+      #dom-ui .title {
+        font-family: 'Share Tech Mono', ui-monospace, monospace;
+        font-weight: 700;
+        font-size: clamp(44px, 8.5vw, 84px);
+        line-height: 1.05;
+        color: #f8fafc;
+        letter-spacing: 0.04em;
+        text-shadow:
+          0 0 2px #f97316,
+          0 0 22px rgba(251, 191, 36, 0.5),
+          0 2px 0 #c2410c;
+      }
+      #dom-ui .tagline {
+        font-family: 'Share Tech Mono', ui-monospace, monospace;
+        font-size: clamp(12px, 1.5vw, 14px);
+        color: #fdba74;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        max-width: 34em;
+      }
+      #dom-ui .muted {
+        font-size: clamp(13px, 1.35vw, 15px);
+        color: #94a3b8;
+        font-weight: 400;
+      }
+      #dom-ui .section-label {
+        font-size: clamp(14px, 1.45vw, 16px);
+        color: #e2e8f0;
+        font-weight: 600;
+      }
+      #dom-ui .section-sub {
+        font-size: clamp(12px, 1.25vw, 13px);
+        color: #94a3b8;
+        margin-top: 3px;
+      }
+      #dom-ui .day-row {
+        display: flex;
+        gap: 10px;
+        justify-content: center;
+        width: 100%;
+      }
+      #dom-ui .day-btn {
+        flex: 1;
+        min-width: 0;
+        max-width: 128px;
+        padding: 14px 8px;
+        border-radius: 8px;
+        background: #1e293b;
+        color: #f1f5f9;
+        border: 2px solid #475569;
+        font-weight: 700;
+        font-size: clamp(14px, 1.55vw, 16px);
+        transition: border-color 0.12s, background 0.12s, transform 0.1s;
+      }
+      #dom-ui .day-btn:hover {
+        border-color: #94a3b8;
+        transform: translateY(-1px);
+      }
+      #dom-ui .day-btn .sub {
+        display: block;
+        margin-top: 4px;
+        font-weight: 500;
+        font-size: 12px;
+        color: #94a3b8;
+      }
+      #dom-ui .day-btn.selected {
+        background: #ea580c;
+        border-color: #fbbf24;
+        color: #0b1220;
+      }
+      #dom-ui .day-btn.selected .sub {
+        color: #0f172a;
+      }
+      #dom-ui .start-btn {
+        width: 100%;
+        max-width: 300px;
+        padding: 16px 20px;
+        border-radius: 8px;
+        background: #ea580c;
+        color: #0b1220;
+        border: 3px solid #fbbf24;
+        font-weight: 800;
+        font-size: clamp(20px, 2.3vw, 26px);
+        letter-spacing: 0.06em;
+        transition: filter 0.12s, transform 0.1s;
+      }
+      #dom-ui .start-btn:hover {
+        filter: brightness(1.08);
+        transform: translateY(-1px);
+      }
+      #dom-ui .cont-btn {
+        width: 100%;
+        max-width: 300px;
+        padding: 12px 16px;
+        border-radius: 8px;
+        background: #14532d;
+        color: #ecfdf5;
+        border: 2px solid #4ade80;
+        font-weight: 700;
+        font-size: clamp(14px, 1.55vw, 17px);
+      }
+      #dom-ui .help-box {
+        width: 100%;
+        max-width: 340px;
+        padding: 12px 16px;
+        border-radius: 8px;
+        background: rgba(15, 23, 42, 0.88);
+        border: 1px solid #475569;
+        font-size: clamp(13px, 1.4vw, 15px);
+        color: #e2e8f0;
+        line-height: 1.45;
+      }
+      #dom-ui .help-box .line2 {
+        color: #cbd5e1;
+        margin-top: 4px;
+      }
+      #dom-ui.menu-ui .footer {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: clamp(10px, 2vh, 18px);
+        text-align: center;
+        font-size: clamp(12px, 1.25vw, 13px);
+        color: #64748b;
+        z-index: 2;
+      }
+      /* Character select */
+      #dom-ui.char-ui {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: clamp(12px, 2vh, 24px) 12px 16px;
+        overflow: auto;
+        background: #0b1220;
+      }
+      #dom-ui.char-ui h1 {
+        font-family: 'Share Tech Mono', ui-monospace, monospace;
+        font-size: clamp(22px, 4vw, 30px);
+        color: #f8fafc;
+        text-shadow: 0 0 12px rgba(234, 88, 12, 0.6);
+      }
+      #dom-ui.char-ui .subhead {
+        font-size: clamp(13px, 1.4vw, 14px);
+        color: #94a3b8;
+        margin: 4px 0 12px;
+      }
+      #dom-ui .char-list {
+        width: min(520px, 100%);
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        flex: 1;
+        overflow: auto;
+        padding: 4px 2px 12px;
+        pointer-events: auto;
+      }
+      #dom-ui .char-card {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        text-align: left;
+        width: 100%;
+        padding: 12px 14px;
+        border-radius: 8px;
+        background: #1e293b;
+        border: 2px solid #334155;
+        color: #e2e8f0;
+        transition: border-color 0.12s, background 0.12s;
+      }
+      #dom-ui .char-card:hover {
+        border-color: #64748b;
+      }
+      #dom-ui .char-card.selected {
+        border-color: #fbbf24;
+        background: #292524;
+      }
+      #dom-ui .char-card .avatar {
+        position: relative;
+        flex-shrink: 0;
+        width: 40px;
+        height: 40px;
+        margin-top: 2px;
+      }
+      #dom-ui .char-card .avatar .body {
+        position: absolute;
+        left: 50%;
+        top: 52%;
+        width: 28px;
+        height: 28px;
+        margin-left: -14px;
+        margin-top: -10px;
+        border-radius: 50%;
+        box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.9);
+      }
+      #dom-ui .char-card .avatar .hair {
+        position: absolute;
+        left: 50%;
+        top: 18%;
+        width: 16px;
+        height: 16px;
+        margin-left: -8px;
+        border-radius: 50%;
+        box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25);
+      }
+      #dom-ui .char-card .meta {
+        flex: 1;
+        min-width: 0;
+      }
+      #dom-ui .char-card .name {
+        font-weight: 700;
+        font-size: clamp(14px, 1.5vw, 16px);
+        color: #f8fafc;
+      }
+      #dom-ui .char-card .role {
+        font-size: clamp(12px, 1.3vw, 13px);
+        color: #fdba74;
+        margin-top: 2px;
+      }
+      #dom-ui .char-card .blurb {
+        font-size: clamp(12px, 1.25vw, 13px);
+        color: #94a3b8;
+        margin-top: 4px;
+        line-height: 1.35;
+      }
+      #dom-ui .char-card .stats {
+        font-size: clamp(12px, 1.25vw, 13px);
+        color: #cbd5e1;
+        margin-top: 6px;
+        font-weight: 600;
+      }
+      #dom-ui .char-enter {
+        width: min(320px, 100%);
+        margin-top: 8px;
+        padding: 14px 18px;
+        border-radius: 8px;
+        background: #ea580c;
+        color: #0b1220;
+        border: 3px solid #fbbf24;
+        font-weight: 800;
+        font-size: clamp(16px, 1.8vw, 18px);
+      }
+      #dom-ui .char-enter:hover {
+        filter: brightness(1.06);
+      }
+
+      /* ── In-game story / tutorial popups (DOM = crisp type) ── */
+      #dom-ui.popup-ui {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: clamp(48px, 8vh, 80px) 16px clamp(100px, 14vh, 120px);
+        background: rgba(2, 6, 23, 0.82);
+        pointer-events: auto;
+      }
+      #dom-ui .popup-panel {
+        width: min(560px, 100%);
+        max-height: 100%;
+        overflow: auto;
+        padding: clamp(18px, 3vh, 28px) clamp(18px, 3vw, 28px) clamp(16px, 2.5vh, 24px);
+        border-radius: 10px;
+        background: #0f172a;
+        border: 3px solid #38bdf8;
+        box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55);
+        text-align: center;
+        pointer-events: auto;
+      }
+      #dom-ui .popup-title {
+        font-family: Inter, system-ui, -apple-system, sans-serif;
+        font-weight: 800;
+        font-size: clamp(20px, 3.2vw, 26px);
+        color: #f8fafc;
+        letter-spacing: 0.02em;
+        margin-bottom: clamp(12px, 2vh, 18px);
+      }
+      #dom-ui .popup-body {
+        font-family: Inter, system-ui, -apple-system, sans-serif;
+        font-size: clamp(14px, 1.7vw, 16px);
+        color: #cbd5e1;
+        line-height: 1.5;
+        white-space: pre-line;
+        margin-bottom: clamp(16px, 2.5vh, 24px);
+      }
+      #dom-ui .popup-check {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        margin: 0 auto 16px;
+        max-width: 90%;
+        cursor: pointer;
+        color: #e2e8f0;
+        font-size: clamp(13px, 1.5vw, 14px);
+        user-select: none;
+      }
+      #dom-ui .popup-check input {
+        width: 18px;
+        height: 18px;
+        accent-color: #0ea5e9;
+      }
+      #dom-ui .popup-ok {
+        display: block;
+        width: min(240px, 100%);
+        margin: 0 auto;
+        padding: 14px 20px;
+        border-radius: 8px;
+        background: #0ea5e9;
+        color: #0b1220;
+        border: 2px solid #7dd3fc;
+        font-weight: 800;
+        font-size: clamp(15px, 1.8vw, 17px);
+      }
+      #dom-ui .popup-ok:hover {
+        filter: brightness(1.06);
       }
     </style>
   </head>

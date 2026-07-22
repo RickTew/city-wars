@@ -2,7 +2,11 @@
 
 Phaser 4 turn-based top-down city escape game (Escape from New York / early Rockstar grid vibe).
 
-> **Grok is primary** for this repo. Canonical rules live in **`AGENTS.md`** and **`.grok/rules/`**. Keep this file aligned when conventions change.
+> **Grok is primary** for this repo. Canonical rules live in **`AGENTS.md`**, **`TEXT-STRATEGY.md`**, **`VISUAL-STYLE.md`**, and **`.grok/MEMORY.md`**. Keep this file aligned when conventions change.
+
+## Text (LOCKED — user repeated)
+
+**Entire game** needs crisp DOM text (`DomUi.js`). Phaser Text under `pixelArt: true` looks chunky. Menus/popups migrated; **HUD/craft/buttons still Phaser — next session priority.** Do not flip pixelArt off to “fix” type.
 
 ## Always use latest packages
 
