@@ -1690,7 +1690,9 @@ export class GameScene extends Phaser.Scene {
     const phase = (Math.sin(this._pulseT * 5.5) + 1) / 2;
     const a = 0.45 + phase * 0.55;
     const mobile = this.isMobileHud();
-    const r = (mobile ? 18 : 14) + phase * (mobile ? 20 : 16);
+    // Pulse scales with TILE so 64px streets still read clearly
+    const base = Math.max(16, TILE * 0.45);
+    const r = base + phase * (mobile ? TILE * 0.55 : TILE * 0.4);
     // Sit above modal dimmer (500) so edge beacons stay visible while reading GOT IT
     if (ui) ui.setDepth(this.popupOpen ? 520 : 140);
 
@@ -2428,7 +2430,7 @@ export class GameScene extends Phaser.Scene {
     this.pathGfx.strokePath();
     const last = this.movePath[this.movePath.length - 1];
     this.pathGfx.fillStyle(0x38bdf8, 0.35);
-    this.pathGfx.fillCircle(last.x * TILE + TILE / 2, last.y * TILE + TILE / 2, 8);
+    this.pathGfx.fillCircle(last.x * TILE + TILE / 2, last.y * TILE + TILE / 2, Math.max(6, TILE / 5));
   }
 
   /** HEAL button: bandages / stim / MRE, or Street Charge in combat. */

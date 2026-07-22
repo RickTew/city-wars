@@ -12,8 +12,11 @@ Same model as **DungeonHole**:
 - **DOM** for all readable text
 
 DungeonHole uses ~**64px** board tiles so medium pixel heroes sit as miniatures
-without per-sprite scale hacks. City Wars live map is **32px** tiles (96×96 city).
-**Style Lab** (`?lab=1` or menu → STYLE LAB) compares both side by side.
+without per-sprite scale hacks. City Wars live map is **`TILE = 64`** (96×96 city)
+with actors scaled from a 32px design base. Terrain still means something:
+grass, barricade, building, road H/V/X, loot, workbench, etc.
+
+**Style Lab** (`?lab=1` or menu → STYLE LAB) shows the full tile vocabulary + hybrid miniatures.
 
 Roads: lane dashes **follow street axis** (E–W horizontal, N–S vertical, X = cross).
 

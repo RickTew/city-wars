@@ -1,6 +1,9 @@
 /** City Wars - Escape-NY grit + Fallout scrap + cyberpunk-lite */
 
-export const TILE = 32;
+/** Board tile size in canvas px (DungeonHole-style hybrid target: 64). */
+export const TILE = 64;
+/** Source art / silhouette design scale (actors drawn for this, then scaled to TILE). */
+export const TILE_DESIGN = 32;
 export const MAP_W = 96;
 export const MAP_H = 96;
 export const WORLD_W = MAP_W * TILE;

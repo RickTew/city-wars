@@ -11,7 +11,8 @@ export const cameraMixin = {
     cam.setRoundPixels(true);
     cam.setZoom(1);
     this.camFollowPlayer = false;
-    this.edgePan = { margin: 32, speed: 480 };
+    // Larger TILE world needs snappier pan so streets don't feel sticky
+    this.edgePan = { margin: 36, speed: 720 };
     this._edgePanIdle = 0;
   },
 

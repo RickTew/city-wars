@@ -2,11 +2,17 @@ import Phaser from 'phaser';
 import { TILE, T } from '../config/constants.js';
 import { NEON } from '../config/art.js';
 
-/** Procedural cyberpunk tileset — no external art required. */
+/**
+ * Procedural cyberpunk tileset — scales with TILE (32 design → 64 live).
+ * Road dashes follow street axis (H / V / X).
+ */
 export class TileArt {
   static generate(scene) {
     const max = Math.max(...Object.values(T));
     const g = scene.make.graphics({ add: false });
+    const S = TILE / 32; // design was 32px
+    const r = (n) => Math.max(1, Math.round(n * S));
+
     const pal = {
       [T.ROAD]: 0x27272a,
       [T.ROAD_V]: 0x27272a,
@@ -38,9 +44,9 @@ export class TileArt {
 
       g.fillStyle(0x000000, 0.08);
       for (let n = 0; n < 6; n++) {
-        const gx = x + ((n * 7 + i * 3) % 28);
-        const gy = (n * 5 + i) % 28;
-        g.fillRect(gx, gy, 2, 2);
+        const gx = x + ((n * 7 + i * 3) % Math.max(8, TILE - 4));
+        const gy = (n * 5 + i) % Math.max(8, TILE - 4);
+        g.fillRect(gx, gy, r(2), r(2));
       }
 
       g.lineStyle(1, 0x000000, 0.45);
@@ -51,160 +57,167 @@ export class TileArt {
         g.fillStyle(0x3f3f46, 1);
         g.fillRect(x, 0, TILE, TILE);
         g.fillStyle(0x27272a, 1);
-        g.fillRect(x + 2, 2, TILE - 4, TILE - 4);
-        // Curb lips
+        g.fillRect(x + r(2), r(2), TILE - r(4), TILE - r(4));
         g.fillStyle(0x71717a, 0.5);
-        g.fillRect(x, 0, TILE, 2);
-        g.fillRect(x, TILE - 2, TILE, 2);
-        g.fillRect(x, 0, 2, TILE);
-        g.fillRect(x + TILE - 2, 0, 2, TILE);
+        g.fillRect(x, 0, TILE, r(2));
+        g.fillRect(x, TILE - r(2), TILE, r(2));
+        g.fillRect(x, 0, r(2), TILE);
+        g.fillRect(x + TILE - r(2), 0, r(2), TILE);
       }
       if (i === T.ROAD) {
-        // E–W street: dashes run horizontally (along the road)
+        // E–W: dashes horizontal
         g.fillStyle(0xfbbf24, 0.7);
-        g.fillRect(x + 8, 14, 16, 3);
+        g.fillRect(x + r(8), r(14), r(16), r(3));
         g.fillStyle(0xa1a1aa, 0.3);
-        g.fillRect(x + 4, 24, 10, 2);
-        g.fillRect(x + 18, 8, 10, 2);
+        g.fillRect(x + r(4), r(24), r(10), r(2));
+        g.fillRect(x + r(18), r(8), r(10), r(2));
       }
       if (i === T.ROAD_V) {
-        // N–S street: dashes run vertically (along the road)
+        // N–S: dashes vertical
         g.fillStyle(0xfbbf24, 0.7);
-        g.fillRect(x + 14, 8, 3, 16);
+        g.fillRect(x + r(14), r(8), r(3), r(16));
         g.fillStyle(0xa1a1aa, 0.3);
-        g.fillRect(x + 8, 4, 2, 10);
-        g.fillRect(x + 22, 18, 2, 10);
+        g.fillRect(x + r(8), r(4), r(2), r(10));
+        g.fillRect(x + r(22), r(18), r(2), r(10));
       }
       if (i === T.ROAD_X) {
-        // Intersection: soft cross, not a single-axis dash stamp
         g.fillStyle(0xfbbf24, 0.35);
-        g.fillRect(x + 13, 10, 6, 12);
-        g.fillRect(x + 10, 13, 12, 6);
+        g.fillRect(x + r(13), r(10), r(6), r(12));
+        g.fillRect(x + r(10), r(13), r(12), r(6));
         g.fillStyle(0x52525b, 0.4);
-        g.fillRect(x + 6, 6, 4, 4);
-        g.fillRect(x + 22, 6, 4, 4);
-        g.fillRect(x + 6, 22, 4, 4);
-        g.fillRect(x + 22, 22, 4, 4);
+        g.fillRect(x + r(6), r(6), r(4), r(4));
+        g.fillRect(x + r(22), r(6), r(4), r(4));
+        g.fillRect(x + r(6), r(22), r(4), r(4));
+        g.fillRect(x + r(22), r(22), r(4), r(4));
       }
       if (i === T.SIDEWALK) {
         g.fillStyle(0x52525b, 1);
         g.fillRect(x, 0, TILE, TILE);
         g.fillStyle(0x737373, 0.35);
-        g.fillRect(x + 2, 2, 12, 12);
-        g.fillRect(x + 16, 16, 12, 12);
+        g.fillRect(x + r(2), r(2), r(12), r(12));
+        g.fillRect(x + r(16), r(16), r(12), r(12));
         g.lineStyle(1, 0x27272a, 0.5);
         g.strokeRect(x + 1, 1, TILE - 2, TILE - 2);
       }
       if (i === T.ALLEY) {
         g.fillStyle(0x1c1917, 0.6);
-        g.fillRect(x + 2, 24, TILE - 4, 6);
+        g.fillRect(x + r(2), r(24), TILE - r(4), r(6));
       }
       if (i === T.PARK) {
-        g.fillStyle(0x166534, 0.5);
-        g.fillCircle(x + 10, 12, 4);
-        g.fillCircle(x + 22, 20, 5);
+        // Grass / park — clear green canopy blobs
+        g.fillStyle(0x166534, 0.55);
+        g.fillCircle(x + r(10), r(12), r(6));
+        g.fillCircle(x + r(22), r(20), r(7));
+        g.fillStyle(0x22c55e, 0.25);
+        g.fillCircle(x + r(16), r(16), r(5));
       }
       if (i === T.BUILDING) {
         const wins = [
-          [8, 8, NEON.cyan],
-          [18, 8, NEON.pink],
-          [8, 18, 0x000000],
-          [18, 18, NEON.gold],
+          [r(8), r(8), NEON.cyan],
+          [r(18), r(8), NEON.pink],
+          [r(8), r(18), 0x000000],
+          [r(18), r(18), NEON.gold],
         ];
         for (const [wx, wy, c] of wins) {
-          g.fillStyle(c, wy > 14 ? 0.15 : 0.55);
-          g.fillRect(x + wx, wy, 4, 4);
+          g.fillStyle(c, wy > r(14) ? 0.15 : 0.55);
+          g.fillRect(x + wx, wy, r(5), r(5));
         }
-        g.lineStyle(1, 0x334155, 0.8);
-        g.strokeRect(x + 6, 6, 20, 20);
+        g.lineStyle(Math.max(1, r(1)), 0x334155, 0.8);
+        g.strokeRect(x + r(6), r(6), r(20), r(20));
       }
       if (i === T.RUIN) {
         g.fillStyle(0x78350f, 0.7);
-        g.fillRect(x + 4, 14, 10, 8);
-        g.fillRect(x + 18, 6, 8, 12);
-        g.lineStyle(2, 0xa8a29e, 0.4);
-        g.lineBetween(x + 6, 28, x + 26, 10);
+        g.fillRect(x + r(4), r(14), r(10), r(8));
+        g.fillRect(x + r(18), r(6), r(8), r(12));
+        g.lineStyle(r(2), 0xa8a29e, 0.4);
+        g.lineBetween(x + r(6), r(28), x + r(26), r(10));
       }
       if (i === T.BARRICADE) {
         g.fillStyle(0x450a0a, 1);
-        g.fillRect(x + 4, 8, 24, 16);
-        g.lineStyle(2, NEON.red, 0.7);
-        g.lineBetween(x + 6, 10, x + 26, 22);
-        g.lineBetween(x + 26, 10, x + 6, 22);
+        g.fillRect(x + r(4), r(8), r(24), r(16));
+        g.lineStyle(r(2), NEON.red, 0.7);
+        g.lineBetween(x + r(6), r(10), x + r(26), r(22));
+        g.lineBetween(x + r(26), r(10), x + r(6), r(22));
       }
       if (i === T.HQ) {
         g.fillStyle(NEON.cyan, 0.15);
-        g.fillRect(x + 2, 2, TILE - 4, TILE - 4);
+        g.fillRect(x + r(2), r(2), TILE - r(4), TILE - r(4));
         g.lineStyle(1, NEON.cyan, 0.5);
-        for (let ly = 6; ly < 28; ly += 6) {
-          g.lineBetween(x + 4, ly, x + 28, ly);
+        for (let ly = r(6); ly < TILE - r(4); ly += r(6)) {
+          g.lineBetween(x + r(4), ly, x + TILE - r(4), ly);
         }
       }
       if (i === T.LOOT) {
         g.fillStyle(0x422006, 1);
-        g.fillRect(x + 6, 12, 20, 14);
+        g.fillRect(x + r(6), r(12), r(20), r(14));
         g.fillStyle(NEON.gold, 1);
-        g.fillRect(x + 10, 8, 12, 8);
+        g.fillRect(x + r(10), r(8), r(12), r(8));
         g.lineStyle(1, 0xfef08a, 0.8);
-        g.strokeRect(x + 10, 8, 12, 8);
+        g.strokeRect(x + r(10), r(8), r(12), r(8));
       }
       if (i === T.BENCH) {
         g.fillStyle(NEON.purple, 0.35);
-        g.fillRect(x + 2, 2, TILE - 4, TILE - 4);
+        g.fillRect(x + r(2), r(2), TILE - r(4), TILE - r(4));
         g.fillStyle(0xe9d5ff, 1);
-        g.fillRect(x + 6, 18, 20, 6);
-        g.fillRect(x + 8, 10, 4, 10);
-        g.fillRect(x + 20, 10, 4, 10);
+        g.fillRect(x + r(6), r(18), r(20), r(6));
+        g.fillRect(x + r(8), r(10), r(4), r(10));
+        g.fillRect(x + r(20), r(10), r(4), r(10));
       }
       if (i === T.SLEEP) {
         g.fillStyle(0x134e4a, 0.5);
-        g.fillRect(x + 4, 14, 24, 12);
+        g.fillRect(x + r(4), r(14), r(24), r(12));
         g.fillStyle(0x99f6e4, 0.85);
-        g.fillEllipse(x + 16, 18, 18, 10);
+        g.fillEllipse(x + r(16), r(18), r(18), r(10));
       }
       if (i === T.LANDMARK) {
         g.fillStyle(0x500724, 0.6);
-        g.fillRect(x + 2, 2, TILE - 4, TILE - 4);
+        g.fillRect(x + r(2), r(2), TILE - r(4), TILE - r(4));
         g.fillStyle(NEON.pink, 1);
-        g.fillCircle(x + 16, 16, 7);
-        g.lineStyle(2, 0xfbcfe8, 0.9);
-        g.strokeCircle(x + 16, 16, 10);
+        g.fillCircle(x + r(16), r(16), r(7));
+        g.lineStyle(r(2), 0xfbcfe8, 0.9);
+        g.strokeCircle(x + r(16), r(16), r(10));
       }
       if (i === T.GEAR_STICK) {
-        g.lineStyle(4, 0xd97706, 1);
-        g.lineBetween(x + 8, 24, x + 24, 8);
+        g.lineStyle(r(4), 0xd97706, 1);
+        g.lineBetween(x + r(8), r(24), x + r(24), r(8));
         g.fillStyle(NEON.gold, 1);
-        g.fillCircle(x + 24, 8, 3);
+        g.fillCircle(x + r(24), r(8), r(3));
       }
       if (i === T.GEAR_HAT) {
         g.fillStyle(0xe879f9, 1);
-        g.fillEllipse(x + 16, 14, 18, 10);
+        g.fillEllipse(x + r(16), r(14), r(18), r(10));
         g.fillStyle(0xc026d3, 1);
-        g.fillRect(x + 6, 16, 20, 4);
+        g.fillRect(x + r(6), r(16), r(20), r(4));
         g.fillStyle(0xf0abfc, 1);
-        g.fillCircle(x + 16, 12, 3);
+        g.fillCircle(x + r(16), r(12), r(3));
       }
       if (i === T.ESCAPE) {
         g.fillStyle(0x422006, 0.5);
-        g.fillRect(x + 4, 4, 24, 24);
-        g.lineStyle(3, NEON.gold, 1);
-        g.strokeRect(x + 6, 6, 20, 20);
+        g.fillRect(x + r(4), r(4), r(24), r(24));
+        g.lineStyle(r(3), NEON.gold, 1);
+        g.strokeRect(x + r(6), r(6), r(20), r(20));
         g.fillStyle(NEON.gold, 0.35);
-        g.fillRect(x + 14, 2, 4, 28);
-        g.fillRect(x + 2, 14, 28, 4);
+        g.fillRect(x + r(14), r(2), r(4), r(28));
+        g.fillRect(x + r(2), r(14), r(28), r(4));
       }
       if (i === T.GATE) {
         g.fillStyle(0x1e1b4b, 1);
-        g.fillRect(x + 8, 4, 16, 24);
-        g.lineStyle(2, NEON.red, 0.8);
-        g.strokeRect(x + 8, 4, 16, 24);
+        g.fillRect(x + r(8), r(4), r(16), r(24));
+        g.lineStyle(r(2), NEON.red, 0.8);
+        g.strokeRect(x + r(8), r(4), r(16), r(24));
+      }
+      if (i === T.WATER) {
+        g.fillStyle(0x0c1929, 1);
+        g.fillRect(x, 0, TILE, TILE);
+        g.fillStyle(0x0ea5e9, 0.2);
+        g.fillRect(x + r(4), r(10), r(24), r(4));
+        g.fillRect(x + r(8), r(20), r(16), r(3));
       }
     }
 
     g.generateTexture('tiles', max * TILE, TILE);
     g.destroy();
 
-    // World tiles stay blocky; UI text must stay LINEAR (see main.js — no global pixelArt).
     const tex = scene.textures.get('tiles');
     if (tex?.setFilter) {
       tex.setFilter(Phaser.Textures.FilterMode.NEAREST);

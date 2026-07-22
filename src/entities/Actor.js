@@ -1,4 +1,4 @@
-import { TILE, PLAYER } from '../config/constants.js';
+import { TILE, TILE_DESIGN, PLAYER } from '../config/constants.js';
 
 /** Player or enemy — clear silhouette, no ghost trails */
 export class Actor {
@@ -23,6 +23,8 @@ export class Actor {
     const px = this.tx * TILE + TILE / 2;
     const py = this.ty * TILE + TILE / 2;
     const col = opts.color || 0xffffff;
+    // Silhouettes authored for TILE_DESIGN (32); scale to live TILE (64)
+    const bodyScale = TILE / TILE_DESIGN;
 
     // Use a single parent container; never leave orphan graphics
     this.root = scene.add.container(px, py).setDepth(this.isPlayer ? 25 : 22);
@@ -54,6 +56,7 @@ export class Actor {
       })
       .setOrigin(0.5);
     this.root.add(this.hpText);
+    this.root.setScale(bodyScale);
     this.refreshHp();
   }
 
