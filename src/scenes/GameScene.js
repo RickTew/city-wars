@@ -497,12 +497,21 @@ export class GameScene extends Phaser.Scene {
    * Compact coach card (one box only — no duplicate bottom toast).
    * Dismiss with CLOSE or after a long timeout.
    */
+  isGuideToastOpen() {
+    return !!(this.domGuideToast && !this.domGuideToast.classList.contains('hidden'));
+  }
+
   showGuideToast(title, body) {
     const bodyText = String(body || '').trim();
     const el = this.domGuideToast;
     if (!el) return;
 
-    // Don't also paint the bottom log toast with the same line (that was the 2nd box)
+    // One box only — clear/hide the bottom log toast while coach is up
+    if (this.domToast) {
+      this.domToast.textContent = '';
+      this.domToast.classList.add('hidden');
+    }
+
     el.innerHTML = '';
     el.classList.remove('hidden');
 
@@ -537,6 +546,8 @@ export class GameScene extends Phaser.Scene {
       this._guideToastClear.remove?.(false);
       this._guideToastClear = null;
     }
+    // Allow normal log toasts again
+    this.domToast?.classList.remove('hidden');
   }
 
   /** Sync DOM HUD layout classes (mobile strip vs desktop). */
@@ -1601,6 +1612,12 @@ export class GameScene extends Phaser.Scene {
   }
 
   log(msg) {
+    // While coach card is open, don't stack a second gold bar underneath
+    if (this.isGuideToastOpen?.()) {
+      if (this.mode === 'combat') this.combatLog(msg);
+      return;
+    }
+    this.domToast?.classList.remove('hidden');
     this.logText.setText(msg);
     // Always mirror into combat log during fights
     if (this.mode === 'combat') this.combatLog(msg);
