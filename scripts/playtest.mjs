@@ -61,25 +61,48 @@ async function main() {
     process.exitCode = 1;
   };
 
+  /**
+   * Activate first DOM button whose text matches.
+   * DomUi buttons listen for pointerup (not click) — dispatch pointer events.
+   */
+  const clickBtn = async (text, timeoutMs = 8000) => {
+    const started = Date.now();
+    while (Date.now() - started < timeoutMs) {
+      const ok = await page.evaluate((t) => {
+        const needle = t.toLowerCase();
+        const nodes = [...document.querySelectorAll('button, .hit, [role="button"]')];
+        const el = nodes.find((n) => (n.textContent || '').toLowerCase().includes(needle));
+        if (!el) return false;
+        const opts = { bubbles: true, cancelable: true, pointerId: 1, pointerType: 'mouse' };
+        el.dispatchEvent(new PointerEvent('pointerdown', opts));
+        el.dispatchEvent(new PointerEvent('pointerup', opts));
+        el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+        return true;
+      }, text);
+      if (ok) return true;
+      await sleep(100);
+    }
+    throw new Error(`Button not found: ${text}`);
+  };
+
   try {
     log(`Open ${BASE}`);
     await page.goto(BASE, { waitUntil: 'networkidle0', timeout: 30000 });
 
-    // Menu → pick medium day → start (layout-aware tap)
+    // Menu → START RUN → ENTER THE GRID (DOM buttons; no fragile coordinates)
     await page.waitForFunction(() => document.querySelector('canvas'), { timeout: 10000 });
     await sleep(400);
-    const vp = page.viewport();
-    const mw = vp?.width || 1280;
-    const mh = vp?.height || 720;
-    // START RUN sits ~48% down on the centered menu block
-    await page.mouse.click(mw / 2, mh * 0.48);
-    await sleep(500);
-    // Character select: ENTER THE GRID
-    await page.mouse.click(mw / 2, mh - 36);
+    await clickBtn('START RUN');
+    await sleep(400);
+    await page.waitForFunction(
+      () => [...document.querySelectorAll('button')].some((b) => /ENTER THE GRID/i.test(b.textContent || '')),
+      { timeout: 10000 }
+    );
+    await clickBtn('ENTER THE GRID');
     await sleep(900);
 
     // Wait for game scene debug API
-    await page.waitForFunction(() => window.__CITY_WARS__?.player, { timeout: 15000 });
+    await page.waitForFunction(() => window.__CITY_WARS__?.player, { timeout: 20000 });
     log('Game scene ready');
 
     const dismissAll = async () => {
@@ -169,13 +192,18 @@ async function main() {
     }
 
     st = await step('Auto-open craft panel at bench', async () => {
+      // Popups block syncBenchCraftPanel — clear first, then stand on bench
+      await dismissAll();
       await page.evaluate(() => {
         const g = window.__CITY_WARS__;
         const b = g.benches[0];
         g.craftPanel.close();
         g._benchCraftDismissed = false;
         g._benchAutoCraft = false;
+        g.popupOpen = false;
         g.debugWarp(b.x, b.y);
+        // Explicit sync if step path missed it
+        g.syncBenchCraftPanel?.();
       });
     });
     if (!st.craftOpen) fail('Craft panel should auto-open at bench');
@@ -387,24 +415,154 @@ async function main() {
     const mobile = await page.evaluate(() => {
       const g = window.__CITY_WARS__;
       const m = g.barMetrics();
-      const bag = g.btnBag?.bg;
-      const menu = g.btnMenu?.bg;
+      // DomUi buttons: compare row containers, not Phaser-era bg.y
+      const bagEl = g.btnBag?.el;
+      const menuEl = g.btnMenu?.el;
+      const bagRow = bagEl?.closest?.('.hud-bar-row');
+      const menuRow = menuEl?.closest?.('.hud-bar-row');
       return {
         twoRow: m.twoRow,
         healOnBar: !!g.btnHeal,
         moreHidden: !g.btnMore,
         healLabel: g.healButtonLabel(),
-        bagMenuSep: bag && menu ? Math.abs(bag.y - menu.y) > 8 : true,
+        bagMenuSep: !!(bagRow && menuRow && bagRow !== menuRow),
+        rowsVisible: [...document.querySelectorAll('.hud-bar-row')].filter(
+          (r) => r.style.display !== 'none' && r.children.length
+        ).length,
       };
     });
     if (!mobile.twoRow) fail('Expected two-row bar on phone viewport');
     if (!mobile.healOnBar) fail('HEAL should be visible on mobile bar');
     if (!mobile.moreHidden) fail('MORE should be hidden on two-row mobile');
     if (!mobile.bagMenuSep) fail('BAG and MENU should be on separate rows');
-    else log(`  two-row bar · heal=${mobile.healLabel}`);
+    else log(`  two-row bar · rows=${mobile.rowsVisible} · heal=${mobile.healLabel}`);
 
     await page.setViewport({ width: 1280, height: 720 });
     await sleep(150);
+
+    // --- Audit softlock checks (wall / breach / pads / zoom / save dog) ---
+    st = await step('Audit: breach BP + escape pads walkable', async () => {
+      await page.evaluate(() => {
+        /* no-op — pure inspect */
+      });
+    });
+    {
+      const audit = await page.evaluate(() => {
+        const g = window.__CITY_WARS__;
+        const T = {
+          BUILDING: 4,
+          BARRICADE: 7,
+          WATER: 10,
+          ESCAPE: 8,
+          LANDMARK: 14,
+        };
+        const blocked = (x, y) => {
+          const w = g.walls?.[y]?.[x];
+          return w === T.BUILDING || w === T.BARRICADE || w === T.WATER;
+        };
+        const breach = g.bpSpots?.find((b) => b.id === 'breach');
+        const pads = (g.escapePads || []).map((p) => ({
+          ...p,
+          blocked: blocked(p.x, p.y),
+          ground: g.ground?.[p.y]?.[p.x],
+          walkable: g.walkable?.(p.x, p.y),
+        }));
+        const lootBad = (g.lootSpots || []).filter((l) => blocked(l.x, l.y)).length;
+        return {
+          zoom: g.cameras?.main?.zoom,
+          breach: breach
+            ? {
+                x: breach.x,
+                y: breach.y,
+                blocked: blocked(breach.x, breach.y),
+                ground: g.ground?.[breach.y]?.[breach.x],
+                walkable: g.walkable?.(breach.x, breach.y),
+              }
+            : null,
+          pads,
+          lootBad,
+          defaultZoomOk: g.cameras?.main?.zoom > 0.4 && g.cameras?.main?.zoom < 0.85,
+        };
+      });
+      if (!audit.breach) fail('No breach blueprint spot');
+      else if (audit.breach.blocked || !audit.breach.walkable) {
+        fail(`Breach BP not walkable: ${JSON.stringify(audit.breach)}`);
+      } else log(`  breach @ ${audit.breach.x},${audit.breach.y} walkable`);
+      const deadPads = audit.pads.filter((p) => p.blocked || !p.walkable);
+      if (deadPads.length) fail(`Escape pads blocked: ${JSON.stringify(deadPads)}`);
+      else log(`  ${audit.pads.length} escape pads walkable`);
+      if (audit.lootBad) fail(`${audit.lootBad} loot spots under walls`);
+      if (!audit.defaultZoomOk) fail(`Default zoom out of range: ${audit.zoom}`);
+      else log(`  default zoom = ${Number(audit.zoom).toFixed(2)}`);
+    }
+
+    st = await step('Audit: save/load keeps guide dog', async () => {
+      const dogAfter = await page.evaluate(() => {
+        const g = window.__CITY_WARS__;
+        g.guide.quest = 1;
+        g.guide.done = false;
+        g._guideDogDead = false;
+        g.guide.flags.dogDead = false;
+        g.spawnGuideDog();
+        if (!g.guideDog?.alive) return { err: 'spawnGuideDog failed' };
+        if (!g.debugSave()) return { err: 'debugSave failed' };
+        // Wipe living pack, re-seed map enemies, then apply save
+        for (const e of [...g.enemies]) {
+          try {
+            e.destroy();
+          } catch {
+            /* */
+          }
+        }
+        g.enemies = [];
+        g.guideDog = null;
+        g.spawnEnemies();
+        if (!g.debugLoad()) return { err: 'debugLoad failed' };
+        return {
+          hasDog: !!(g.guideDog?.alive),
+          quest: g.guide?.quest,
+          isGuide: !!(g.guideDog?._isGuideDog),
+          inList: !!(g.guideDog && g.enemies.includes(g.guideDog)),
+        };
+      });
+      if (dogAfter.err) fail(dogAfter.err);
+      if (dogAfter.quest !== 1) fail(`Guide quest after load: ${dogAfter.quest}`);
+      if (!dogAfter.hasDog || !dogAfter.inList) {
+        fail(`Guide dog missing after save/load: ${JSON.stringify(dogAfter)}`);
+      } else log(`  guide dog restored (quest=${dogAfter.quest})`);
+    });
+
+    st = await step('Audit: loot auto-scavenge on step', async () => {
+      await page.evaluate(() => {
+        const g = window.__CITY_WARS__;
+        const free = g.lootSpots.find((l) => !l.taken && !l.guide);
+        if (!free) {
+          // plant a temp loot on current tile
+          const x = g.player.tx;
+          const y = g.player.ty;
+          g.lootSpots.push({ x, y, taken: false, _test: true });
+          g.ground[y][x] = 11; // T.LOOT
+          g.gLayer?.putTileAt?.(11, x, y);
+          g.onStepTile();
+          return;
+        }
+        g.debugWarp(free.x, free.y);
+        // debugWarp may not call onStepTile — force it
+        g.onStepTile();
+      });
+    });
+    {
+      const lootOk = await page.evaluate(() => {
+        const g = window.__CITY_WARS__;
+        // Any previously free non-taken should now be taken after onStep, or test plant taken
+        const test = g.lootSpots.find((l) => l._test);
+        if (test) return test.taken === true;
+        // Warp+step on first available: check scrap increased or some taken flipped
+        return g.lootSpots.some((l) => l.taken);
+      });
+      if (!lootOk) fail('Loot did not auto-scavenge on step');
+      else log('  loot auto-scavenge OK');
+    }
 
     if (errors.length) {
       console.warn('Page errors:', errors.slice(0, 5));

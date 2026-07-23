@@ -429,6 +429,16 @@ export class GameScene extends Phaser.Scene {
     };
   }
 
+  /** Playtest helpers — save/load without UI. */
+  debugSave() {
+    return SaveSystem.save(this);
+  }
+
+  debugLoad() {
+    const data = SaveSystem.peek();
+    return data ? SaveSystem.apply(this, data) : false;
+  }
+
   /** Teleport for playtests (keeps path clear). */
   debugWarp(tx, ty) {
     if (!this.walkable(tx, ty) && !this.isInteractiveTile(tx, ty)) return false;
