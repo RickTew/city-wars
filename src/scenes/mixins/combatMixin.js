@@ -480,5 +480,6 @@ export const combatMixin = {
     // Hide SPEC, restore explore bar
     this.rebuildActionBar?.();
     this.refreshHud();
+    if (won) this.autosave?.('combat');
   },
 };

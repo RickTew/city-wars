@@ -33,8 +33,8 @@
 ```
 Continue City Wars in ~/Dev/City Wars per AGENTS.md + VISUAL-STYLE.md.
 HEAD 8509771. TILE=64. Style Lab: ?lab=1 or menu STYLE LAB.
-Priority options: (A) tile readability polish (B) real pixel runner/dog sprites
-(C) camera default zoom so more city fits (D) 15-min loop feel.
+Priority: pixel props (crate/workbench/runner), optional smaller city sizes,
+leaderboards already local. Day/night is sun speed only — not a timed loop.
 pixelArt:true stays. DomUi for UI text. Do not flip pixelArt off for type.
 ```
 
@@ -110,7 +110,7 @@ Samples: dogs, howls, guns, explosions, screams, cyber only.
 1. **Pixel art path** — runner/dog/crate sprites at 1:1 on 64px board (`game-asset-core` / character skills)  
 2. Default camera zoom so more city fits at 64px  
 3. Further tile readability if needed  
-4. 15-min loop / gameplay feel  
+4. Pacing: optional smaller city map for shorter crawls (not a countdown)  
 5. Optional: world floaters (HP/dmg) still Phaser  
 
 ### Rules that burned sessions (do not repeat)

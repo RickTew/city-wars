@@ -72,11 +72,17 @@ export const ZONE_R = { [ZONE.SAFE]: 14, [ZONE.MID]: 28, [ZONE.OUTER]: 40 };
 
 export const ALERT = { GREEN: 'green', YELLOW: 'yellow', RED: 'red' };
 
+/**
+ * Full day→night→dawn cycle length in real seconds.
+ * This is world sun speed only — NOT a run timer / escape deadline.
+ * Shorter runs later = smaller city map, not a countdown clock.
+ */
 export const DAY_LENGTH = {
   short: 8 * 60,
   medium: 15 * 60,
   long: 25 * 60,
 };
+/** Fraction of cycle when night begins (dogs, darker veil). */
 export const NIGHT_START = 0.55;
 
 export const PLAYER = {

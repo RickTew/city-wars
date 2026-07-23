@@ -532,6 +532,33 @@ async function main() {
       } else log(`  guide dog restored (quest=${dogAfter.quest})`);
     });
 
+    st = await step('Audit: leaderboards record best plays', async () => {
+      const ok = await page.evaluate(async () => {
+        const mod = await import('/src/systems/Leaderboards.js');
+        const before = mod.Leaderboards.load();
+        mod.Leaderboards.recordRun({
+          won: true,
+          days: 2,
+          kills: 99,
+          crafts: 12,
+          heat: 40,
+          runner: 'Playtest',
+          durationMs: 120000,
+        });
+        const after = mod.Leaderboards.load();
+        return {
+          escapes: after.escapes > (before.escapes || 0),
+          killsBest: after.best?.kills?.value === 99 || after.best?.kills?.value >= 99,
+          craftsBest: after.best?.crafts?.value >= 12,
+          summary: mod.Leaderboards.summaryLine(),
+        };
+      });
+      if (!ok.escapes) fail('Leaderboard escapes not incremented');
+      if (!ok.killsBest) fail('Best kills not recorded');
+      if (!ok.craftsBest) fail('Best crafts not recorded');
+      else log(`  boards OK · ${ok.summary}`);
+    });
+
     st = await step('Audit: loot auto-scavenge on step', async () => {
       await page.evaluate(() => {
         const g = window.__CITY_WARS__;

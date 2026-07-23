@@ -78,7 +78,13 @@ export class SaveSystem {
         started: !!scene.escape?._started,
       },
       heat: scene.heat?.serialize?.() || null,
-      runStats: scene.runStats || { kills: 0, maxHeat: 0 },
+      runStats: {
+        kills: 0,
+        maxHeat: 0,
+        crafts: 0,
+        startedAt: Date.now(),
+        ...(scene.runStats || {}),
+      },
       firstLootDone: !!scene._firstLootDone,
       story: {
         guideDone: !!scene.story?.guideDone,
@@ -167,7 +173,15 @@ export class SaveSystem {
         scene.escape._started = !!data.escape.started;
       }
       if (scene.heat && data.heat) scene.heat.load(data.heat);
-      if (data.runStats) scene.runStats = { ...data.runStats };
+      if (data.runStats) {
+        scene.runStats = {
+          kills: 0,
+          maxHeat: 0,
+          crafts: 0,
+          startedAt: Date.now(),
+          ...data.runStats,
+        };
+      }
       scene._firstLootDone = !!data.firstLootDone;
       if (scene.story && data.story) {
         scene.story.guideDone = !!data.story.guideDone;

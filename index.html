@@ -336,6 +336,91 @@
         color: #64748b;
         z-index: 2;
       }
+      #dom-ui .menu-secondary-row {
+        display: flex;
+        gap: 10px;
+        width: 100%;
+        max-width: 360px;
+        justify-content: center;
+      }
+      #dom-ui .menu-secondary-row .hit {
+        flex: 1;
+        min-width: 0;
+      }
+      /* Leaderboards sheet */
+      #dom-modal .sheet-boards {
+        max-width: min(440px, 94vw);
+        max-height: min(86vh, 720px);
+        overflow: auto;
+      }
+      #dom-modal .boards-sub {
+        font-size: clamp(12px, 1.3vw, 14px);
+        color: #94a3b8;
+        margin: -4px 0 12px;
+      }
+      #dom-modal .boards-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin-bottom: 14px;
+      }
+      #dom-modal .boards-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 12px;
+        padding: 10px 12px;
+        background: #0f172a;
+        border: 1px solid #334155;
+        border-radius: 8px;
+      }
+      #dom-modal .boards-label {
+        font-size: clamp(12px, 1.3vw, 14px);
+        color: #cbd5e1;
+        font-weight: 600;
+      }
+      #dom-modal .boards-right {
+        text-align: right;
+        flex-shrink: 0;
+      }
+      #dom-modal .boards-value {
+        font-size: clamp(14px, 1.5vw, 16px);
+        font-weight: 800;
+        color: #fbbf24;
+      }
+      #dom-modal .boards-runner {
+        font-size: 11px;
+        color: #64748b;
+        margin-top: 2px;
+      }
+      #dom-modal .boards-recent-title {
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        color: #94a3b8;
+        margin: 4px 0 8px;
+      }
+      #dom-modal .boards-recent {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        margin-bottom: 12px;
+      }
+      #dom-modal .boards-recent-line {
+        font-size: clamp(11px, 1.2vw, 13px);
+        color: #94a3b8;
+        padding: 6px 8px;
+        border-radius: 6px;
+        background: #0b1220;
+      }
+      #dom-modal .boards-recent-line.won {
+        color: #86efac;
+        border-left: 3px solid #22c55e;
+      }
+      #dom-modal .boards-recent-line.lost {
+        color: #fca5a5;
+        border-left: 3px solid #ef4444;
+      }
       /* Character select */
       #dom-ui.char-ui {
         display: flex;

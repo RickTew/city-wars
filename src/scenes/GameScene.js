@@ -45,7 +45,7 @@ import { Progression } from '../systems/Progression.js';
 import { SaveSystem } from '../systems/SaveSystem.js';
 import { Minimap } from '../systems/Minimap.js';
 import { CraftPanel } from '../systems/CraftPanel.js';
-import { RunLegacy } from '../systems/RunLegacy.js';
+import { Leaderboards } from '../systems/Leaderboards.js';
 import { ZONE_TINT } from '../config/art.js';
 import { DomUi } from '../systems/DomUi.js';
 
@@ -137,7 +137,13 @@ export class GameScene extends Phaser.Scene {
     this.guide = new GuideDirector(this);
     this.escape = new EscapeDirector(this);
     this.heat = new HeatSystem();
-    this.runStats = { kills: 0, maxHeat: 0 };
+    this.runStats = {
+      kills: 0,
+      maxHeat: 0,
+      crafts: 0,
+      startedAt: Date.now(),
+    };
+    this._autosaveAcc = 0;
     this._firstLootDone = false;
     this._guideLooted = false;
     this._guideDogDead = false;
@@ -194,11 +200,15 @@ export class GameScene extends Phaser.Scene {
         this.refreshNightSpawns(true);
         const card = this.story.onNight();
         if (card) this.time.delayedCall(120, () => this.showPopup(card.title, card.body));
+        this.autosave?.('night');
       }
       if (ev === 'day') {
         this.log('Dawn. Even the graffiti looks tired.');
         this.refreshNightSpawns(false);
+        this.autosave?.('dawn');
       }
+      if (ev === 'newday') this.autosave?.('newday');
+      if (ev === 'slept') this.autosave?.('sleep');
     });
 
     // Seed current district so first-zone story does not steal the tutorial intro
@@ -437,6 +447,26 @@ export class GameScene extends Phaser.Scene {
   debugLoad() {
     const data = SaveSystem.peek();
     return data ? SaveSystem.apply(this, data) : false;
+  }
+
+  /**
+   * Silent save for long runs. Skips if ended / mid-combat / no progress yet.
+   * @param {string} [reason]
+   */
+  autosave(reason = '') {
+    if (this.ended || this.mode === 'combat') return false;
+    if (this.isGuideHandhold?.() && !this._guideLooted) return false;
+    const ok = SaveSystem.save(this);
+    if (ok && reason === 'manual') {
+      /* caller logs */
+    }
+    return ok;
+  }
+
+  /** Wall-clock ms this run (for fastest-escape board). */
+  runDurationMs() {
+    const start = this.runStats?.startedAt || Date.now();
+    return Math.max(0, Date.now() - start);
   }
 
   /** Teleport for playtests (keeps path clear). */
@@ -1446,8 +1476,12 @@ export class GameScene extends Phaser.Scene {
       this.log(this.story.narratorOn ? 'Narrator ON.' : 'Narrator OFF.');
     });
     mk('SAVE RUN', 0x0ea5e9, () => {
-      const ok = SaveSystem.save(this);
-      this.log(ok ? 'Run saved. CONTINUE from main menu later.' : 'Save failed.');
+      const ok = this.autosave('manual') || SaveSystem.save(this);
+      this.log(
+        ok
+          ? 'Run saved. CONTINUE from main menu anytime (long runs welcome).'
+          : 'Save failed.'
+      );
       this.closeRunMenu();
     });
     mk('NEW RUN (menu)', 0xe11d48, () => {
@@ -2786,6 +2820,12 @@ export class GameScene extends Phaser.Scene {
     this.nightVeil.setAlpha(this.dayNight.isNight ? 0.45 : 0.05);
     this.alert.update(dt, this.hiding);
     this.heat?.update(dt, this);
+    // Autosave every ~90s so long escape runs survive browser closes
+    this._autosaveAcc = (this._autosaveAcc || 0) + dt;
+    if (this._autosaveAcc >= 90) {
+      this._autosaveAcc = 0;
+      this.autosave('tick');
+    }
     if (this.alert.state === ALERT.RED && this.mode !== 'combat' && !this.isGuideHandhold()) {
       const near = this.enemies.find(
         (e) => e.alive && !e._dormant && Math.abs(e.tx - this.player.tx) + Math.abs(e.ty - this.player.ty) <= 8
@@ -3198,12 +3238,14 @@ export class GameScene extends Phaser.Scene {
       return;
     }
     const gear = result.gear;
+    this.runStats.crafts = (this.runStats.crafts || 0) + 1;
     this.audio.craft();
     if (id === 'breach') {
       this.heat?.add(14, 'breach_craft');
       this.log('Grid scan spikes. They felt that weld.');
       this.vfx?.heatSweepFlash?.();
     }
+    this.autosave?.('craft');
     let msg = `Crafted ${gear.name}. ${gear.desc}`;
     if (result.refunded) {
       msg += ` (${this.char?.name || 'You'} salvaged 1 ${MAT[result.refunded]?.name || result.refunded}.)`;
@@ -3478,11 +3520,13 @@ export class GameScene extends Phaser.Scene {
     if (this.ended) return;
     this.ended = true;
     this.audio.win();
-    RunLegacy.recordEscape({
+    Leaderboards.recordEscape({
       days: this.dayNight?.day || 1,
       kills: this.runStats?.kills || 0,
+      crafts: this.runStats?.crafts || 0,
       heat: Math.round(this.runStats?.maxHeat || this.heat?.maxSeen || 0),
       runner: this.char?.name || '',
+      durationMs: this.runDurationMs(),
     });
     this.showEnd(true, 'The Wall blinks. You don’t. CITY BROKEN.');
   }
@@ -3490,9 +3534,12 @@ export class GameScene extends Phaser.Scene {
   lose() {
     if (this.ended) return;
     this.ended = true;
-    RunLegacy.recordDeath({
+    Leaderboards.recordDeath({
       days: this.dayNight?.day || 1,
       kills: this.runStats?.kills || 0,
+      crafts: this.runStats?.crafts || 0,
+      runner: this.char?.name || '',
+      durationMs: this.runDurationMs(),
     });
     this.showEnd(false, 'The grid keeps what it kills. Retry, Runner.');
   }
@@ -3500,11 +3547,15 @@ export class GameScene extends Phaser.Scene {
   showEnd(won, msg) {
     const days = this.dayNight?.day || 1;
     const kills = this.runStats?.kills || 0;
+    const crafts = this.runStats?.crafts || 0;
     const heat = Math.round(this.runStats?.maxHeat || this.heat?.maxSeen || 0);
     const lvl = this.progression?.level || 1;
+    const clock = Leaderboards.formatMs(this.runDurationMs());
     const stats =
-      `Days survived: ${days}\nKills: ${kills}  ·  Level: ${lvl}\nPeak grid heat: ${heat}`;
-    const legacy = RunLegacy.summaryLine();
+      `Days survived: ${days}  ·  Clock: ${clock}\n` +
+      `Kills: ${kills}  ·  Crafts: ${crafts}  ·  Level: ${lvl}\n` +
+      `Peak grid heat: ${heat}`;
+    const legacy = Leaderboards.summaryLine();
 
     DomUi.clearCraft();
     DomUi.clearModal();
