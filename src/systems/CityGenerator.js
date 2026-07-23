@@ -1,4 +1,4 @@
-import { CENTER_X, CENTER_Y, MAP_H, MAP_W, T, ZONE } from '../config/constants.js';
+import { CENTER_X, CENTER_Y, MAP_H, MAP_W, T, ZONE, ZONE_META } from '../config/constants.js';
 
 /**
  * Pick road paint by real street axis.
@@ -38,7 +38,8 @@ export class CityGenerator {
         const z = this.zones.getZone(x, y);
         const h = hash(x, y);
         if (h % 5 === 0) g[y][x] = T.PARK;
-        else if (z === ZONE.OUTER || z === ZONE.WALL) g[y][x] = h % 3 === 0 ? T.RUIN : T.ALLEY;
+        else if (z === ZONE.BLUE || z === ZONE.RED) g[y][x] = h % 3 === 0 ? T.RUIN : T.ALLEY;
+        else if (z === ZONE.GREEN) g[y][x] = h % 4 === 0 ? T.RUIN : T.ALLEY;
         else g[y][x] = T.SIDEWALK;
 
         if (!road(x, y) && distRoad(x, y) >= 2 && h % 100 < dens(z)) {
@@ -170,11 +171,11 @@ export class CityGenerator {
     };
   }
 
-  /** Visible Wall band across the north — impassable barricade strip. */
+  /** Visible Wall band across the north — impassable barricade in RED ring. */
   _stampNorthWall(g, w) {
     for (let x = 2; x < MAP_W - 2; x++) {
       for (let y = 2; y < 8; y++) {
-        if (this.zones.getZone(x, y) !== ZONE.WALL) continue;
+        if (this.zones.getZone(x, y) !== ZONE.RED) continue;
         w[y][x] = T.BARRICADE;
         g[y][x] = y <= 4 ? T.GATE : T.RUIN;
       }
@@ -223,8 +224,7 @@ export class CityGenerator {
 }
 
 function dens(z) {
-  // Slightly denser blocks so 2-wide roads still read as a packed city
-  return { [ZONE.SAFE]: 36, [ZONE.MID]: 46, [ZONE.OUTER]: 52, [ZONE.WALL]: 55 }[z] || 40;
+  return ZONE_META[z]?.dens ?? 40;
 }
 
 function grid(w, h, v) {

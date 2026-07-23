@@ -5,6 +5,7 @@ import { makeEnemy } from '../../entities/Actor.js';
 export const sleepMixin = {
 /** HQ courtyard = free rest. Away from base needs Sleeping Kit. */
   isAtHomeBase() {
+    // Tight HOME pad, not full HOME ring (so Yellow edge still needs kits)
     return this.zones.manhattan(this.player.tx, this.player.ty) <= 6;
   },
 
@@ -46,13 +47,9 @@ export const sleepMixin = {
       }
     }
 
-    // Night outdoors: ambush chance
+    // Night outdoors: ambush chance scales with ring level
     if (night && !atHome) {
-      const zone = this.zones.getZone(this.player.tx, this.player.ty);
-      let risk = 0.1;
-      if (zone === ZONE.MID) risk = 0.18;
-      if (zone === ZONE.OUTER) risk = 0.28;
-      if (zone === ZONE.WALL) risk = 0.4;
+      const risk = this.zones.meta(this.player.tx, this.player.ty).ambush ?? 0.12;
       if (Math.random() < risk) {
         if (!atHome) this.inv.spendItem('bedroll');
         this.log('Something sniffs your bedroll… ambush!');

@@ -532,6 +532,34 @@ async function main() {
       } else log(`  guide dog restored (quest=${dogAfter.quest})`);
     });
 
+    st = await step('Audit: city rings HOME + 5 enterable', async () => {
+      const rings = await page.evaluate(() => {
+        const g = window.__CITY_WARS__;
+        const z = g.zones;
+        const order = ['home', 'yellow', 'orange', 'green', 'blue', 'red'];
+        const at = [
+          [48, 48],
+          [48 + 14, 48],
+          [48 + 22, 48],
+          [48 + 30, 48],
+          [48 + 36, 48],
+          [48, 5],
+        ].map(([x, y]) => ({ x, y, zone: z.getZone(x, y), lv: z.level(x, y) }));
+        return {
+          enterable: z.enterableList?.()?.map((m) => m.short) || [],
+          at,
+          yellowIs1: at[1].zone === 'yellow' && at[1].lv === 1,
+          redNorth: at[5].zone === 'red' && at[5].lv === 5,
+          home: at[0].zone === 'home',
+        };
+      });
+      if (!rings.home) fail('HQ not HOME');
+      if (!rings.yellowIs1) fail(`Yellow ring wrong: ${JSON.stringify(rings.at[1])}`);
+      if (!rings.redNorth) fail(`North Wall not RED: ${JSON.stringify(rings.at[5])}`);
+      if (rings.enterable.length !== 5) fail(`Expected 5 enterable, got ${rings.enterable}`);
+      else log(`  rings OK · enterable ${rings.enterable.join('→')}`);
+    });
+
     st = await step('Audit: leaderboards record best plays', async () => {
       const ok = await page.evaluate(async () => {
         const mod = await import('/src/systems/Leaderboards.js');

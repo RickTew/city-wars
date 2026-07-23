@@ -158,15 +158,41 @@ export class StoryDirector {
     if (!this.narratorOn && this.guideDone) return null;
     if (!this.once(`zone_${zone}`)) return null;
     const map = {
-      safe: 'Inner blocks still pretend to be neighborhoods.',
-      mid: 'Mid sprawl. Ads peel. Alleys keep secrets poorly.',
-      outer: 'Outer chaos. The Wall casts a long, cold shadow.',
-      wall: 'Wall district. Steel taste on the tongue. Almost free.',
+      home: {
+        title: 'HOME BASE',
+        body: 'HQ courtyard. Sleep free. Five harder rings wait outside.',
+      },
+      yellow: {
+        title: 'YELLOW RING · Lv 1',
+        body: 'First streets past HQ. Light thugs. Learn the grid.',
+      },
+      orange: {
+        title: 'ORANGE RING · Lv 2',
+        body: 'Mid crawl. More knives. Scavenge starts to matter.',
+      },
+      green: {
+        title: 'GREEN RING · Lv 3',
+        body: 'Sick neon. Drones start hunting. Parts get better.',
+      },
+      blue: {
+        title: 'BLUE RING · Lv 4',
+        body: 'Cold circuits. Enforcers. Heat climbs fast.',
+      },
+      red: {
+        title: 'RED RING · Lv 5',
+        body: 'The Wall. Breach print. Escape pads. Die or leave.',
+      },
+      // Legacy keys
+      safe: { title: 'HOME BASE', body: 'HQ courtyard. Safe-ish walls.' },
+      mid: { title: 'YELLOW RING', body: 'First streets past HQ.' },
+      outer: { title: 'GREEN RING', body: 'Deeper crawl. Harder scrap.' },
+      wall: { title: 'RED RING', body: 'Wall district. Almost free.' },
     };
-    return {
-      title: 'DISTRICT READ',
-      body: map[zone] || 'New streets. Same city.',
-    };
+    const card = map[zone];
+    if (!card) {
+      return { title: 'NEW RING', body: 'New streets. Same city.' };
+    }
+    return { title: card.title, body: card.body };
   }
 
   ambientChance() {

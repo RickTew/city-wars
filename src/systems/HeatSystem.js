@@ -2,8 +2,6 @@
  * Grid Heat — the city notices you. Rises with noise, fights, and nights.
  * Creates pressure to keep moving instead of camping HQ forever.
  */
-import { ZONE } from '../config/constants.js';
-
 export class HeatSystem {
   constructor() {
     this.level = 8;
@@ -37,15 +35,15 @@ export class HeatSystem {
   /** Explore tick — zone drift and HQ cooldown. */
   update(dt, scene) {
     const atHome = scene.isAtHomeBase?.();
-    const zone = scene.zones.getZone(scene.player.tx, scene.player.ty);
+    const meta = scene.zones.meta(scene.player.tx, scene.player.ty);
     const night = scene.dayNight.isNight;
 
     if (atHome && !night && scene.mode !== 'combat') {
       this.level = Math.max(0, this.level - dt * 1.2);
-    } else if (zone === ZONE.OUTER || zone === ZONE.WALL) {
-      this.level = Math.min(100, this.level + dt * 2.5);
-    } else if (zone === ZONE.MID) {
-      this.level = Math.min(100, this.level + dt * 0.8);
+    } else if (meta.heatRate > 0) {
+      // Outer rings cook heat; night adds a little more pressure
+      const nightMul = night ? 1.25 : 1;
+      this.level = Math.min(100, this.level + dt * meta.heatRate * nightMul);
     }
 
     this.maxSeen = Math.max(this.maxSeen, this.level);

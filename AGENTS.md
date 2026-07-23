@@ -10,8 +10,8 @@
 | **Play (prod)** | **https://city-wars-rho.vercel.app** (stable alias only) |
 | **Vercel project** | `ricktew/city-wars` · auto-deploys on push to `main` |
 
-**Version:** 3.9.2 (audit fixes: wall softlock, save guide dog, default zoom)  
-**HEAD:** `b144a14` on `main` · auto-deploys to Vercel  
+**Version:** 3.10.0 (HOME + Y/O/G/B/R city rings as levels)
+**HEAD:** pending push · auto-deploys to Vercel
 
 **Workflow (user locked):** fix → **commit + push `main`** → **`npm run playtest`** → next item.  
 **Deploy:** testing on **https://city-wars-rho.vercel.app** (not only localhost).

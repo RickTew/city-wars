@@ -20,7 +20,6 @@ import {
   WALKABLE,
   WORLD_H,
   WORLD_W,
-  ZONE,
 } from '../config/constants.js';
 import { makeEnemy, makePlayer } from '../entities/Actor.js';
 import { AlertSystem } from '../systems/AlertSystem.js';
@@ -1043,14 +1042,19 @@ export class GameScene extends Phaser.Scene {
         if (n >= max) return;
         if (!this.walkable(x, y)) continue;
         if (this.isSpawnBlockedTile(x, y)) continue;
-        if (this.zones.getZone(x, y) === ZONE.SAFE && hash(x, y) % 20 !== 0) continue;
-        const r = hash(x, y) % 100;
         const z = this.zones.getZone(x, y);
+        const lvl = this.zones.level(x, y);
+        // HOME: almost empty. Outer rings denser / nastier.
+        if (lvl === 0 && hash(x, y) % 40 !== 0) continue;
+        if (lvl === 1 && hash(x, y) % 18 !== 0) continue;
+        const r = hash(x, y) % 100;
         let kind = null;
-        if (z === ZONE.WALL && r < 8) kind = 'enforcer';
-        else if (z === ZONE.OUTER && r < 10) kind = r < 3 ? 'drone' : 'thug';
-        else if (z === ZONE.MID && r < 7) kind = 'thug';
-        else if (r < 2) kind = 'thug';
+        if (lvl >= 5 && r < 10) kind = r < 4 ? 'enforcer' : r < 7 ? 'drone' : 'thug';
+        else if (lvl >= 4 && r < 11) kind = r < 4 ? 'drone' : r < 7 ? 'enforcer' : 'thug';
+        else if (lvl >= 3 && r < 10) kind = r < 3 ? 'drone' : 'thug';
+        else if (lvl >= 2 && r < 9) kind = 'thug';
+        else if (lvl >= 1 && r < 7) kind = 'thug';
+        else if (lvl === 0 && r < 2) kind = 'thug';
         if (!kind) continue;
         this.enemies.push(makeEnemy(this, x, y, ENEMY[kind], kind));
         n++;
@@ -1543,31 +1547,44 @@ export class GameScene extends Phaser.Scene {
       if (e.target === root) this.closeLegend();
     });
 
+    const zoneLines = [
+      ['HOME (cyan)', 'Start. Sleep free. Level 0'],
+      ['YELLOW · Lv 1', 'First enterable ring'],
+      ['ORANGE · Lv 2', 'Mid crawl'],
+      ['GREEN · Lv 3', 'Drones join the hunt'],
+      ['BLUE · Lv 4', 'Enforcers + heat'],
+      ['RED · Lv 5', 'Wall, Breach print, escape pads'],
+    ];
     const lines = [
-      ['Blue pad (HQ)', 'Safe starting courtyard'],
-      ['Gray asphalt + gold dashes', 'Road  -  dashes follow the street direction'],
+      ['Gray asphalt + gold dashes', 'Road — dashes follow street axis'],
       ['Brown / tan ground', 'Alley / sidewalk / ruin'],
-      ['Green', 'Park / open green'],
-      ['Dark + yellow dots', 'Building (blocked  -  walk around)'],
-      ['Red-brown solid', 'Barricade (blocked)'],
-      ['Gold square', 'Loot crate  -  click to scavenge scrap'],
-      ['Brown bat shape', 'Street Stick gear pickup'],
-      ['Purple hat shape', 'Neon Fedora gear pickup'],
-      ['Purple “U” tile', 'Street Rig / workbench  -  stand next to it, open CRAFT'],
-      ['Teal oval', 'Sleep spot  -  rest until morning'],
-      ['Pink + white dot', 'Blueprint  -  walk on to learn recipe'],
-      ['Amber / gold edge', 'ESCAPE pad  -  needs Breach Kit'],
-      ['Gold pulse ring', 'Current guide objective (follow it)'],
-      ['You (small figure)', 'The Runner  -  click map to walk'],
+      ['Green tiles', 'Park'],
+      ['Dark building', 'Blocked — walk around'],
+      ['Red barricade / X', 'Blocked'],
+      ['Gold crate', 'Loot — walk on or USE'],
+      ['Purple U', 'Street Rig — CRAFT'],
+      ['Teal oval', 'Sleep spot'],
+      ['Pink landmark', 'Blueprint'],
+      ['Gold edge pad', 'ESCAPE — needs Breach Kit'],
+      ['Gold pulse', 'Current objective'],
     ];
 
     const sheet = DomUi.el('div', 'sheet');
     sheet.appendChild(DomUi.el('div', 'sheet-title', 'MAP LEGEND'));
+    sheet.appendChild(DomUi.el('div', 'sheet-body left', 'CITY RINGS (harder outward)'));
     sheet.appendChild(
       DomUi.el(
         'div',
         'sheet-body left',
-        lines.map(([a, b]) => `• ${a}   -   ${b}`).join('\n')
+        zoneLines.map(([a, b]) => `• ${a}  —  ${b}`).join('\n')
+      )
+    );
+    sheet.appendChild(DomUi.el('div', 'sheet-body left', '\nTERRAIN'));
+    sheet.appendChild(
+      DomUi.el(
+        'div',
+        'sheet-body left',
+        lines.map(([a, b]) => `• ${a}  —  ${b}`).join('\n')
       )
     );
     const actions = DomUi.el('div', 'sheet-actions');
@@ -1621,7 +1638,9 @@ export class GameScene extends Phaser.Scene {
     if (!p) return;
     const atk = this.playerEffectiveAtk();
     const def = this.inv.totalDef(p.baseDef);
-    const zone = this.zones.label(this.zones.getZone(p.tx, p.ty));
+    const zId = this.zones.getZone(p.tx, p.ty);
+    const zoneHud = this.zones.hudLine(p.tx, p.ty);
+    const zoneCss = this.zones.css(zId);
 
     // One status only (left). Never put HOSTILE under inventory.
     if (this.mode === 'combat') {
@@ -1636,13 +1655,18 @@ export class GameScene extends Phaser.Scene {
     if (this.isMobileHud()) {
       this.statText.setFontSize('10px');
       this.statText.setText(
-        `HP ${p.hp}/${p.maxHp}  ATK ${atk}  DEF ${def}  ·  ${zone}${this.hiding ? '  · HIDING' : ''}`
+        `HP ${p.hp}/${p.maxHp}  ATK ${atk}  DEF ${def}  ·  ${zoneHud}${this.hiding ? '  · HIDING' : ''}`
       );
     } else {
       this.statText.setFontSize('12px');
       this.statText.setText(
-        `HP ${p.hp}/${p.maxHp}  ATK ${atk}  DEF ${def}  ·  ${prog}  ·  ${zone}${this.hiding ? '  · HIDING' : ''}`
+        `HP ${p.hp}/${p.maxHp}  ATK ${atk}  DEF ${def}  ·  ${prog}  ·  ${zoneHud}${this.hiding ? '  · HIDING' : ''}`
       );
+    }
+    // Color the status strip zone token (whole line is fine — ring color is the tell)
+    if (this.domStat && this.mode !== 'combat') {
+      this.domStat.style.borderLeft = `3px solid ${zoneCss}`;
+      this.domStat.style.paddingLeft = '6px';
     }
 
     const s = this.inv.summary();
@@ -3119,7 +3143,8 @@ export class GameScene extends Phaser.Scene {
     // food mat rolls become MRE Paste items (real consumable)
     const table = ['scrap', 'scrap', 'wire', 'cloth', 'battery', 'chem', 'circuit', 'mre', 'scrap'];
     const z = this.zones.getZone(tx, ty);
-    const rolls = 2 + (z === ZONE.OUTER || z === ZONE.WALL ? 1 : 0) + (this.player.scavengeBonus || 0);
+    const lootBonus = this.zones.meta(tx, ty).lootBonus || 0;
+    const rolls = 2 + lootBonus + (this.player.scavengeBonus || 0);
     const got = [];
     const isGuideCrate = !!spot?.guide;
     const isEscapeCache = !!spot?.escapeCache;
@@ -3432,7 +3457,7 @@ export class GameScene extends Phaser.Scene {
   updateZoneAtmosphere(dt) {
     if (!this.zoneVeil) return;
     const z = this.zones.getZone(this.player.tx, this.player.ty);
-    const t = ZONE_TINT[z] || ZONE_TINT.safe;
+    const t = ZONE_TINT[z] || ZONE_TINT.home || { c: 0x000000, a: 0 };
     if (!this._zoneTint) this._zoneTint = { a: 0, c: 0 };
     this._zoneTint.a += (t.a - this._zoneTint.a) * Math.min(1, dt * 2.2);
     this.zoneVeil.setFillStyle(t.c, this._zoneTint.a);

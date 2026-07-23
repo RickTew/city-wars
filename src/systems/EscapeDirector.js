@@ -6,26 +6,33 @@ import { CENTER_X, CENTER_Y, ZONE } from '../config/constants.js';
 export const ESCAPE_QUESTS = [
   {
     id: 'e0',
-    title: 'LEAVE THE BUBBLE',
-    body: 'HQ is a cage with good Wi-Fi.\nPush into Mid Sprawl. The Wall does not sleep.',
-    objective: 'Reach MID SPRAWL (leave the safe ring)',
+    title: 'LEAVE HOME',
+    body:
+      'HQ is a cage with good Wi-Fi.\n' +
+      'Five rings wait: Yellow → Orange → Green → Blue → Red.\n' +
+      'Step into YELLOW first. The Wall lives in RED.',
+    objective: 'Enter YELLOW RING (leave HOME)',
   },
   {
     id: 'e1',
     title: 'WALL SCHEMATIC',
-    body: 'Pink landmark north. That print is your ticket.\nFollow the pulse. Grab the Breach blueprint.',
-    objective: 'Find BREACH KIT blueprint (pink, north Wall)',
+    body:
+      'Pink landmark on the north approach (RED).\n' +
+      'That print is your ticket. Follow the pulse.',
+    objective: 'Find BREACH KIT blueprint (pink, RED ring / Wall)',
   },
   {
     id: 'e2',
     title: 'BUILD THE KEY',
-    body: 'Scavenge gold crates. Purple bench. Craft the Breach Kit.\nHeat rises while you work. Gold cache sits east of the Wall schematic.',
+    body:
+      'Scavenge gold crates. Purple bench. Craft the Breach Kit.\n' +
+      'Heat rises the deeper the ring. Cache sits near the Wall print.',
     objective: 'Craft BREACH KIT at purple bench',
   },
   {
     id: 'e3',
     title: 'BREAK OUT',
-    body: 'Gold pad on the map edge. Kit in bag. One click and you are gone.',
+    body: 'Gold pad on the map edge (RED). Kit in bag. One click and you are gone.',
     objective: 'Reach gold ESCAPE pad with Breach Kit',
   },
 ];
@@ -54,11 +61,11 @@ export class EscapeDirector {
   objectiveText() {
     if (this.done) return '';
     const f = this.flags;
-    if (this.quest === 0 && !f.leftSafe) return '→ Leave HQ safe ring into MID SPRAWL';
-    if (this.quest === 1 && !f.breachBp) return '→ Find BREACH blueprint (pink, north Wall)';
+    if (this.quest === 0 && !f.leftSafe) return '→ Enter YELLOW RING (leave HOME)';
+    if (this.quest === 1 && !f.breachBp) return '→ Find BREACH blueprint (pink, RED / Wall)';
     if (this.quest === 2 && !f.breachCrafted) {
       const miss = this.scene.inv.missingFor('breach').join(', ');
-      if (miss) return `→ Scavenge for Breach Kit (${miss}) · check Wall cache east`;
+      if (miss) return `→ Scavenge for Breach Kit (${miss}) · check RED cache`;
       return '→ Craft BREACH KIT at purple bench';
     }
     if (this.quest === 3) return '→ Gold ESCAPE pad on map edge';
@@ -99,7 +106,7 @@ export class EscapeDirector {
     const f = this.flags;
     const zone = g.zones.getZone(g.player.tx, g.player.ty);
 
-    f.leftSafe = f.leftSafe || zone !== ZONE.SAFE;
+    f.leftSafe = f.leftSafe || zone !== ZONE.HOME;
     f.breachBp = f.breachBp || inv.hasBlueprint('breach');
     f.breachCrafted =
       f.breachCrafted || inv.hasBreach() || inv.items.some((i) => i.id === 'breach');

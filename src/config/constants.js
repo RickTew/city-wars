@@ -67,8 +67,154 @@ export const WALKABLE = new Set([
 
 export const BLOCKING = new Set([T.BUILDING, T.BARRICADE, T.WATER]);
 
-export const ZONE = { SAFE: 'safe', MID: 'mid', OUTER: 'outer', WALL: 'wall' };
-export const ZONE_R = { [ZONE.SAFE]: 14, [ZONE.MID]: 28, [ZONE.OUTER]: 40 };
+/**
+ * City rings (concentric Manhattan from HQ).
+ * HOME = start — you begin here.
+ * Five ENTERABLE zones (levels 1–5): Yellow → Orange → Green → Blue → Red.
+ * Red holds the Wall band + escape pads. Bigger city = more ground per ring.
+ */
+export const ZONE = {
+  HOME: 'home',
+  YELLOW: 'yellow',
+  ORANGE: 'orange',
+  GREEN: 'green',
+  BLUE: 'blue',
+  RED: 'red',
+};
+
+/**
+ * Outer manhattan radius for each ring (RED is everything beyond BLUE).
+ * Tuned so the north Wall band (y≈2–8) and edge pads sit in RED.
+ * Center → cardinal edge is 48 tiles on a 96 map.
+ */
+export const ZONE_R = {
+  [ZONE.HOME]: 11,
+  [ZONE.YELLOW]: 18,
+  [ZONE.ORANGE]: 25,
+  [ZONE.GREEN]: 32,
+  [ZONE.BLUE]: 38,
+  // RED: d > 38 → Wall / escape edge
+};
+
+/**
+ * Display + balance meta. level 0 = home; 1–5 = enterable rings.
+ * color = Phaser 0xRRGGBB · css = HUD string
+ */
+export const ZONE_META = {
+  [ZONE.HOME]: {
+    id: ZONE.HOME,
+    name: 'HOME BASE',
+    short: 'HOME',
+    level: 0,
+    enterable: false,
+    color: 0x38bdf8,
+    css: '#38bdf8',
+    danger: 0.12,
+    dens: 32,
+    heatRate: 0,
+    ambush: 0.08,
+    lootBonus: 0,
+    tint: { c: 0x000000, a: 0 },
+    blurb: 'HQ courtyard. Safe-ish walls. Sleep free here.',
+  },
+  [ZONE.YELLOW]: {
+    id: ZONE.YELLOW,
+    name: 'YELLOW RING',
+    short: 'YEL',
+    level: 1,
+    enterable: true,
+    color: 0xeab308,
+    css: '#eab308',
+    danger: 0.28,
+    dens: 38,
+    heatRate: 0.35,
+    ambush: 0.12,
+    lootBonus: 0,
+    tint: { c: 0xeab308, a: 0.04 },
+    blurb: 'First streets past HQ. Light thugs. Learn the grid.',
+  },
+  [ZONE.ORANGE]: {
+    id: ZONE.ORANGE,
+    name: 'ORANGE RING',
+    short: 'ORG',
+    level: 2,
+    enterable: true,
+    color: 0xf97316,
+    css: '#f97316',
+    danger: 0.45,
+    dens: 44,
+    heatRate: 0.7,
+    ambush: 0.18,
+    lootBonus: 0,
+    tint: { c: 0xf97316, a: 0.055 },
+    blurb: 'Mid crawl. More knives. Scavenge starts to matter.',
+  },
+  [ZONE.GREEN]: {
+    id: ZONE.GREEN,
+    name: 'GREEN RING',
+    short: 'GRN',
+    level: 3,
+    enterable: true,
+    color: 0x22c55e,
+    css: '#22c55e',
+    danger: 0.6,
+    dens: 48,
+    heatRate: 1.1,
+    ambush: 0.24,
+    lootBonus: 1,
+    tint: { c: 0x22c55e, a: 0.05 },
+    blurb: 'Sick neon. Drones start hunting. Parts get better.',
+  },
+  [ZONE.BLUE]: {
+    id: ZONE.BLUE,
+    name: 'BLUE RING',
+    short: 'BLU',
+    level: 4,
+    enterable: true,
+    color: 0x3b82f6,
+    css: '#3b82f6',
+    danger: 0.78,
+    dens: 52,
+    heatRate: 1.7,
+    ambush: 0.32,
+    lootBonus: 1,
+    tint: { c: 0x3b82f6, a: 0.06 },
+    blurb: 'Cold circuits. Enforcers. Heat climbs fast.',
+  },
+  [ZONE.RED]: {
+    id: ZONE.RED,
+    name: 'RED RING',
+    short: 'RED',
+    level: 5,
+    enterable: true,
+    color: 0xef4444,
+    css: '#ef4444',
+    danger: 1,
+    dens: 56,
+    heatRate: 2.6,
+    ambush: 0.42,
+    lootBonus: 1,
+    tint: { c: 0xef4444, a: 0.09 },
+    blurb: 'The Wall. Breach print. Escape pads. Die or leave.',
+  },
+};
+
+/** Enterable rings only (levels 1–5), progression order. */
+export const ZONE_ENTER = [
+  ZONE.YELLOW,
+  ZONE.ORANGE,
+  ZONE.GREEN,
+  ZONE.BLUE,
+  ZONE.RED,
+];
+
+/** @deprecated aliases — old 4-ring names map into the new ladder */
+export const ZONE_LEGACY = {
+  safe: ZONE.HOME,
+  mid: ZONE.YELLOW,
+  outer: ZONE.GREEN,
+  wall: ZONE.RED,
+};
 
 export const ALERT = { GREEN: 'green', YELLOW: 'yellow', RED: 'red' };
 

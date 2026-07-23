@@ -2,7 +2,15 @@
  * Corner minimap + objective compass (active during tutorial too).
  * Labels are DOM (scene.domCompassLabel / domMapLabel) for crisp type.
  */
-import { CENTER_X, CENTER_Y, MAP_H, MAP_W, ROAD_TILES, T } from '../config/constants.js';
+import {
+  CENTER_X,
+  CENTER_Y,
+  MAP_H,
+  MAP_W,
+  ROAD_TILES,
+  T,
+  ZONE_META,
+} from '../config/constants.js';
 
 export class Minimap {
   constructor(scene) {
@@ -99,7 +107,11 @@ export class Minimap {
         else if (tile === T.PARK) col = 0x16a34a;
         else if (tile === T.SIDEWALK) col = 0x475569;
         else if (wall) col = 0x0b1220; // buildings almost black, roads read as grid
-        else col = 0x334155;
+        else {
+          // Soft ring tint so minimap reads as Yellow→Red bands
+          const z = s.zones?.getZone?.(tx, ty);
+          col = ZONE_META[z]?.color ? blendZone(ZONE_META[z].color) : 0x334155;
+        }
         const px = cx - half + 2 + tx * scale;
         const py = cy - half + 2 + ty * scale;
         g.fillStyle(col, 1);
@@ -196,4 +208,12 @@ export class Minimap {
       lab.textContent = `OBJ ${dist}`;
     }
   }
+}
+
+/** Darken zone brand color so minimap stays readable. */
+function blendZone(hex) {
+  const r = ((hex >> 16) & 0xff) * 0.28;
+  const g = ((hex >> 8) & 0xff) * 0.28;
+  const b = (hex & 0xff) * 0.28;
+  return ((r | 0) << 16) | ((g | 0) << 8) | (b | 0);
 }

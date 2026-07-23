@@ -6,6 +6,8 @@
  * In-run HUD/craft/bag/combat are on DomUi; these font constants remain for
  * any residual Phaser world floaters / lab labels only.
  */
+import { ZONE, ZONE_META } from './constants.js';
+
 export const HUD_FONT = 'Inter, system-ui, -apple-system, sans-serif';
 export const UI_FONT = 'Inter, system-ui, -apple-system, sans-serif';
 export const TITLE_FONT = '"Share Tech Mono", ui-monospace, monospace';
@@ -19,9 +21,12 @@ export const NEON = {
   green: 0x4ade80,
 };
 
-export const ZONE_TINT = {
-  safe: { c: 0x000000, a: 0 },
-  mid: { c: 0x0ea5e9, a: 0.045 },
-  outer: { c: 0xf97316, a: 0.065 },
-  wall: { c: 0xef4444, a: 0.085 },
-};
+/** Soft screen veil per city ring (from ZONE_META). */
+export const ZONE_TINT = Object.fromEntries(
+  Object.values(ZONE).map((id) => [id, ZONE_META[id].tint])
+);
+// Legacy keys still referenced in old saves / story once-keys
+ZONE_TINT.safe = ZONE_TINT[ZONE.HOME];
+ZONE_TINT.mid = ZONE_TINT[ZONE.YELLOW];
+ZONE_TINT.outer = ZONE_TINT[ZONE.GREEN];
+ZONE_TINT.wall = ZONE_TINT[ZONE.RED];

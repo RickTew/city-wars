@@ -41,7 +41,7 @@ export class HelpDirector {
       'WHEN: Day is safer. Night brings dogs & gangs. Sleep before you’re meat.'
     );
     this.push(
-      'WHERE: Inner blocks → sprawl → chaos → Wall. Yellow tip = goal.'
+      'WHERE: HOME → Yellow → Orange → Green → Blue → Red (Wall). Gold pulse = goal.'
     );
     this.push(
       'WHY: Stay and the city eats you. One clean breach and you’re a ghost story.'

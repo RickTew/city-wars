@@ -476,9 +476,10 @@ export class AudioBus {
     // Outer/wall skew slightly toward violence when in world mode
     let gunBias = 0;
     if (this._ambMode === 'world') {
-      const z = this._ambZoneFn?.() || 'safe';
-      if (z === 'outer') gunBias = 0.06;
-      if (z === 'wall') gunBias = 0.12;
+      const z = this._ambZoneFn?.() || 'home';
+      if (z === 'green' || z === 'outer') gunBias = 0.05;
+      if (z === 'blue') gunBias = 0.09;
+      if (z === 'red' || z === 'wall') gunBias = 0.14;
     }
 
     // No cheer/clap “yells” — dogs, howls, guns, booms, screams, cyber only
@@ -525,24 +526,29 @@ export class AudioBus {
       return 2000 + Math.random() * 8000; // 2–10s
     }
 
-    // world
-    const zone = this._ambZoneFn?.() || 'safe';
+    // world — denser ambience as rings go Yellow → Red
+    const zone = this._ambZoneFn?.() || 'home';
     const night = !!this._ambNightFn?.();
-    // min–max by district danger (outer/wall = more often)
     let min = 3000;
     let max = 22000;
-    if (zone === 'safe') {
+    if (zone === 'home' || zone === 'safe') {
       min = 8000;
-      max = 28000; // quieter inner blocks
-    } else if (zone === 'mid') {
-      min = 4000;
+      max = 28000;
+    } else if (zone === 'yellow' || zone === 'mid') {
+      min = 5000;
       max = 22000;
-    } else if (zone === 'outer') {
-      min = 2500;
+    } else if (zone === 'orange') {
+      min = 4000;
+      max = 18000;
+    } else if (zone === 'green' || zone === 'outer') {
+      min = 2800;
       max = 14000;
-    } else if (zone === 'wall') {
+    } else if (zone === 'blue') {
+      min = 2400;
+      max = 12000;
+    } else if (zone === 'red' || zone === 'wall') {
       min = 2000;
-      max = 10000; // Wall district is loud
+      max = 10000;
     }
     if (night) {
       min = Math.max(2000, min * 0.75);
