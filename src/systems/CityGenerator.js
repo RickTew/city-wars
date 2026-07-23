@@ -66,6 +66,9 @@ export class CityGenerator {
     carve(g, CENTER_X - 3, CENTER_Y - 3, 7, 7, T.HQ);
     g[CENTER_Y][CENTER_X] = T.HQ;
 
+    // Stamp Wall BEFORE interactables so breach / pads / loot never get buried
+    this._stampNorthWall(g, w);
+
     // HQ amenities — keep OFF the east road (guide gold crate hikes that way)
     place(g, w, CENTER_X - 2, CENTER_Y - 2, T.BENCH, this.benches);
     place(g, w, CENTER_X - 2, CENTER_Y + 1, T.SLEEP, this.sleeps);
@@ -94,7 +97,7 @@ export class CityGenerator {
     g[hatY][hatX] = T.GEAR_HAT;
     this.gearDrops.push({ x: hatX, y: hatY, id: 'sexy_hat', taken: false, guide: true });
 
-    // More world furniture  -  keep clear of HQ and guide hike spots
+    // More world furniture — keep clear of HQ, guide hikes, and wall barricades
     for (let y = 4; y < MAP_H - 4; y += 5) {
       for (let x = 4; x < MAP_W - 4; x += 5) {
         if (w[y][x] || road(x, y)) continue;
@@ -110,7 +113,8 @@ export class CityGenerator {
       }
     }
 
-    // Blueprint drops (spread out  -  not under spawn)
+    // Blueprint drops (spread out — not under spawn)
+    // Breach sits just SOUTH of the wall band (y=8+) so it is walkable but still "at the Wall"
     const bps = [
       { x: CENTER_X + 14, y: CENTER_Y - 8, id: 'bandage' },
       { x: CENTER_X + 8, y: CENTER_Y + 14, id: 'bedroll' },
@@ -121,7 +125,7 @@ export class CityGenerator {
       { x: CENTER_X + 10, y: CENTER_Y + 8, id: 'rags' },
       { x: CENTER_X - 10, y: CENTER_Y - 10, id: 'jacket' },
       { x: CENTER_X + 12, y: CENTER_Y - 16, id: 'charge' },
-      { x: CENTER_X + 6, y: 5, id: 'breach' }, // north wall  -  the big prize
+      { x: CENTER_X + 4, y: 9, id: 'breach' }, // approach to north Wall — must stay walkable
     ];
     for (const b of bps) {
       const x = clamp(b.x, 2, MAP_W - 3);
@@ -138,9 +142,9 @@ export class CityGenerator {
     g[cacheY][cacheX] = T.LOOT;
     this.loot.push({ x: cacheX, y: cacheY, taken: false, escapeCache: true });
 
-    // Escape pads on edges
+    // Escape pads on edges — carved AFTER wall stamp so north pad is a real hole in the Wall
     const pads = [
-      [CENTER_X, 2],
+      [CENTER_X, 3], // north Wall breach point (was buried at y=2 under barricade)
       [CENTER_X, MAP_H - 3],
       [2, CENTER_Y],
       [MAP_W - 3, CENTER_Y],
@@ -151,7 +155,8 @@ export class CityGenerator {
       this.escapePads.push({ x, y });
     }
 
-    this._stampNorthWall(g, w);
+    // Final safety: every listed interactable must be wall-free
+    this._assertClear(g, w);
 
     return {
       ground: g,
@@ -173,6 +178,46 @@ export class CityGenerator {
         w[y][x] = T.BARRICADE;
         g[y][x] = y <= 4 ? T.GATE : T.RUIN;
       }
+    }
+  }
+
+  /** Clear walls under any registered prop so pathing + USE always work. */
+  _assertClear(g, w) {
+    const pts = [
+      ...this.loot,
+      ...this.benches,
+      ...this.sleeps,
+      ...this.blueprints,
+      ...this.gearDrops,
+      ...this.escapePads,
+    ];
+    for (const p of pts) {
+      if (!inB(p.x, p.y)) continue;
+      w[p.y][p.x] = 0;
+      // Keep prop paint if already set; escape pads may be a 3×3 carve
+      if (g[p.y][p.x] === T.GATE || g[p.y][p.x] === T.RUIN || g[p.y][p.x] === T.BARRICADE) {
+        g[p.y][p.x] = T.ALLEY;
+      }
+    }
+    // Re-paint known props after any accidental wall paint wipe
+    for (const l of this.loot) {
+      if (!l.taken) g[l.y][l.x] = T.LOOT;
+    }
+    for (const b of this.benches) g[b.y][b.x] = T.BENCH;
+    for (const s of this.sleeps) g[s.y][s.x] = T.SLEEP;
+    for (const b of this.blueprints) {
+      if (!b.taken) g[b.y][b.x] = T.LANDMARK;
+    }
+    for (const d of this.gearDrops) {
+      if (d.taken) continue;
+      if (d.id === 'stick') g[d.y][d.x] = T.GEAR_STICK;
+      else if (d.id === 'sexy_hat') g[d.y][d.x] = T.GEAR_HAT;
+      else g[d.y][d.x] = T.GEAR_DROP;
+    }
+    for (const p of this.escapePads) {
+      // Keep the 3×3 pad clear of barricades
+      carve(w, p.x - 1, p.y - 1, 3, 3, 0);
+      carve(g, p.x - 1, p.y - 1, 3, 3, T.ESCAPE);
     }
   }
 }

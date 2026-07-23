@@ -2,9 +2,9 @@
  * Shared visual palette — Escape-from-NY grit + neon bleed.
  *
  * Fonts: for player-facing UI use DomUi (DOM + Inter/system-ui). Phaser Text
- * under pixelArt:true looks chunky; see VISUAL-STYLE.md.
- * These constants remain for legacy GameScene Phaser strings until that HUD
- * is migrated to DomUi.
+ * under pixelArt:true looks chunky; see VISUAL-STYLE.md + TEXT-STRATEGY.md.
+ * In-run HUD/craft/bag/combat are on DomUi; these font constants remain for
+ * any residual Phaser world floaters / lab labels only.
  */
 export const HUD_FONT = 'Inter, system-ui, -apple-system, sans-serif';
 export const UI_FONT = 'Inter, system-ui, -apple-system, sans-serif';

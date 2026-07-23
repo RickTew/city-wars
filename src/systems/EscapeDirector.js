@@ -72,7 +72,7 @@ export class EscapeDirector {
       return { x: CENTER_X, y: Math.max(4, CENTER_Y - 20) };
     }
     if (this.quest === 1 && !f.breachBp) {
-      return g.bpSpots?.find((b) => b.id === 'breach' && !b.taken) || { x: CENTER_X, y: 5 };
+      return g.bpSpots?.find((b) => b.id === 'breach' && !b.taken) || { x: CENTER_X + 4, y: 9 };
     }
     if (this.quest === 2 && !f.breachCrafted) {
       if (!g.inv.canCraft('breach') && !g.inv.hasBreach()) {
@@ -83,7 +83,7 @@ export class EscapeDirector {
       return g.nearestBench() || { ui: 'craft' };
     }
     if (this.quest === 3) {
-      return g.escapePads?.[0] || null;
+      return g.nearestEscapePad?.() || g.escapePads?.[0] || null;
     }
     return null;
   }

@@ -6,6 +6,7 @@ import {
   CENTER_X,
   CENTER_Y,
   DAY_LENGTH,
+  DEFAULT_ZOOM,
   ENEMY,
   HELP_DEFAULT,
   MAP_H,
@@ -166,7 +167,7 @@ export class GameScene extends Phaser.Scene {
     // Quest 1 always knows how to craft a bandage (no blueprint hunt for tutorial)
     this.inv.learnBlueprint('bandage');
 
-    this.cameras.main.setZoom(1);
+    this.cameras.main.setZoom(DEFAULT_ZOOM);
     // Mouse wheel zoom (out for more city, in for streets) — zoom toward cursor
     this.input.on('wheel', (pointer, _over, _dx, dy) => {
       if (this.ended || this.isPaused?.()) return;
@@ -596,9 +597,12 @@ export class GameScene extends Phaser.Scene {
     const w = gameSize.width;
     const h = gameSize.height;
     const m = this.barMetrics(w, h);
+    // Preserve player zoom — never snap back to 1 on window resize
+    const keepZ = this.cameras.main.zoom || DEFAULT_ZOOM;
     this.cameras.main.setSize(w, h);
-    this.cameras.main.setZoom(1);
+    this.cameras.main.setZoom(keepZ);
     this.cameras.main.setDeadzone(w * 0.2, h * 0.18);
+    this.clampCamScroll?.();
 
     this.layoutTopHud(w, h);
     // Rebuild bar so MORE / SPEC slots match new width + combat state
@@ -970,6 +974,27 @@ export class GameScene extends Phaser.Scene {
   }
 
   // ─── SPAWN ───────────────────────────────────────────
+  /** Interactive world props must stay free so pathing / USE never fight an actor. */
+  isSpawnBlockedTile(x, y) {
+    if (this.isInteractiveTile?.(x, y)) return true;
+    const g = this.ground?.[y]?.[x];
+    if (
+      g === T.LOOT ||
+      g === T.BENCH ||
+      g === T.SLEEP ||
+      g === T.LANDMARK ||
+      g === T.ESCAPE ||
+      g === T.GEAR_DROP ||
+      g === T.GEAR_STICK ||
+      g === T.GEAR_HAT ||
+      g === T.HQ
+    )
+      return true;
+    // Guide hike ring (crate/stick/hat sit ~6 tiles out)
+    if (Math.abs(x - CENTER_X) + Math.abs(y - CENTER_Y) <= 8) return true;
+    return false;
+  }
+
   spawnEnemies() {
     const max = 55;
     let n = 0;
@@ -977,8 +1002,8 @@ export class GameScene extends Phaser.Scene {
       for (let x = 0; x < MAP_W; x++) {
         if (n >= max) return;
         if (!this.walkable(x, y)) continue;
+        if (this.isSpawnBlockedTile(x, y)) continue;
         if (this.zones.getZone(x, y) === ZONE.SAFE && hash(x, y) % 20 !== 0) continue;
-        if (Math.abs(x - CENTER_X) + Math.abs(y - CENTER_Y) < 6) continue;
         const r = hash(x, y) % 100;
         const z = this.zones.getZone(x, y);
         let kind = null;
@@ -1012,7 +1037,7 @@ export class GameScene extends Phaser.Scene {
         const d = 8 + Math.random() * 10;
         const x = (this.player.tx + Math.cos(a) * d) | 0;
         const y = (this.player.ty + Math.sin(a) * d) | 0;
-        if (!this.walkable(x, y) || this.actorAt(x, y)) continue;
+        if (!this.walkable(x, y) || this.actorAt(x, y) || this.isSpawnBlockedTile(x, y)) continue;
         const dog = makeEnemy(this, x, y, ENEMY.dog, 'dog');
         dog.nightOnly = true;
         this.enemies.push(dog);
@@ -1038,13 +1063,13 @@ export class GameScene extends Phaser.Scene {
       const d = 10 + Math.random() * 8;
       const x = (this.player.tx + Math.cos(a) * d) | 0;
       const y = (this.player.ty + Math.sin(a) * d) | 0;
-      if (!this.walkable(x, y) || this.actorAt(x, y)) continue;
+      if (!this.walkable(x, y) || this.actorAt(x, y) || this.isSpawnBlockedTile(x, y)) continue;
       const e = makeEnemy(this, x, y, ENEMY.enforcer, 'enforcer');
       e._heatPatrol = true;
       this.enemies.push(e);
       this.log('Grid patrol inbound. Enforcer on your vector.');
       this.audio.patrol?.();
-      this.vfx?.burst(x * TILE + 16, y * TILE + 16, 0xef4444, 8);
+      this.vfx?.burst(x * TILE + TILE / 2, y * TILE + TILE / 2, 0xef4444, 8);
       return;
     }
   }
@@ -1696,17 +1721,52 @@ export class GameScene extends Phaser.Scene {
       [4, -4],
       [-4, -4],
       [3, 3],
+      [0, -8],
+      [7, 0],
+      [-7, 0],
+      [0, 7],
+      [6, 6],
+      [-6, 6],
     ]) {
       candidates.push([this.player.tx + dx, this.player.ty + dy]);
     }
     // Also try absolute near HQ ring
-    candidates.push([CENTER_X + 5, CENTER_Y - 5], [CENTER_X - 4, CENTER_Y + 4]);
+    candidates.push(
+      [CENTER_X + 5, CENTER_Y - 5],
+      [CENTER_X - 4, CENTER_Y + 4],
+      [CENTER_X + 8, CENTER_Y],
+      [CENTER_X, CENTER_Y + 8]
+    );
+    // Spiral fallback so quest 2 never softlocks
+    for (let r = 3; r <= 14; r++) {
+      for (let a = 0; a < 8; a++) {
+        const ang = (a / 8) * Math.PI * 2;
+        candidates.push([
+          (this.player.tx + Math.cos(ang) * r) | 0,
+          (this.player.ty + Math.sin(ang) * r) | 0,
+        ]);
+      }
+    }
     for (const [x, y] of candidates) {
-      if (this.walkable(x, y) && !this.actorAt(x, y)) {
+      if (this.walkable(x, y) && !this.actorAt(x, y) && !this.isSpawnBlockedTile?.(x, y)) {
         const dog = makeEnemy(this, x, y, ENEMY.dog, 'dog');
         dog.nightOnly = false;
         dog._dormant = false;
         dog._isGuideDog = true; // survives dawn dog cull
+        this.enemies.push(dog);
+        this.guideDog = dog;
+        this.log('A Grid Dog pads in. Follow the pulse. Tap it.');
+        return;
+      }
+    }
+    // Absolute last resort: any walkable free tile in mid ring
+    for (let y = 10; y < MAP_H - 10; y++) {
+      for (let x = 10; x < MAP_W - 10; x++) {
+        if (!this.walkable(x, y) || this.actorAt(x, y)) continue;
+        const dog = makeEnemy(this, x, y, ENEMY.dog, 'dog');
+        dog.nightOnly = false;
+        dog._dormant = false;
+        dog._isGuideDog = true;
         this.enemies.push(dog);
         this.guideDog = dog;
         this.log('A Grid Dog pads in. Follow the pulse. Tap it.');
@@ -2080,7 +2140,7 @@ export class GameScene extends Phaser.Scene {
     if (!this.inv.hasBlueprint('breach')) {
       const bp = this.bpSpots.find((b) => b.id === 'breach' && !b.taken);
       this.objective = 'OBJECTIVE: Find the BREACH KIT blueprint (pink, near north Wall)';
-      this.objTarget = bp || { x: CENTER_X, y: 5 };
+      this.objTarget = bp || { x: CENTER_X + 4, y: 9 };
     } else if (!this.inv.canCraft('breach') && !this.inv.hasBreach() && !this.inv.items.some((i) => i.id === 'breach')) {
       const miss = this.inv.missingFor('breach').join(', ') || 'materials';
       this.objective = `OBJECTIVE: Scavenge for Breach Kit (need ${miss})`;
@@ -2090,7 +2150,7 @@ export class GameScene extends Phaser.Scene {
       this.objTarget = this.nearestBench();
     } else {
       this.objective = 'OBJECTIVE: Click gold ESCAPE pad on the edge (need Breach Kit)';
-      this.objTarget = this.escapePads[0];
+      this.objTarget = this.nearestEscapePad() || this.escapePads[0];
     }
   }
 
@@ -2106,6 +2166,23 @@ export class GameScene extends Phaser.Scene {
       }
     }
     return best;
+  }
+
+  /** Prefer a walkable escape pad (north may still be a wall hole after stamp). */
+  nearestEscapePad() {
+    let best = null;
+    let bd = 1e9;
+    for (const p of this.escapePads || []) {
+      if (this.blocked?.(p.x, p.y)) continue;
+      if (this.ground?.[p.y]?.[p.x] !== T.ESCAPE) continue;
+      const d =
+        Math.abs(p.x - this.player.tx) + Math.abs(p.y - this.player.ty);
+      if (d < bd) {
+        bd = d;
+        best = p;
+      }
+    }
+    return best || this.escapePads?.[0] || null;
   }
 
   nearestBench() {
@@ -2794,7 +2871,12 @@ export class GameScene extends Phaser.Scene {
       if (!this.movePath.length) {
         const use = this.autoUseOnArrive;
         this.clearMousePath();
-        if (use) this.useTile();
+        // Gear/loot/blueprints already auto-picked on step. Only auto-USE if the
+        // tile still wants an action (bench craft, sleep, escape) — never fall
+        // through into "no heal kit" spam.
+        if (use && this.isInteractiveTile(this.player.tx, this.player.ty)) {
+          this.useTile();
+        }
       }
     } else {
       this.clearMousePath();
@@ -2856,16 +2938,15 @@ export class GameScene extends Phaser.Scene {
 
   onStepTile() {
     const g = this.ground[this.player.ty][this.player.tx];
+    const { tx, ty } = this.player;
 
     // Gear drops (stick, hat, etc.)
-    const drop = this.gearDrops?.find(
-      (d) => !d.taken && d.x === this.player.tx && d.y === this.player.ty
-    );
+    const drop = this.gearDrops?.find((d) => !d.taken && d.x === tx && d.y === ty);
     if (drop) {
       drop.taken = true;
       const item = this.inv.addItem(drop.id);
-      this.ground[this.player.ty][this.player.tx] = T.ALLEY;
-      this.gLayer.putTileAt(T.ALLEY, this.player.tx, this.player.ty);
+      this.ground[ty][tx] = T.ALLEY;
+      this.gLayer.putTileAt(T.ALLEY, tx, ty);
       this.log(`Picked up ${item?.name || drop.id}.`);
       // Guide coach cards handle the hand-hold; avoid stacking a second popup
       if (!this.guide || this.guide.done || this.guide.quest > 0) {
@@ -2877,14 +2958,20 @@ export class GameScene extends Phaser.Scene {
       this.checkGuide();
     }
 
+    // Gold crates: auto-scavenge on step (same as gear/blueprints — USE still works)
+    const openLoot = this.lootSpots?.find((l) => !l.taken && l.x === tx && l.y === ty);
+    if (openLoot || g === T.LOOT) {
+      this.scavenge(tx, ty);
+    }
+
     // auto-pickup blueprint when walking on landmark
-    const bp = this.bpSpots.find((b) => !b.taken && b.x === this.player.tx && b.y === this.player.ty);
+    const bp = this.bpSpots.find((b) => !b.taken && b.x === tx && b.y === ty);
     if (bp) {
       bp.taken = true;
       this.inv.learnBlueprint(bp.id);
       this.audio.scavenge();
-      this.ground[this.player.ty][this.player.tx] = T.ALLEY;
-      this.gLayer.putTileAt(T.ALLEY, this.player.tx, this.player.ty);
+      this.ground[ty][tx] = T.ALLEY;
+      this.gLayer.putTileAt(T.ALLEY, tx, ty);
       this.showBlueprintPopup(bp.id);
       this.time.delayedCall(50, () => {
         this.checkGuide();
@@ -2892,7 +2979,7 @@ export class GameScene extends Phaser.Scene {
       });
     }
 
-    if (g === T.ESCAPE) this.tryEscape();
+    if (g === T.ESCAPE || this.ground[ty][tx] === T.ESCAPE) this.tryEscape();
     this.checkEscape();
     this.syncBenchCraftPanel();
   }
@@ -3332,7 +3419,12 @@ export class GameScene extends Phaser.Scene {
     this._escaping = true;
     this.clearMousePath();
 
-    const pad = this.escapePads?.[0];
+    // Prefer the pad you're on, else nearest walkable pad
+    const onPad =
+      this.ground[this.player.ty]?.[this.player.tx] === T.ESCAPE
+        ? { x: this.player.tx, y: this.player.ty }
+        : null;
+    const pad = onPad || this.nearestEscapePad() || this.escapePads?.[0];
     const px = pad ? pad.x * TILE + TILE / 2 : this.player.x;
     const py = pad ? pad.y * TILE + TILE / 2 : this.player.y;
 
@@ -3366,7 +3458,8 @@ export class GameScene extends Phaser.Scene {
     };
 
     this.beginFreeCam?.();
-    this.cameras.main.pan(CENTER_X * TILE, 96, 650, 'Sine.easeInOut', true);
+    // Look at the north Wall band (y≈3 tiles), scaled for live TILE
+    this.cameras.main.pan(CENTER_X * TILE + TILE / 2, 3 * TILE, 650, 'Sine.easeInOut', true);
     this.vfx.wallScan(56);
     this.time.delayedCall(700, stepBreach);
   }
@@ -3415,6 +3508,7 @@ export class GameScene extends Phaser.Scene {
 
     const actions = DomUi.el('div', 'sheet-actions');
     const newRun = DomUi.button('hit sheet-btn', 'NEW RUN', () => {
+      SaveSystem.clear();
       DomUi.clearAll();
       this.scene.restart();
     });

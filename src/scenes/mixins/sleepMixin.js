@@ -67,8 +67,8 @@ export const sleepMixin = {
 
     let healed = 0;
     let msg = '';
-    if (night || atHome) {
-      // Full sleep → morning
+    if (night) {
+      // Full sleep → morning (HQ free, outdoors already spent kit)
       this.dayNight.sleepToMorning();
       healed = this.player.heal(
         (atHome ? 14 : 10) + ((Math.random() * 6) | 0) + (this.player.healBonus || 0)
@@ -78,14 +78,19 @@ export const sleepMixin = {
       msg = atHome
         ? `Home base rest.\n\n+${healed} HP. Morning again.\nSafe walls. No kit used.`
         : `Bedroll night under the open grid.\n\n+${healed} HP. Morning.\nSleeping kits left: ${left}`;
+    } else if (atHome) {
+      // Day at HQ: short rest only (no free day-skip farm)
+      healed = this.player.heal(
+        6 + ((Math.random() * 5) | 0) + Math.floor((this.player.healBonus || 0) / 2)
+      );
+      this.dayNight.t = Math.min(NIGHT_START - 0.02, this.dayNight.t + 0.08);
+      msg = `Day rest at HQ.\n\n+${healed} HP. No kit used.\n(Full sleep to morning works best at night.)`;
     } else {
-      // Day rest  -  heal only, small time skip forward but not full night
+      // Day outdoors on a kit
       healed = this.player.heal(6 + ((Math.random() * 5) | 0));
       this.dayNight.t = Math.min(NIGHT_START - 0.02, this.dayNight.t + 0.08);
       const left = this.countBedrolls();
-      msg = atHome
-        ? `Day rest at HQ.\n\n+${healed} HP. No kit used.\n(Full sleep to morning works best at night.)`
-        : `Day rest on a kit.\n\n+${healed} HP.\nSleeping kits left: ${left}`;
+      msg = `Day rest on a kit.\n\n+${healed} HP.\nSleeping kits left: ${left}`;
     }
 
     this.audio.scavenge();
@@ -99,21 +104,36 @@ export const sleepMixin = {
 
   spawnAmbushNearPlayer() {
     const spots = [];
-    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, 1]]) {
+    for (const [dx, dy] of [
+      [1, 0],
+      [-1, 0],
+      [0, 1],
+      [0, -1],
+      [1, 1],
+      [-1, 1],
+      [2, 0],
+      [-2, 0],
+      [0, 2],
+      [0, -2],
+    ]) {
       const x = this.player.tx + dx;
       const y = this.player.ty + dy;
       if (this.walkable(x, y) && !this.actorAt(x, y)) spots.push({ x, y });
     }
+    let foe = this.enemies.find((e) => e.alive && !e._dormant);
     if (!spots.length) {
-      this.startCombat(
-        this.enemies.find((e) => e.alive && !e._dormant) || makeEnemy(this, this.player.tx + 1, this.player.ty, ENEMY.dog, 'dog'),
-        false
-      );
+      // Must push into enemies so combat livingThreats / save stay consistent
+      if (!foe) {
+        foe = makeEnemy(this, this.player.tx, this.player.ty, ENEMY.dog, 'dog');
+        // Prefer an adjacent free cell if any later opens; stay co-located only as last resort
+        this.enemies.push(foe);
+      }
+      this.startCombat(foe, false);
       return;
     }
     const s = spots[(Math.random() * spots.length) | 0];
     const kind = this.dayNight.isNight && Math.random() < 0.6 ? 'dog' : 'thug';
-    const foe = makeEnemy(this, s.x, s.y, ENEMY[kind], kind);
+    foe = makeEnemy(this, s.x, s.y, ENEMY[kind], kind);
     this.enemies.push(foe);
     this.startCombat(foe, false);
   },

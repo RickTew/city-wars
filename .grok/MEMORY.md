@@ -16,4 +16,6 @@
 
 ## Next session start
 
-Migrate CraftPanel + objective + day bar + makeUiButton to DomUi first; verify with screenshots.
+DomUi HUD/craft/bag done. Priority: pixel prop overlays on procedural board
+(crates, workbench, junk piles, characters) per VISUAL-STYLE hybrid model;
+default zoom + tile readability polish; 15-min loop feel.

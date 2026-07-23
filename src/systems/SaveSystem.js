@@ -4,6 +4,7 @@
  */
 import { ENEMY, T } from '../config/constants.js';
 import { makeEnemy } from '../entities/Actor.js';
+import { resyncInventoryUids } from './Inventory.js';
 
 const KEY = 'city_wars_save_v1';
 
@@ -90,7 +91,7 @@ export class SaveSystem {
       progression: scene.progression?.serialize?.() || { xp: 0, level: 1 },
       huntList: (scene.huntList || []).map((h) => ({ ...h, needs: { ...h.needs } })),
       enemies: (scene.enemies || [])
-        .filter((e) => e.alive && !e._isGuideDog)
+        .filter((e) => e.alive)
         .slice(0, 70)
         .map((e) => ({
           tx: e.tx,
@@ -98,6 +99,8 @@ export class SaveSystem {
           kind: e.kind,
           hp: e.hp,
           nightOnly: !!e.nightOnly,
+          // Guide dog must survive save/load mid-tutorial (quest 1)
+          isGuideDog: !!(e === scene.guideDog || e._isGuideDog),
         })),
     };
   }
@@ -135,6 +138,7 @@ export class SaveSystem {
       for (const k of Object.keys(inv.equip)) {
         if (data.equip?.[k]) inv.equip[k] = { ...data.equip[k], qty: data.equip[k].qty || 1 };
       }
+      resyncInventoryUids(inv);
 
       scene.player.hp = data.hp ?? scene.player.hp;
       scene.player.maxHp = data.maxHp ?? scene.player.maxHp;
@@ -200,7 +204,8 @@ export class SaveSystem {
       scene.progression?.load?.(data.progression);
       scene.huntList = (data.huntList || []).map((h) => ({ ...h, needs: { ...h.needs } }));
 
-      if (Array.isArray(data.enemies) && data.enemies.length) {
+      // enemies array present (even empty) is authoritative — never keep the fresh spawn pack
+      if (Array.isArray(data.enemies)) {
         for (const e of scene.enemies) {
           try {
             e.destroy();
@@ -216,9 +221,26 @@ export class SaveSystem {
           e.hp = se.hp ?? e.maxHp;
           e.nightOnly = !!se.nightOnly;
           e._dormant = !!se.nightOnly && !scene.dayNight.isNight;
+          if (se.isGuideDog) {
+            e._isGuideDog = true;
+            e.nightOnly = false;
+            e._dormant = false;
+            scene.guideDog = e;
+          }
           e.refreshHp();
           scene.enemies.push(e);
         }
+      }
+
+      // Mid-tutorial load: ensure quest-1 dog exists if not already restored
+      if (
+        scene.guide &&
+        !scene.guide.done &&
+        scene.guide.quest === 1 &&
+        !scene._guideDogDead &&
+        !scene.guideDog?.alive
+      ) {
+        scene.spawnGuideDog?.();
       }
 
       scene.snapCameraToPlayer?.();

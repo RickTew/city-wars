@@ -30,7 +30,7 @@ npm run dev
 
 ## Spec (live)
 
-- **Tiles**: 32×32 px
+- **Tiles**: 64×64 px (`TILE = 64`; design base 32)
 - **Map**: 96×96 tiles (see `MAP_W` / `MAP_H` in constants)
 - **Streets**: 2 tiles wide (avenues every 6 tiles)
 - **Zones**: concentric rings by Manhattan distance from HQ center

@@ -37,7 +37,7 @@ DungeonHole: even `setFilter(LINEAR)` on Phaser Text fails under pixelArt.
 Fix: DOM overlays. City Wars menus + story popups already do this.
 
 **User requirement:** nice text in the **entire** game, not only menus.  
-In-run HUD/craft still Phaser as of 2026-07-22 — **next session priority** (see `TEXT-STRATEGY.md`).
+In-run HUD/craft/bag/combat/end are on DomUi. World floaters (HP/dmg) may stay Phaser.
 
 **Never** ship player-facing copy via `this.add.text` under pixelArt.
 

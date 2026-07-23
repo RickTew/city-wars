@@ -5,6 +5,19 @@ function newUid() {
   return `it_${_uid++}`;
 }
 
+/** Keep module uid counter above any loaded item uids (prevents equip/find collisions). */
+export function resyncInventoryUids(inv) {
+  let max = 0;
+  const consider = (it) => {
+    if (!it?.uid) return;
+    const m = /^it_(\d+)$/.exec(it.uid);
+    if (m) max = Math.max(max, parseInt(m[1], 10));
+  };
+  for (const i of inv?.items || []) consider(i);
+  for (const s of Object.values(inv?.equip || {})) consider(s);
+  if (max >= _uid) _uid = max + 1;
+}
+
 export class Inventory {
   constructor() {
     this.mats = {};

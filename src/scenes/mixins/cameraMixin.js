@@ -1,6 +1,6 @@
 /** Camera free-look / edge-pan (mixin). No auto-follow — camera stays where you put it. */
 import Phaser from 'phaser';
-import { WORLD_H, WORLD_W } from '../../config/constants.js';
+import { DEFAULT_ZOOM, WORLD_H, WORLD_W } from '../../config/constants.js';
 
 export const cameraMixin = {
   setupCamera() {
@@ -9,7 +9,7 @@ export const cameraMixin = {
     cam.stopFollow();
     cam.centerOn(this.player.x, this.player.y);
     cam.setRoundPixels(true);
-    cam.setZoom(1);
+    cam.setZoom(DEFAULT_ZOOM);
     this.camFollowPlayer = false;
     // Larger TILE world needs snappier pan so streets don't feel sticky
     this.edgePan = { margin: 36, speed: 720 };

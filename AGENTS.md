@@ -10,8 +10,8 @@
 | **Play (prod)** | **https://city-wars-rho.vercel.app** (stable alias only) |
 | **Vercel project** | `ricktew/city-wars` · auto-deploys on push to `main` |
 
-**Version:** 3.9.x (DomUi HUD, TILE 64, Style Lab, camera polish)  
-**HEAD:** `8509771` on `main` (2026-07-22) · auto-deploys to Vercel  
+**Version:** 3.9.2 (audit fixes: wall softlock, save guide dog, default zoom)  
+**HEAD:** local (audit session) · push to auto-deploy Vercel
 
 **Deploy preference (user):** after every major change/fix, **commit + push `main`** so testing is on **https://city-wars-rho.vercel.app** (not only localhost).
 

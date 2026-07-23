@@ -4,6 +4,11 @@
 export const TILE = 64;
 /** Source art / silhouette design scale (actors drawn for this, then scaled to TILE). */
 export const TILE_DESIGN = 32;
+/**
+ * Default camera zoom at TILE=64 so more of the city fits on screen.
+ * Wheel/pinch still allows 0.4–1.75.
+ */
+export const DEFAULT_ZOOM = 0.58;
 export const MAP_W = 96;
 export const MAP_H = 96;
 export const WORLD_W = MAP_W * TILE;
