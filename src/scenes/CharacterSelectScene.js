@@ -44,7 +44,9 @@ export class CharacterSelectScene extends Phaser.Scene {
     if (!root) return;
 
     root.appendChild(DomUi.el('h1', '', 'CHOOSE YOUR RUNNER'));
-    root.appendChild(DomUi.el('div', 'subhead', '9 runners. Pick your scar.'));
+    root.appendChild(
+      DomUi.el('div', 'subhead', 'CENTRAL allocates soft assets. Pick which scar takes the drop.')
+    );
 
     const list = DomUi.el('div', 'char-list');
     CHARACTERS.forEach((c) => {

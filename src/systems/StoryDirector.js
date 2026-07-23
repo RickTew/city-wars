@@ -1,7 +1,9 @@
 /**
  * Guided story for the first stretch, then optional narrator cards.
+ * Voice: CENTRAL (HQ-NET AI) — helpful, sarcastic, low faith in meat.
  * Player-facing text uses regular punctuation only (no long dashes).
  */
+import { HQ_NAME, HQ_TAG, MISSION_FIVE, hqTitle } from './HqVoice.js';
 
 const GUIDE_CRAFTS = ['bandage', 'bedroll', 'pipe']; // first three guided items
 
@@ -29,32 +31,35 @@ export class StoryDirector {
   }
 
   /**
-   * Main intro after character select (single card; quest 1 merged in).
+   * Main intro after character select — CENTRAL briefing.
    * opts.compact: shorter copy for phones so GOT IT stays tappable.
    */
   introCard(char, opts = {}) {
+    const five = MISSION_FIVE.map((m, i) => `${i + 1}. ${m.name}`).join('\n');
     if (opts.compact) {
       return {
-        title: 'SIGNAL BOOT',
+        title: hqTitle('DROP CONFIRM'),
         body:
-          `${char.name}\n\n` +
-          'QUEST 1: Follow the gold pulse.\n' +
-          'Tap the gold crate EAST of you.\n\n' +
-          'Then: stick · hat · BAG · workbench craft · dog · SLEEP.\n' +
-          'Tap map to walk.',
+          `${HQ_TAG}\nAsset: ${char.name}\n\n` +
+          'You were not invited. You were allocated.\n' +
+          'Recover five items. Escape if your species still works.\n\n' +
+          `${five}\n\n` +
+          'Start with #1: gold crate EAST. Follow the pulse.\n' +
+          'I will coach. I will not clap. Tap map to walk.',
       };
     }
     return {
-      title: 'SIGNAL BOOT',
+      title: hqTitle('DROP CONFIRM'),
       body:
-        `${char.name}: "${char.blurb}"\n\n` +
-        'The Wall still stands. Dogs own the dark.\n' +
-        'Scavenge. Craft. Breach. Get out.\n\n' +
-        'QUEST 1: Follow the gold pulse.\n' +
-        'Click the gold crate EAST of you.\n\n' +
-        'Then: stick south · hat west · BAG equip ·\n' +
-        'purple U workbench CRAFT bandage · dog · SLEEP.\n\n' +
-        'Click map to walk. Left-click enemies to fight.',
+        `${HQ_TAG}\nRunner file: ${char.name}\n"${char.blurb}"\n\n` +
+        'Central still needs five assets out of this carcass of a city.\n' +
+        'You are the courier. Soft tissue. High failure probability.\n' +
+        'I am CENTRAL. I am helpful. I am not your friend.\n\n' +
+        `RECOVERY LIST\n${five}\n\n` +
+        'First: salvage cache EAST of drop. Gold pulse. Do not invent a better plan.\n' +
+        'Then stick, hat, craft a bandage, sleep if you must.\n' +
+        'Breach Kit is last. Escape pads after that. Or die. Both are data.\n\n' +
+        'Tap the map to walk. Try not to impress me. You will not.',
     };
   }
 
@@ -62,11 +67,11 @@ export class StoryDirector {
     if (!first) return null;
     if (!this.once('loot1')) return null;
     return {
-      title: 'JUNK IS GOSPEL',
+      title: hqTitle('ASSET 1'),
       body:
-        'Gold crates spit scrap, cloth, wire, the usual sins.\n\n' +
-        'Hold onto cloth. Bandages and bedrolls drink it dry.\n' +
-        'Static in the vents laughs. Keep digging.',
+        'Look at that. Opposable thumbs still function.\n\n' +
+        'Cloth and scrap. Bandages drink cloth like bad wine.\n' +
+        'Hold onto it. Or do not. I have other runners. Conceptually.',
     };
   }
 
@@ -75,16 +80,16 @@ export class StoryDirector {
     if (this.guideDone) {
       if (!this.narratorOn) return null;
       return {
-        title: 'SCHEMATIC PING',
-        body: `New print: ${bpName}.\nThe city leaves receipts if you listen.`,
+        title: hqTitle('PRINT'),
+        body: `${bpName}. Another diagram for your wet brain.\nTry not to craft it into your face.`,
       };
     }
     return {
-      title: 'BLUEPRINT ACQUIRED',
+      title: hqTitle('PRINT'),
       body:
-        `${bpName} is now in your head.\n\n` +
-        'Track parts if you want a hunt list.\n' +
-        'Purple Street Rig is the altar. CRAFT when green.',
+        `${bpName} is logged.\n\n` +
+        'Purple Street Rig when you are ready to pretend you are useful.\n' +
+        'Green row means even you can press it.',
     };
   }
 
@@ -96,32 +101,32 @@ export class StoryDirector {
       this.guideDone = true;
       this.persist();
       return {
-        title: 'SIGNAL CUTS CLEAN',
+        title: hqTitle('TRAINING ENDED'),
         body:
-          'Bandage. Bedroll. Pipe.\nYou are no longer a tourist.\n\n' +
-          'From here the Wall is your problem.\n' +
-          'Narrator cards can keep whispering if you want them.\n' +
-          '(Toggle anytime in BAG options later, or keep them on.)\n\n' +
-          'You are on your own now. Try not to die funny.',
+          'Bandage. Bedroll. Pipe. The soft lessons are over.\n\n' +
+          'Item five still waits: Breach Kit. North. RED. Wall.\n' +
+          'I will keep talking if you leave the channel open.\n' +
+          'I still do not think you will make it.\n\n' +
+          'Surprise me. Or do not. Both feed the model.',
       };
     }
     if (!this.guideDone) {
       const left = GUIDE_CRAFTS.filter((id) => !this.craftsDone.has(id));
       if (this.once(`craft_${resultId}`)) {
         return {
-          title: 'KIT ONLINE',
+          title: hqTitle('FAB'),
           body:
-            `${resultName} is live.\n\n` +
+            `${resultName}. Adorable.\n\n` +
             (left.length
-              ? `Still need: ${left.map(guideLabel).join(', ')}.`
-              : 'Starter set complete.'),
+              ? `Still missing: ${left.map(guideLabel).join(', ')}. Keep fumbling.`
+              : 'Starter crafts complete. Miracles happen. Rarely.'),
         };
       }
     }
     if (this.narratorOn && this.once(`craft_n_${resultId}`)) {
       return {
-        title: 'FAB PULSE',
-        body: `${resultName} clicks together. The grid pretends not to notice.`,
+        title: hqTitle('FAB'),
+        body: `${resultName} is real. The city remains unimpressed. Same.`,
       };
     }
     return null;
@@ -131,10 +136,11 @@ export class StoryDirector {
     if (!this.once('night_first')) {
       if (!this.guideDone || this.narratorOn) {
         return {
-          title: 'NIGHT SHIFT',
+          title: hqTitle('NIGHT'),
           body:
-            'Neon coughs. Dogs clock in.\n' +
-            'Sleep at HQ if you can. Out there, bedrolls roll dice.',
+            'Dogs clock in. Your soft hours are over.\n' +
+            'Sleep at HOME if you value remaining vertical.\n' +
+            'Out there, bedrolls are a coin flip I would short.',
         };
       }
       return null;
@@ -142,14 +148,14 @@ export class StoryDirector {
     if (!this.narratorOn) return null;
     if (Math.random() > 0.4) return null;
     const lines = [
-      'A dog pack argues three blocks over. Nobody owns them.',
-      'Rain that is not rain taps the sheet metal.',
-      'You smell burnt sugar and gun oil. Dinner, maybe.',
-      'Footsteps above. Or the building remembering people.',
-      'A far crack. Rifle or door. Same difference out here.',
+      'Dog pack three blocks over. They do not negotiate. Neither do I.',
+      'Something that is not rain is tapping the sheet metal. Charming.',
+      'Burnt sugar and gun oil. Dinner, if you are the menu.',
+      'Footsteps above. Or the building remembering better tenants.',
+      'Far crack. Rifle or door. Log it as "not you" for now.',
     ];
     return {
-      title: 'NIGHT NOTE',
+      title: hqTitle('NIGHT'),
       body: lines[(Math.random() * lines.length) | 0],
     };
   }
@@ -159,38 +165,37 @@ export class StoryDirector {
     if (!this.once(`zone_${zone}`)) return null;
     const map = {
       home: {
-        title: 'HOME BASE',
-        body: 'HQ courtyard. Sleep free. Five harder rings wait outside.',
+        title: hqTitle('HOME'),
+        body: 'Drop pad. Soft ring. Learn without dying if possible. Yellow waits when you grow a spine.',
       },
       yellow: {
-        title: 'YELLOW RING · Lv 1',
-        body: 'First streets past HQ. Light thugs. Learn the grid.',
+        title: hqTitle('YELLOW · Lv 1'),
+        body: 'First real streets. Light meat with knives. Try not to donate organs.',
       },
       orange: {
-        title: 'ORANGE RING · Lv 2',
-        body: 'Mid crawl. More knives. Scavenge starts to matter.',
+        title: hqTitle('ORANGE · Lv 2'),
+        body: 'Mid crawl. More knives. Your salvage actually matters now. Shocking.',
       },
       green: {
-        title: 'GREEN RING · Lv 3',
-        body: 'Sick neon. Drones start hunting. Parts get better.',
+        title: hqTitle('GREEN · Lv 3'),
+        body: 'Drones join. Parts improve. Your odds do not.',
       },
       blue: {
-        title: 'BLUE RING · Lv 4',
-        body: 'Cold circuits. Enforcers. Heat climbs fast.',
+        title: hqTitle('BLUE · Lv 4'),
+        body: 'Enforcers. Heat climbs. Central is watching. Central is bored.',
       },
       red: {
-        title: 'RED RING · Lv 5',
-        body: 'The Wall. Breach print. Escape pads. Die or leave.',
+        title: hqTitle('RED · Lv 5'),
+        body: 'The Wall. Breach print. Escape pads. Finish the list or become a footnote.',
       },
-      // Legacy keys
-      safe: { title: 'HOME BASE', body: 'HQ courtyard. Safe-ish walls.' },
-      mid: { title: 'YELLOW RING', body: 'First streets past HQ.' },
-      outer: { title: 'GREEN RING', body: 'Deeper crawl. Harder scrap.' },
-      wall: { title: 'RED RING', body: 'Wall district. Almost free.' },
+      safe: { title: hqTitle('HOME'), body: 'Drop pad. Soft lessons.' },
+      mid: { title: hqTitle('YELLOW'), body: 'First real streets.' },
+      outer: { title: hqTitle('GREEN'), body: 'Deeper. Harder. Still you.' },
+      wall: { title: hqTitle('RED'), body: 'Wall district. Almost useful.' },
     };
     const card = map[zone];
     if (!card) {
-      return { title: 'NEW RING', body: 'New streets. Same city.' };
+      return { title: hqTitle('RING'), body: 'New streets. Same disappointment potential.' };
     }
     return { title: card.title, body: card.body };
   }
@@ -201,15 +206,15 @@ export class StoryDirector {
     const key = `amb_${(Math.random() * 20) | 0}`;
     if (!this.once(key)) return null;
     const lines = [
-      'You catch a laugh with no mouth attached.',
-      'A poster of a smiling mayor peels into a skull.',
-      'Something sweet rots in a vent. Free perfume.',
-      'Your shadow arrives half a second late.',
-      'Two crews trade insults across an avenue. No cops coming.',
-      'Someone yells a name. The name does not answer.',
+      'Laugh with no mouth. Charming neighborhood feature.',
+      'Mayor poster peeling into a skull. Campaign promises hold.',
+      'Something sweet rotting in a vent. Free cologne. Do not.',
+      'Your shadow arrived late. Even it has standards.',
+      'Two crews trading insults. No police. No hope. Same channel.',
+      'Someone yelled a name. The name was smarter than to answer.',
     ];
     return {
-      title: 'SIGNAL NOISE',
+      title: hqTitle('NOISE'),
       body: lines[(Math.random() * lines.length) | 0],
     };
   }

@@ -71,7 +71,13 @@ export class MenuScene extends Phaser.Scene {
     const stack = DomUi.el('div', 'menu-stack');
 
     stack.appendChild(DomUi.el('div', 'title', 'CITY WARS'));
-    stack.appendChild(DomUi.el('div', 'tagline', 'Escape the city. Night falls when it falls.'));
+    stack.appendChild(
+      DomUi.el(
+        'div',
+        'tagline',
+        'CENTRAL wants five assets out. You are the soft delivery method.'
+      )
+    );
     stack.appendChild(DomUi.el('div', 'muted', legacy));
 
     const dayHead = DomUi.el('div', '');
@@ -138,9 +144,15 @@ export class MenuScene extends Phaser.Scene {
     }
 
     const help = DomUi.el('div', 'help-box');
-    help.appendChild(DomUi.el('div', '', 'Scavenge · craft Breach Kit · hit the Wall · escape'));
     help.appendChild(
-      DomUi.el('div', 'line2', 'SAVE RUN anytime. Long crawls are the point. Autosave every ~90s.')
+      DomUi.el('div', '', 'Recover five items · craft the Breach Kit · hit RED · escape')
+    );
+    help.appendChild(
+      DomUi.el(
+        'div',
+        'line2',
+        'CENTRAL coaches. Sarcastic. Helpful. Low faith. SAVE anytime · autosave ~90s.'
+      )
     );
     stack.appendChild(help);
 

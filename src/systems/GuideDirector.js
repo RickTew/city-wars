@@ -1,58 +1,68 @@
 /**
- * Three quests as short one-step prompts.
- * Hikes spread targets so the player learns the map.
- * Scene pulses the current target tile / button (no extra gold triangle).
+ * Tutorial quests + coach — all copy is CENTRAL (HQ-NET AI).
+ * Mechanical steps unchanged; voice is sarcastic helpful dispatch.
  */
 import { CENTER_X, CENTER_Y } from '../config/constants.js';
+import { hqTitle } from './HqVoice.js';
 
 /** Full quest banners (shown when a quest starts). Keep short. */
 export const QUESTS = [
   {
     id: 'q1',
-    title: 'QUEST 1',
-    body: 'Follow the gold pulse.\nTap the gold crate EAST of HQ.',
-    objective: 'Gold crate east (follow gold pulse)',
+    title: hqTitle('ITEM 1'),
+    body:
+      'Salvage cache. Gold pulse. EAST of drop.\n' +
+      'Walk there before the city notices you thinking.',
+    objective: 'Item 1: gold crate EAST (pulse)',
   },
   {
     id: 'q2',
-    title: 'QUEST 2',
-    body: 'A Grid Dog is near. Follow the gold pulse.\nTap the dog. Fight until it drops.',
+    title: hqTitle('LIVE FIRE'),
+    body:
+      'A Grid Dog found you. How rare.\n' +
+      'Follow the pulse. Tap it. Finish it. Try not to scream into the mic.',
     objective: 'Tap the pulsing Grid Dog',
   },
   {
     id: 'q3',
-    title: 'QUEST 3',
-    body: 'Back to HQ (blue pad).\nFollow gold. Press SLEEP.',
+    title: hqTitle('SHUTDOWN'),
+    body:
+      'Back to HOME (blue pad). Press SLEEP.\n' +
+      'Even meat needs a reboot. Allegedly.',
     objective: 'SLEEP at HQ',
   },
   {
     id: 'done',
-    title: 'YOU ARE FREE',
-    body: 'Gear. Fight. Sleep. You got it.\nBreach Kit is pink, north when ready.',
-    objective: 'Find BREACH KIT (pink, north Wall)',
+    title: hqTitle('LIST OPEN'),
+    body:
+      'Training complete. Item 5 still unpaid: Breach Kit.\n' +
+      'Pink print. North. RED. Then a gold escape pad.\n' +
+      'I have already drafted your failure report. Edit it.',
+    objective: 'Item 5: BREACH KIT (pink, RED / Wall)',
   },
 ];
 
 /**
- * Micro-steps after each action.
- * Shown as sticky coach banner (not a blink toast).
+ * Micro-steps after each action — CENTRAL coach strip.
  */
 const COACH = {
   looted: {
-    title: 'NEXT',
-    body: 'Hike SOUTH. Walk onto the pulsing stick.',
+    title: hqTitle('ITEM 2'),
+    body: 'Street Stick. SOUTH. Walk onto the pulse.\nYes, the brown bat-shaped insult to weapons.',
   },
   stick: {
-    title: 'NEXT',
-    body: 'Hike WEST. Walk onto the pulsing hat.',
+    title: hqTitle('ITEM 3'),
+    body: 'Neon Fedora. WEST. Walk onto it.\nFashion is dead. Sneak bonuses are not.',
   },
   hat: {
-    title: 'NEXT',
-    body: 'Open BAG on the bottom bar (gold pulse).\nTap the stick, then the hat to equip.',
+    title: hqTitle('EQUIP'),
+    body: 'Open BAG (gold pulse on the bar).\nTap stick, then hat. Gear on the floor is cosplay.',
   },
   equipped: {
-    title: 'NEXT',
-    body: 'HQ workbench = purple U tile (Street Rig).\nStand next to it, open CRAFT, make Field Bandage.',
+    title: hqTitle('ITEM 4'),
+    body:
+      'Field Bandage. Purple U = Street Rig.\n' +
+      'Stand on it. CRAFT. Cloth×2. Even you can count to two.',
   },
 };
 
@@ -83,14 +93,14 @@ export class GuideDirector {
     if (this.done) return QUESTS[3].objective;
     const f = this.flags;
     if (this.quest === 0) {
-      if (!f.looted) return '→ Gold crate EAST (follow gold pulse)';
-      if (!f.stick) return '→ Stick SOUTH (follow gold pulse)';
-      if (!f.hat) return '→ Hat WEST (follow gold pulse)';
-      if (!f.equippedStick || !f.equippedHat) return '→ Open BAG. Equip stick, then hat';
-      if (!f.bandage) return '→ Purple U workbench. CRAFT Field Bandage';
+      if (!f.looted) return '→ CENTRAL: Item 1 · crate EAST (pulse)';
+      if (!f.stick) return '→ CENTRAL: Item 2 · stick SOUTH (pulse)';
+      if (!f.hat) return '→ CENTRAL: Item 3 · hat WEST (pulse)';
+      if (!f.equippedStick || !f.equippedHat) return '→ CENTRAL: BAG · equip stick, then hat';
+      if (!f.bandage) return '→ CENTRAL: Item 4 · CRAFT bandage at purple U';
     }
-    if (this.quest === 1) return '→ Tap the pulsing Grid Dog';
-    if (this.quest === 2) return '→ HQ. Press SLEEP';
+    if (this.quest === 1) return '→ CENTRAL: Grid Dog · tap it. Finish it.';
+    if (this.quest === 2) return '→ CENTRAL: HOME · press SLEEP';
     return QUESTS[this.quest]?.objective || '';
   }
 

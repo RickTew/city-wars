@@ -3,36 +3,40 @@
  */
 import { CENTER_X, CENTER_Y, ZONE } from '../config/constants.js';
 
+import { hqTitle } from './HqVoice.js';
+
 export const ESCAPE_QUESTS = [
   {
     id: 'e0',
-    title: 'LEAVE HOME',
+    title: hqTitle('LEAVE THE CRIB'),
     body:
-      'HQ is a cage with good Wi-Fi.\n' +
-      'Five rings wait: Yellow → Orange → Green → Blue → Red.\n' +
-      'Step into YELLOW first. The Wall lives in RED.',
+      'HOME is a tutorial with walls.\n' +
+      'Yellow → Orange → Green → Blue → Red.\n' +
+      'Step into YELLOW. Item 5 does not deliver itself.',
     objective: 'Enter YELLOW RING (leave HOME)',
   },
   {
     id: 'e1',
-    title: 'WALL SCHEMATIC',
+    title: hqTitle('ITEM 5 · PRINT'),
     body:
-      'Pink landmark on the north approach (RED).\n' +
-      'That print is your ticket. Follow the pulse.',
-    objective: 'Find BREACH KIT blueprint (pink, RED ring / Wall)',
+      'Breach schematic. Pink. North approach. RED.\n' +
+      'Follow the pulse. Try not to misplace your only job.',
+    objective: 'Find BREACH KIT blueprint (pink, RED / Wall)',
   },
   {
     id: 'e2',
-    title: 'BUILD THE KEY',
+    title: hqTitle('ITEM 5 · FAB'),
     body:
-      'Scavenge gold crates. Purple bench. Craft the Breach Kit.\n' +
-      'Heat rises the deeper the ring. Cache sits near the Wall print.',
+      'Scavenge. Purple rig. Craft the Breach Kit.\n' +
+      'Heat climbs as you go deeper. I am timing you. For science.',
     objective: 'Craft BREACH KIT at purple bench',
   },
   {
     id: 'e3',
-    title: 'BREAK OUT',
-    body: 'Gold pad on the map edge (RED). Kit in bag. One click and you are gone.',
+    title: hqTitle('EXTRACT'),
+    body:
+      'Gold pad. Map edge. RED. Kit in bag.\n' +
+      'One click and you are a success story I will pretend I predicted.',
     objective: 'Reach gold ESCAPE pad with Breach Kit',
   },
 ];
