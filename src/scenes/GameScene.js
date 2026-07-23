@@ -1034,32 +1034,67 @@ export class GameScene extends Phaser.Scene {
     return false;
   }
 
+  /**
+   * Spawn by ring budget so Yellow→Blue actually host fights.
+   * Old left-to-right scan filled the cap from north RED first (~54 red, 0 mid).
+   */
   spawnEnemies() {
-    const max = 55;
-    let n = 0;
+    // Level 0=HOME … 5=RED — totals ~57. HOME empty so tutorial stays quiet.
+    const budget = { 0: 0, 1: 9, 2: 11, 3: 12, 4: 12, 5: 13 };
+    /** @type {Record<number, {x:number,y:number}[]>} */
+    const pools = { 0: [], 1: [], 2: [], 3: [], 4: [], 5: [] };
+
     for (let y = 0; y < MAP_H; y++) {
       for (let x = 0; x < MAP_W; x++) {
-        if (n >= max) return;
         if (!this.walkable(x, y)) continue;
         if (this.isSpawnBlockedTile(x, y)) continue;
-        const z = this.zones.getZone(x, y);
         const lvl = this.zones.level(x, y);
-        // HOME: almost empty. Outer rings denser / nastier.
-        if (lvl === 0 && hash(x, y) % 40 !== 0) continue;
-        if (lvl === 1 && hash(x, y) % 18 !== 0) continue;
-        const r = hash(x, y) % 100;
-        let kind = null;
-        if (lvl >= 5 && r < 10) kind = r < 4 ? 'enforcer' : r < 7 ? 'drone' : 'thug';
-        else if (lvl >= 4 && r < 11) kind = r < 4 ? 'drone' : r < 7 ? 'enforcer' : 'thug';
-        else if (lvl >= 3 && r < 10) kind = r < 3 ? 'drone' : 'thug';
-        else if (lvl >= 2 && r < 9) kind = 'thug';
-        else if (lvl >= 1 && r < 7) kind = 'thug';
-        else if (lvl === 0 && r < 2) kind = 'thug';
-        if (!kind) continue;
-        this.enemies.push(makeEnemy(this, x, y, ENEMY[kind], kind));
-        n++;
+        if (pools[lvl]) pools[lvl].push({ x, y });
       }
     }
+
+    for (let lvl = 0; lvl <= 5; lvl++) {
+      const pool = pools[lvl] || [];
+      // Spread across ring: sort by hash, then stride through the pool
+      pool.sort((a, b) => hash(a.x * 3, a.y * 7) - hash(b.x * 3, b.y * 7));
+      const want = budget[lvl] || 0;
+      if (!pool.length || want <= 0) continue;
+      const stride = Math.max(1, Math.floor(pool.length / want));
+      let placed = 0;
+      for (let i = 0; i < pool.length && placed < want; i += stride) {
+        const { x, y } = pool[i];
+        // Keep a little spacing so two don't share a tile neighborhood when possible
+        if (
+          this.enemies.some(
+            (e) => Math.abs(e.tx - x) + Math.abs(e.ty - y) < (lvl <= 2 ? 3 : 2)
+          )
+        ) {
+          continue;
+        }
+        const kind = this.enemyKindForRing(lvl, hash(x, y) % 100);
+        this.enemies.push(makeEnemy(this, x, y, ENEMY[kind], kind));
+        placed++;
+      }
+      // Fill remainder if spacing skipped too many
+      for (let i = 0; i < pool.length && placed < want; i++) {
+        const { x, y } = pool[i];
+        if (this.actorAt(x, y)) continue;
+        const kind = this.enemyKindForRing(lvl, hash(x, y) % 100);
+        this.enemies.push(makeEnemy(this, x, y, ENEMY[kind], kind));
+        placed++;
+      }
+    }
+  }
+
+  /** Ring composition: thugs early, drones mid, enforcers outer. */
+  enemyKindForRing(lvl, r) {
+    if (lvl <= 0) return 'thug'; // HOME — rare lone runner
+    if (lvl === 1) return 'thug'; // Yellow — teach melee
+    if (lvl === 2) return r < 85 ? 'thug' : 'drone'; // Orange
+    if (lvl === 3) return r < 55 ? 'thug' : r < 90 ? 'drone' : 'enforcer'; // Green
+    if (lvl === 4) return r < 35 ? 'thug' : r < 70 ? 'drone' : 'enforcer'; // Blue
+    // Red — Wall crew
+    return r < 25 ? 'thug' : r < 55 ? 'drone' : 'enforcer';
   }
 
   refreshNightSpawns(night) {

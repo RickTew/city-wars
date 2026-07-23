@@ -287,7 +287,16 @@ async function main() {
     });
     ok(`Enemies ${dens.total}: ${JSON.stringify(dens.counts)}`);
     if (dens.total < 15) flag(`Sparse enemies (${dens.total})`);
-    if ((dens.counts.home || 0) > 8) flag(`Too many HOME enemies (${dens.counts.home})`);
+    if ((dens.counts.home || 0) > 2) flag(`Too many HOME enemies (${dens.counts.home})`);
+    // Mid rings must host fights (the bug we fixed: all 55 in RED)
+    const mid =
+      (dens.counts.yellow || 0) +
+      (dens.counts.orange || 0) +
+      (dens.counts.green || 0) +
+      (dens.counts.blue || 0);
+    if (mid < 20) flag(`Mid rings too empty (${mid} total yel–blu)`);
+    if ((dens.counts.red || 0) > mid + 5) flag(`RED still dominates (${dens.counts.red} vs mid ${mid})`);
+    else ok(`Ring balance OK mid=${mid} red=${dens.counts.red || 0}`);
 
     // Escape preconditions
     console.log('· Escape pad + Breach Kit');

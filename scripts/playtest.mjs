@@ -410,11 +410,19 @@ async function main() {
 
     st = await step('Mobile two-row HUD layout', async () => {
       await page.setViewport({ width: 390, height: 844 });
-      await sleep(250);
+      await sleep(200);
+      // Force Phaser RESIZE so scale.width/height match the phone viewport
+      await page.evaluate(() => {
+        const g = window.__CITY_WARS__;
+        g.scale?.resize?.(390, 844);
+        g.onResize?.({ width: 390, height: 844 });
+        g.rebuildActionBar?.();
+      });
+      await sleep(150);
     });
     const mobile = await page.evaluate(() => {
       const g = window.__CITY_WARS__;
-      const m = g.barMetrics();
+      const m = g.barMetrics(390, 844);
       // DomUi buttons: compare row containers, not Phaser-era bg.y
       const bagEl = g.btnBag?.el;
       const menuEl = g.btnMenu?.el;
@@ -422,6 +430,7 @@ async function main() {
       const menuRow = menuEl?.closest?.('.hud-bar-row');
       return {
         twoRow: m.twoRow,
+        mobileHud: g.isMobileHud(390, 844),
         healOnBar: !!g.btnHeal,
         moreHidden: !g.btnMore,
         healLabel: g.healButtonLabel(),

@@ -1,4 +1,5 @@
 /** Combat methods extracted from GameScene (mixin). */
+import Phaser from 'phaser';
 import {
   coverBonus,
   enemyAttackMultiplier,

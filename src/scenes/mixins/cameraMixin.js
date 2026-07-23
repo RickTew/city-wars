@@ -1,6 +1,7 @@
 /** Camera free-look / edge-pan (mixin). No auto-follow — camera stays where you put it. */
 import Phaser from 'phaser';
 import { DEFAULT_ZOOM, WORLD_H, WORLD_W } from '../../config/constants.js';
+// Phaser import required — mixin module does not share GameScene's import scope.
 
 export const cameraMixin = {
   setupCamera() {

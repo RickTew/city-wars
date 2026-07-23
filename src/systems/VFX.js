@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 
+/** World VFX — requires local Phaser import (not global). */
 export class VFX {
   constructor(scene) {
     this.scene = scene;
