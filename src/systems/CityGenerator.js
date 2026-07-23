@@ -145,7 +145,7 @@ export class CityGenerator {
 
     // Escape pads on edges — carved AFTER wall stamp so north pad is a real hole in the Wall
     const pads = [
-      [CENTER_X, 3], // north Wall breach point (was buried at y=2 under barricade)
+      [CENTER_X, 3], // north Wall breach point
       [CENTER_X, MAP_H - 3],
       [2, CENTER_Y],
       [MAP_W - 3, CENTER_Y],
@@ -155,6 +155,11 @@ export class CityGenerator {
       carve(g, x - 1, y - 1, 3, 3, T.ESCAPE);
       this.escapePads.push({ x, y });
     }
+
+    // Critical: open a 2-wide corridor through the Wall band on the HQ N–S avenue.
+    // Without this the north pad is only reachable via map-edge cheese (or not at all
+    // once enemies sit on the rim). Breach BP sits on the same approach.
+    this._carveWallApproach(g, w);
 
     // Final safety: every listed interactable must be wall-free
     this._assertClear(g, w);
@@ -178,6 +183,31 @@ export class CityGenerator {
         if (this.zones.getZone(x, y) !== ZONE.RED) continue;
         w[y][x] = T.BARRICADE;
         g[y][x] = y <= 4 ? T.GATE : T.RUIN;
+      }
+    }
+  }
+
+  /**
+   * Cut the HQ avenue through the north Wall so RED approach / escape pad / breach
+   * are straight-line reachable from the city (not map-edge only).
+   */
+  _carveWallApproach(g, w) {
+    for (const cx of [CENTER_X, CENTER_X + 1]) {
+      for (let y = 2; y <= 10; y++) {
+        if (!inB(cx, y)) continue;
+        w[y][cx] = 0;
+        // Keep escape paint if already an escape pad tile
+        if (g[y][cx] !== T.ESCAPE && g[y][cx] !== T.LANDMARK && g[y][cx] !== T.LOOT) {
+          g[y][cx] = roadTileAt(cx, y);
+        }
+      }
+    }
+    // Widen pad mouth one tile so pathing isn't a 1-tile keyhole
+    for (const cx of [CENTER_X - 1, CENTER_X + 2]) {
+      for (let y = 5; y <= 8; y++) {
+        if (!inB(cx, y)) continue;
+        w[y][cx] = 0;
+        if (g[y][cx] !== T.ESCAPE) g[y][cx] = T.RUIN;
       }
     }
   }
