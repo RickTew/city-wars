@@ -11,7 +11,7 @@
 | **Vercel project** | `ricktew/city-wars` · auto-deploys on push to `main` |
 
 **Version:** 3.12.0 (CENTRAL voice + five-item mission · city rings · map overlay)  
-**HEAD:** `2c553ec` on `main` · auto-deploys to Vercel  
+**HEAD:** `1b8612e` on `main` · auto-deploys to Vercel  
 
 **Workflow (user locked):** fix → **commit + push `main`** → **`npm run playtest`** (and `node scripts/deep-probe.mjs` after systems changes) → next item.  
 **Deploy:** test on **https://city-wars-rho.vercel.app** (not only localhost). Hard refresh after DOM/CSS.
@@ -33,7 +33,7 @@
 
 ```
 Continue City Wars in ~/Dev/City Wars per AGENTS.md + VISUAL-STYLE.md.
-HEAD 2c553ec. TILE=64. CENTRAL = sarcastic HQ AI; five-item recovery mission.
+HEAD 1b8612e. TILE=64. CENTRAL = sarcastic HQ AI; five-item recovery mission.
 HOME = tutorial (no combat packs). Rings: YEL→ORG→GRN→BLU→RED.
 MAP chip opens paused FOW city map (not corner minimap).
 Priority: (A) pixel props 1:1 — crate / workbench / runner / dog
@@ -141,7 +141,7 @@ Samples: dogs, howls, guns, explosions, screams, cyber only.
 
 ## Session wrap (2026-07-23) — rings, map, CENTRAL
 
-**Status:** Clean tree, pushed `main` @ `2c553ec`.
+**Status:** Clean tree, pushed `main` @ `1b8612e`.
 
 ### Shipped this arc
 
