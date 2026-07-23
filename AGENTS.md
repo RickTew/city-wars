@@ -11,9 +11,10 @@
 | **Vercel project** | `ricktew/city-wars` · auto-deploys on push to `main` |
 
 **Version:** 3.9.2 (audit fixes: wall softlock, save guide dog, default zoom)  
-**HEAD:** local (audit session) · push to auto-deploy Vercel
+**HEAD:** `b144a14` on `main` · auto-deploys to Vercel  
 
-**Deploy preference (user):** after every major change/fix, **commit + push `main`** so testing is on **https://city-wars-rho.vercel.app** (not only localhost).
+**Workflow (user locked):** fix → **commit + push `main`** → **`npm run playtest`** → next item.  
+**Deploy:** testing on **https://city-wars-rho.vercel.app** (not only localhost).
 
 ---
 
