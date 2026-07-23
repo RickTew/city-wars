@@ -65,40 +65,29 @@ export class TileArt {
         g.fillRect(x + TILE - r(2), 0, r(2), TILE);
       }
       if (i === T.ROAD) {
-        // E–W: dashes horizontal
-        g.fillStyle(0xfbbf24, 0.7);
+        // E–W: single center dash only (less busy)
+        g.fillStyle(0xfbbf24, 0.65);
         g.fillRect(x + r(8), r(14), r(16), r(3));
-        g.fillStyle(0xa1a1aa, 0.3);
-        g.fillRect(x + r(4), r(24), r(10), r(2));
-        g.fillRect(x + r(18), r(8), r(10), r(2));
       }
       if (i === T.ROAD_V) {
-        // N–S: dashes vertical
-        g.fillStyle(0xfbbf24, 0.7);
+        // N–S: single center dash only
+        g.fillStyle(0xfbbf24, 0.65);
         g.fillRect(x + r(14), r(8), r(3), r(16));
-        g.fillStyle(0xa1a1aa, 0.3);
-        g.fillRect(x + r(8), r(4), r(2), r(10));
-        g.fillRect(x + r(22), r(18), r(2), r(10));
       }
       if (i === T.ROAD_X) {
-        g.fillStyle(0xfbbf24, 0.35);
-        g.fillRect(x + r(13), r(10), r(6), r(12));
-        g.fillRect(x + r(10), r(13), r(12), r(6));
-        g.fillStyle(0x52525b, 0.4);
-        g.fillRect(x + r(6), r(6), r(4), r(4));
-        g.fillRect(x + r(22), r(6), r(4), r(4));
-        g.fillRect(x + r(6), r(22), r(4), r(4));
-        g.fillRect(x + r(22), r(22), r(4), r(4));
+        // Cross: simple + without corner clutter
+        g.fillStyle(0xfbbf24, 0.4);
+        g.fillRect(x + r(14), r(10), r(3), r(12));
+        g.fillRect(x + r(10), r(14), r(12), r(3));
       }
       if (i === T.SIDEWALK) {
-        // Lighter concrete so it separates from asphalt roads
-        g.fillStyle(0x71717a, 1);
+        // Flat concrete + thin edge (no checker noise)
+        g.fillStyle(0x6b7280, 1);
         g.fillRect(x, 0, TILE, TILE);
-        g.fillStyle(0xa1a1aa, 0.4);
-        g.fillRect(x + r(2), r(2), r(13), r(13));
-        g.fillRect(x + r(16), r(16), r(13), r(13));
-        g.lineStyle(1, 0x3f3f46, 0.7);
-        g.strokeRect(x + 1, 1, TILE - 2, TILE - 2);
+        g.fillStyle(0x9ca3af, 0.22);
+        g.fillRect(x + r(3), r(3), TILE - r(6), TILE - r(6));
+        g.lineStyle(1, 0x4b5563, 0.55);
+        g.strokeRect(x + 0.5, 0.5, TILE - 1, TILE - 1);
       }
       if (i === T.ALLEY) {
         g.fillStyle(0x1c1917, 0.75);

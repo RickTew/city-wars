@@ -885,20 +885,27 @@
         white-space: nowrap;
       }
       #dom-hud .hud-map-label {
+        /* Overridden by .hud-map-chip — clickable MAP button */
         position: absolute;
-        right: 10px;
+        right: 12px;
         top: 78px;
-        font-size: 10px;
-        font-weight: 700;
-        color: #64748b;
-        pointer-events: none;
-        z-index: 3;
+        font-size: 13px;
+        font-weight: 800;
+        color: #e0f2fe;
+        pointer-events: auto;
+        cursor: pointer;
+        z-index: 5;
         text-align: center;
-        width: 118px;
+        width: auto;
+        min-width: 52px;
+        padding: 8px 14px;
+        border-radius: 8px;
+        background: #0f172a;
+        border: 2px solid #38bdf8;
+        letter-spacing: 0.06em;
       }
       #dom-hud.hud-mobile .hud-map-label {
         top: 108px;
-        width: 88px;
       }
 
       /* Toast + guide coach */
@@ -1184,6 +1191,134 @@
         text-align: center;
         color: #64748b;
         font-size: 12px;
+      }
+
+      /* MAP chip (replaces corner mini-map) */
+      #dom-hud .hud-map-label,
+      #dom-hud .hud-map-chip {
+        position: absolute;
+        right: 12px;
+        top: 78px;
+        z-index: 5;
+        pointer-events: auto;
+        cursor: pointer;
+        padding: 8px 14px;
+        border-radius: 8px;
+        background: #0f172a;
+        border: 2px solid #38bdf8;
+        color: #e0f2fe;
+        font-weight: 800;
+        font-size: 13px;
+        letter-spacing: 0.06em;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+      }
+      #dom-hud .hud-map-chip:hover {
+        background: #1e293b;
+        border-color: #fbbf24;
+        color: #fef08a;
+      }
+
+      /* Full city map overlay */
+      #dom-modal.city-map-ui {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 12px;
+        background: rgba(2, 6, 23, 0.88);
+        pointer-events: auto;
+      }
+      #dom-modal .city-map-panel {
+        width: min(560px, 100%);
+        max-height: min(94vh, 900px);
+        overflow: auto;
+        padding: 14px 14px 12px;
+        border-radius: 12px;
+        background: #0f172a;
+        border: 3px solid #38bdf8;
+        box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55);
+      }
+      #dom-modal .city-map-head {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-start;
+        gap: 8px;
+        margin-bottom: 10px;
+      }
+      #dom-modal .city-map-title {
+        font-weight: 800;
+        font-size: 18px;
+        color: #f8fafc;
+        flex: 1;
+      }
+      #dom-modal .city-map-sub {
+        width: 100%;
+        font-size: 12px;
+        color: #94a3b8;
+        order: 3;
+      }
+      #dom-modal .city-map-x {
+        padding: 4px 10px;
+        border-radius: 6px;
+        background: #334155;
+        color: #e2e8f0;
+        font-weight: 700;
+      }
+      #dom-modal .city-map-chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-bottom: 10px;
+      }
+      #dom-modal .city-map-chip {
+        padding: 6px 10px;
+        border-radius: 999px;
+        background: #1e293b;
+        border: 2px solid #475569;
+        color: #e2e8f0;
+        font-size: 11px;
+        font-weight: 700;
+      }
+      #dom-modal .city-map-chip.on {
+        border-width: 2px;
+      }
+      #dom-modal .city-map-canvas-wrap {
+        display: flex;
+        justify-content: center;
+        background: #020617;
+        border-radius: 8px;
+        border: 1px solid #334155;
+        overflow: hidden;
+      }
+      #dom-modal .city-map-canvas {
+        display: block;
+        width: min(520px, 100%);
+        height: auto;
+        image-rendering: pixelated;
+      }
+      #dom-modal .city-map-key {
+        margin-top: 10px;
+        font-size: 12px;
+        color: #cbd5e1;
+      }
+      #dom-modal .city-map-key-title {
+        font-weight: 800;
+        font-size: 11px;
+        letter-spacing: 0.08em;
+        color: #94a3b8;
+        margin-bottom: 6px;
+      }
+      #dom-modal .city-map-key-line {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin: 3px 0;
+      }
+      #dom-modal .city-map-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        flex-shrink: 0;
+        border: 1px solid #0b1220;
       }
 
       /* ── Modal sheets (bag, run menu, legend, more, specials, end) ── */

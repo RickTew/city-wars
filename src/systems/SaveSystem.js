@@ -94,6 +94,7 @@ export class SaveSystem {
       lootTaken: (scene.lootSpots || []).map((l) => !!l.taken),
       gearTaken: (scene.gearDrops || []).map((d) => !!d.taken),
       bpTaken: (scene.bpSpots || []).map((b) => !!b.taken),
+      explored: scene.explored ? [...scene.explored] : [],
       progression: scene.progression?.serialize?.() || { xp: 0, level: 1 },
       huntList: (scene.huntList || []).map((h) => ({ ...h, needs: { ...h.needs } })),
       enemies: (scene.enemies || [])
@@ -214,6 +215,10 @@ export class SaveSystem {
           paintAlley(scene.bpSpots[i].x, scene.bpSpots[i].y);
         }
       });
+
+      if (Array.isArray(data.explored)) {
+        scene.explored = new Set(data.explored);
+      }
 
       scene.progression?.load?.(data.progression);
       scene.huntList = (data.huntList || []).map((h) => ({ ...h, needs: { ...h.needs } }));

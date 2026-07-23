@@ -42,7 +42,7 @@ import { cameraMixin } from './mixins/cameraMixin.js';
 import { sleepMixin } from './mixins/sleepMixin.js';
 import { Progression } from '../systems/Progression.js';
 import { SaveSystem } from '../systems/SaveSystem.js';
-import { Minimap } from '../systems/Minimap.js';
+import { CityMap } from '../systems/CityMap.js';
 import { CraftPanel } from '../systems/CraftPanel.js';
 import { Leaderboards } from '../systems/Leaderboards.js';
 import { ZONE_TINT } from '../config/art.js';
@@ -162,8 +162,12 @@ export class GameScene extends Phaser.Scene {
     this.craftPanel = new CraftPanel(this);
     this._benchAutoCraft = false;
     this._benchCraftDismissed = false;
-    this.minimap = new Minimap(this);
-    this.minimap.create();
+    this.explored = new Set();
+    this.mapOpen = false;
+    this.cityMap = new CityMap(this);
+    this.cityMap.create();
+    // Seed FOW around spawn so map isn't blank
+    this.markExploredAround(CENTER_X, CENTER_Y, 10);
     this.questPulseWorld = this.add.graphics().setDepth(27);
     this.questPulseUi = this.add.graphics().setScrollFactor(0).setDepth(140);
     this._pulseT = 0;
@@ -617,11 +621,7 @@ export class GameScene extends Phaser.Scene {
       // bar height handled by content; ensure craft dock knows metrics
     }
     if (this.domMapLabel) {
-      const yTop = this.isMobileHud(w, h) ? 108 : 78;
-      const size = w < 520 ? 88 : 118;
-      this.domMapLabel.style.top = `${yTop + size + 4}px`;
-      this.domMapLabel.style.width = `${size}px`;
-      this.domMapLabel.style.right = '10px';
+      this.cityMap?._layoutChip?.();
     }
     if (this.domCompassLabel) {
       const by = Math.min(120, (this.isMobileHud(w, h) ? 118 : 64) + (h < 700 ? 8 : 20));
@@ -650,7 +650,7 @@ export class GameScene extends Phaser.Scene {
       this.closeMoreMenu();
     }
     if (this.homeArrow) this.homeArrow.setPosition(36, m.homeY);
-    this.minimap?.onResize?.();
+    this.cityMap?.onResize?.();
     this.craftPanel?.refresh?.();
   }
 
@@ -1029,8 +1029,8 @@ export class GameScene extends Phaser.Scene {
       g === T.HQ
     )
       return true;
-    // Guide hike ring (crate/stick/hat sit ~6 tiles out)
-    if (Math.abs(x - CENTER_X) + Math.abs(y - CENTER_Y) <= 8) return true;
+    // HOME ring is tutorial space — never spawn combat packs here
+    if (this.zones?.getZone?.(x, y) === 'home') return true;
     return false;
   }
 
@@ -1566,73 +1566,13 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  /** MAP button → full city map (paused). */
   toggleLegend() {
-    if (this.legendOpen) {
-      this.closeLegend();
-      return;
-    }
-    this.legendOpen = true;
-    this.menuOpen = false;
-    this.moreOpen = false;
-    this.clearMousePath();
-
-    DomUi.clearModal();
-    const root = DomUi.show('modal-ui', 'modal');
-    root.addEventListener('pointerup', (e) => {
-      if (e.target === root) this.closeLegend();
-    });
-
-    const zoneLines = [
-      ['HOME (cyan)', 'Start. Sleep free. Level 0'],
-      ['YELLOW · Lv 1', 'First enterable ring'],
-      ['ORANGE · Lv 2', 'Mid crawl'],
-      ['GREEN · Lv 3', 'Drones join the hunt'],
-      ['BLUE · Lv 4', 'Enforcers + heat'],
-      ['RED · Lv 5', 'Wall, Breach print, escape pads'],
-    ];
-    const lines = [
-      ['Gray asphalt + gold dashes', 'Road — dashes follow street axis'],
-      ['Brown / tan ground', 'Alley / sidewalk / ruin'],
-      ['Green tiles', 'Park'],
-      ['Dark building', 'Blocked — walk around'],
-      ['Red barricade / X', 'Blocked'],
-      ['Gold crate', 'Loot — walk on or USE'],
-      ['Purple U', 'Street Rig — CRAFT'],
-      ['Teal oval', 'Sleep spot'],
-      ['Pink landmark', 'Blueprint'],
-      ['Gold edge pad', 'ESCAPE — needs Breach Kit'],
-      ['Gold pulse', 'Current objective'],
-    ];
-
-    const sheet = DomUi.el('div', 'sheet');
-    sheet.appendChild(DomUi.el('div', 'sheet-title', 'MAP LEGEND'));
-    sheet.appendChild(DomUi.el('div', 'sheet-body left', 'CITY RINGS (harder outward)'));
-    sheet.appendChild(
-      DomUi.el(
-        'div',
-        'sheet-body left',
-        zoneLines.map(([a, b]) => `• ${a}  —  ${b}`).join('\n')
-      )
-    );
-    sheet.appendChild(DomUi.el('div', 'sheet-body left', '\nTERRAIN'));
-    sheet.appendChild(
-      DomUi.el(
-        'div',
-        'sheet-body left',
-        lines.map(([a, b]) => `• ${a}  —  ${b}`).join('\n')
-      )
-    );
-    const actions = DomUi.el('div', 'sheet-actions');
-    const close = DomUi.button('hit sheet-btn ghost', 'CLOSE', () => this.closeLegend());
-    close.style.background = DomUi.hexCss(0x94a3b8);
-    close.style.color = '#0b1220';
-    actions.appendChild(close);
-    sheet.appendChild(actions);
-    root.appendChild(sheet);
-    this.legendUi = [root];
+    this.cityMap?.toggle?.();
   }
 
   closeLegend() {
+    this.cityMap?.close?.();
     this.legendOpen = false;
     DomUi.clearModal();
     this.legendUi = [];
@@ -1805,11 +1745,26 @@ export class GameScene extends Phaser.Scene {
       this.popupOpen ||
       this.craftOpen ||
       this.legendOpen ||
+      this.mapOpen ||
       this.bagOpen ||
       this.menuOpen ||
       this.specialOpen ||
       this.moreOpen
     );
+  }
+
+  /** Mark FOW tiles known for the city map overlay. */
+  markExploredAround(cx, cy, radius) {
+    if (!this.explored) this.explored = new Set();
+    for (let dy = -radius; dy <= radius; dy++) {
+      for (let dx = -radius; dx <= radius; dx++) {
+        if (Math.abs(dx) + Math.abs(dy) > radius) continue;
+        const x = cx + dx;
+        const y = cy + dy;
+        if (x < 0 || y < 0 || x >= MAP_W || y >= MAP_H) continue;
+        this.explored.add(x + y * MAP_W);
+      }
+    }
   }
 
   spawnGuideDog() {
@@ -1897,7 +1852,7 @@ export class GameScene extends Phaser.Scene {
     ui?.clear();
     this.clearDomBtnPulses();
     if (this.mode === 'combat') return;
-    if (this.bagOpen || this.craftOpen || this.menuOpen || this.legendOpen) return;
+    if (this.bagOpen || this.craftOpen || this.menuOpen || this.legendOpen || this.mapOpen) return;
 
     let target = null;
     if (this.guide && !this.guide.done) target = this.guide.resolveTarget();
@@ -2860,7 +2815,7 @@ export class GameScene extends Phaser.Scene {
       this.updateObjective();
       this.questPulseWorld?.clear();
       this.updateQuestPulse(dt);
-      this.minimap?.update?.();
+      this.cityMap?.update?.();
       return;
     }
 
@@ -2947,7 +2902,7 @@ export class GameScene extends Phaser.Scene {
     this.updateFow();
     this.updateObjective();
     this.updateQuestPulse(dt);
-    this.minimap?.update?.();
+    this.cityMap?.update?.();
     this.refreshHud();
   }
 
@@ -3456,6 +3411,9 @@ export class GameScene extends Phaser.Scene {
     const b = (((cam.worldView.y + cam.worldView.height) / TILE) | 0) + 1;
     const vis = this.playerVision();
     const reveal = this.guideRevealTile();
+    // Persist vision for city map (uncovered)
+    this.markExploredAround(this.player.tx, this.player.ty, vis);
+    if (reveal) this.markExploredAround(reveal.x, reveal.y, 2);
 
     for (let y = Math.max(0, t); y < Math.min(MAP_H, b); y++) {
       for (let x = Math.max(0, l); x < Math.min(MAP_W, r); x++) {

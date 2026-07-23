@@ -107,15 +107,16 @@ export const ZONE_META = {
     short: 'HOME',
     level: 0,
     enterable: false,
-    color: 0x38bdf8,
-    css: '#38bdf8',
-    danger: 0.12,
-    dens: 32,
+    // Neutral — not a “colored combat ring”; tutorial / get-around only
+    color: 0x94a3b8,
+    css: '#94a3b8',
+    danger: 0.08,
+    dens: 30,
     heatRate: 0,
-    ambush: 0.08,
+    ambush: 0.05,
     lootBonus: 0,
     tint: { c: 0x000000, a: 0 },
-    blurb: 'HQ courtyard. Safe-ish walls. Sleep free here.',
+    blurb: 'Tutorial yard. Learn to move, scavenge, craft, sleep. No ring combat.',
   },
   [ZONE.YELLOW]: {
     id: ZONE.YELLOW,
@@ -451,7 +452,8 @@ export const BLUEPRINTS = {
 
 export const ENEMY = {
   dog: { name: 'Grid Dog', hp: 8, atk: 3, speed: 1, nightOnly: true, color: 0x78716c, xp: 4 },
-  thug: { name: 'Gang Runner', hp: 12, atk: 3, speed: 1, color: 0xeab308, xp: 6 },
+  // Dusty olive — NOT zone yellow (zone yellow is ring branding only)
+  thug: { name: 'Gang Runner', hp: 12, atk: 3, speed: 1, color: 0x78716c, xp: 6 },
   enforcer: { name: 'Enforcer', hp: 20, atk: 5, speed: 1, color: 0xef4444, xp: 12 },
   drone: { name: 'Sec-Drone', hp: 10, atk: 4, speed: 1, ranged: true, range: 4, color: 0x38bdf8, xp: 10 },
 };
