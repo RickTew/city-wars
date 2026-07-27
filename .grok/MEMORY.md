@@ -18,6 +18,14 @@
 - `VISUAL-STYLE.md` — split-brain visual  
 - `src/systems/HqVoice.js` — CENTRAL + MISSION_FIVE  
 
+## Loadout (confirmed 2026-07-27)
+
+- **Street Stick** (`stick`) → WEAPON; **Neon Fedora** (`sexy_hat`) → HEAD  
+- Pickup puts them in bag; **tap bag chips** in EquipUI to equip  
+- GuideDirector uses equipped flags, not bag-only counts  
+
 ## Next session start
 
 Pixel prop path first: crate closed/open, Street Rig workbench, runner idle, dog — then wire on TILE=64 board + Style Lab. Keep CENTRAL voice when adding copy.
+
+**HEAD pin:** update AGENTS.md to real `git rev-parse --short HEAD` after each wrap commit.

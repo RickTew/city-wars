@@ -11,7 +11,7 @@
 | **Vercel project** | `ricktew/city-wars` · auto-deploys on push to `main` |
 
 **Version:** 3.12.0 (CENTRAL voice + five-item mission · city rings · map overlay)  
-**HEAD:** `1b8612e` on `main` · auto-deploys to Vercel  
+**HEAD:** `ce9d7b0` on `main` · auto-deploys to Vercel  
 
 **Workflow (user locked):** fix → **commit + push `main`** → **`npm run playtest`** (and `node scripts/deep-probe.mjs` after systems changes) → next item.  
 **Deploy:** test on **https://city-wars-rho.vercel.app** (not only localhost). Hard refresh after DOM/CSS.
@@ -33,9 +33,11 @@
 
 ```
 Continue City Wars in ~/Dev/City Wars per AGENTS.md + VISUAL-STYLE.md.
-HEAD 1b8612e. TILE=64. CENTRAL = sarcastic HQ AI; five-item recovery mission.
+HEAD ce9d7b0. TILE=64. CENTRAL = sarcastic HQ AI; five-item recovery mission.
 HOME = tutorial (no combat packs). Rings: YEL→ORG→GRN→BLU→RED.
 MAP chip opens paused FOW city map (not corner minimap).
+BAG / EquipUI: tap bag chips to equip (Street Stick → WEAPON, Neon Fedora → HEAD);
+guide waits for equipped flags, not bag-only.
 Priority: (A) pixel props 1:1 — crate / workbench / runner / dog
 (B) polish CENTRAL copy on more surfaces
 (C) optional smaller city size preset
@@ -139,22 +141,22 @@ Samples: dogs, howls, guns, explosions, screams, cyber only.
 
 ---
 
-## Session wrap (2026-07-23) — rings, map, CENTRAL
+## Session wrap (2026-07-27) — loadout equip clarify
 
-**Status:** Clean tree, pushed `main` @ `1b8612e`.
+**Status:** Clean tree before wrap; docs-only this session. Tip was `ce9d7b0` (handoff pin over `1b8612e` / `2c553ec` CENTRAL arc). No gameplay code changes.
 
-### Shipped this arc
+### This session
 
 | Area | What |
 |------|------|
-| Softlocks | Wall corridor to north escape; Breach walkable; guide dog save/load |
-| Rings | HOME + Y/O/G/B/R levels; per-ring spawn budgets |
-| Tiles | Center-line roads; flat sidewalks |
-| Enemies | Thugs recolored; HOME no combat packs |
-| Map | MAP overlay (FOW + zones + pins); no corner minimap |
-| Meta | Leaderboards + autosave + day/night = sun speed only |
-| Story | CENTRAL voice + five-item recovery mission |
-| Zoom | Default ~0.58 |
+| Play | Confirmed **Street Stick** + **Neon Fedora** appear in BAG after south/west hikes |
+| EquipUI | Items sit in bag until **tapped** — WEAPON / HEAD; not auto-equipped on pickup |
+| Guide | CENTRAL waits on `equippedStick` / `equippedHat` (equip flags), not bag-only |
+| Bug? | None reported — if chip tap leaves slots empty, chase `inv.equipItem` / DomUi hit targets |
+
+### Prior arc still shipped (unchanged)
+
+Softlocks · rings · tiles · MAP overlay · leaderboards/autosave · CENTRAL five-item mission · zoom ~0.58 · HOME no combat packs.
 
 ### Open next session
 
@@ -174,6 +176,7 @@ Samples: dogs, howls, guns, explosions, screams, cyber only.
 - Hard refresh after DOM/CSS/deploy  
 - Commit + push + playtest after major fixes  
 - Keep questions/options at **end** of replies  
+- BAG pickups ≠ equipped — guide needs tap-to-equip on stick/hat  
 
 ---
 
