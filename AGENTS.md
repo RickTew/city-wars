@@ -11,7 +11,7 @@
 | **Vercel project** | `ricktew/city-wars` · auto-deploys on push to `main` |
 
 **Version:** 3.12.0 (CENTRAL voice + five-item mission · city rings · map overlay)  
-**HEAD:** `ce9d7b0` on `main` · auto-deploys to Vercel  
+**HEAD:** `cce8e33` on `main` · auto-deploys to Vercel  
 
 **Workflow (user locked):** fix → **commit + push `main`** → **`npm run playtest`** (and `node scripts/deep-probe.mjs` after systems changes) → next item.  
 **Deploy:** test on **https://city-wars-rho.vercel.app** (not only localhost). Hard refresh after DOM/CSS.
@@ -33,7 +33,7 @@
 
 ```
 Continue City Wars in ~/Dev/City Wars per AGENTS.md + VISUAL-STYLE.md.
-HEAD ce9d7b0. TILE=64. CENTRAL = sarcastic HQ AI; five-item recovery mission.
+HEAD cce8e33. TILE=64. CENTRAL = sarcastic HQ AI; five-item recovery mission.
 HOME = tutorial (no combat packs). Rings: YEL→ORG→GRN→BLU→RED.
 MAP chip opens paused FOW city map (not corner minimap).
 BAG / EquipUI: tap bag chips to equip (Street Stick → WEAPON, Neon Fedora → HEAD);
@@ -143,7 +143,7 @@ Samples: dogs, howls, guns, explosions, screams, cyber only.
 
 ## Session wrap (2026-07-27) — loadout equip clarify
 
-**Status:** Clean tree before wrap; docs-only this session. Tip was `ce9d7b0` (handoff pin over `1b8612e` / `2c553ec` CENTRAL arc). No gameplay code changes.
+**Status:** Clean tree, pushed `main` @ `cce8e33`. Docs-only this session. Prior tip `ce9d7b0` over CENTRAL arc. No gameplay code changes.
 
 ### This session
 
